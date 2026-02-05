@@ -1,0 +1,106 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("POSTGRES_PRISMA_URL")
+  directUrl = env("POSTGRES_URL_NON_POOLED")
+}
+
+model User {
+  id            String    @id @default(cuid())
+  whopUserId    String    @unique
+  whopUsername  String
+  email         String    @unique
+  name          String?
+  avatarUrl     String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  creator       Creator?
+  subscriptions Subscription[]
+}
+
+model Creator {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  whopCompanyId   String?  @unique
+  whopProductId   String?  @unique   // ← This is the only new field
+  whopOnboarded   Boolean  @default(false)
+  
+  username        String   @unique
+  displayName     String
+  bio             String?
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  tiers           Tier[]
+  posts           Post[]
+  subscriptions   Subscription[]
+}
+
+model Tier {
+  id            String   @id @default(cuid())
+  creatorId     String
+  creator       Creator  @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  
+  whopPlanId    String?  @unique
+  
+  name          String
+  description   String?
+  priceInCents  Int
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  posts         Post[]   @relation("TierPosts")
+  subscriptions Subscription[]
+}
+
+model Post {
+  id            String   @id @default(cuid())
+  creatorId     String
+  creator       Creator  @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  
+  title         String
+  content       String
+  published     Boolean  @default(false)
+  
+  minimumTierId String?
+  minimumTier   Tier?    @relation("TierPosts", fields: [minimumTierId], references: [id])
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}
+
+model Subscription {
+  id                String             @id @default(cuid())
+  userId            String
+  user              User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  creatorId         String
+  creator           Creator            @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  
+  tierId            String
+  tier              Tier               @relation(fields: [tierId], references: [id], onDelete: Cascade)
+  
+  whopMembershipId  String?            @unique
+  status            SubscriptionStatus @default(ACTIVE)
+  
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+
+  @@unique([userId, creatorId])
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  CANCELING
+  CANCELED
+  PAST_DUE
+  EXPIRED
+}
