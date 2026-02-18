@@ -1,9 +1,9 @@
 # Patreon Clone with Whop Payments Network (WPN) - Part 3: Access & Growth
 
 > **This is Part 3 of a 3-part tutorial series.**
-> - **Part 1 (https://whop.com/blog/content/files/2026/02/patreon-clone-guide-part1.md)**: Foundation - Project setup, database, authentication, SDK setup, creator registration (Steps 1-5)
-> - **Part 2 (https://whop.com/blog/content/files/2026/02/patreon-clone-guide-part2.md)**: Monetization - Subscription tiers, content management, checkouts, webhooks (Steps 6-9)
-> - **Part 3 (this file, https://whop.com/blog/content/files/2026/02/patreon-clone-guide-part3.md)**: Access & Growth - Content gating, payouts, homepage, deployment (Steps 10-14)
+> - **Part 1 (https://raw.githubusercontent.com/whopio/whop-tutorials/refs/heads/main/patreon-clone/guides/patreon-clone-guide-part1.md)**: Foundation - Project setup, database, authentication, SDK setup, creator registration (Steps 1-5)
+> - **Part 2 (https://raw.githubusercontent.com/whopio/whop-tutorials/refs/heads/main/patreon-clone/guides/patreon-clone-guide-part2.md)**: Monetization - Subscription tiers, content management, checkouts, webhooks (Steps 6-9)
+> - **Part 3 (this file, https://raw.githubusercontent.com/whopio/whop-tutorials/refs/heads/main/patreon-clone/guides/patreon-clone-guide-part3.md)**: Access & Growth - Content gating, payouts, homepage, deployment (Steps 10-14)
 >
 > Each part builds on the previous. Complete them in order.
 
@@ -1216,5 +1216,6 @@ Congratulations! You've built a fully functional Patreon-style creator platform 
 - Creator payout portal integration
 - Homepage with creator discovery and pagination
 - Production deployment on Vercel
+
 
 The platform is now ready for real creators and subscribers. Happy building!
