@@ -1,0 +1,209 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// ──────────────────────────────────────────
+// Enums
+// ──────────────────────────────────────────
+
+enum UserRole {
+  USER
+  SELLER
+  ADMIN
+}
+
+enum BidStatus {
+  ACTIVE
+  MATCHED
+  CANCELLED
+  EXPIRED
+}
+
+enum AskStatus {
+  ACTIVE
+  MATCHED
+  CANCELLED
+  EXPIRED
+}
+
+enum TradeStatus {
+  MATCHED
+  PAYMENT_PENDING
+  PAID
+  SHIPPED
+  AUTHENTICATING
+  VERIFIED
+  DELIVERED
+  FAILED
+  REFUNDED
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCEEDED
+  FAILED
+  REFUNDED
+}
+
+enum NotificationType {
+  BID_MATCHED
+  ASK_MATCHED
+  TRADE_COMPLETED
+  ITEM_SHIPPED
+  ITEM_VERIFIED
+  ITEM_FAILED
+  PRICE_ALERT
+  SYSTEM
+}
+
+// ──────────────────────────────────────────
+// Models
+// ──────────────────────────────────────────
+
+model User {
+  id                 String   @id @default(cuid())
+  whopId             String   @unique
+  email              String
+  username           String
+  displayName        String?
+  avatarUrl          String?
+  role               UserRole @default(USER)
+  whopAccessToken    String?
+  whopRefreshToken   String?
+  connectedAccountId String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  bids          Bid[]
+  asks          Ask[]
+  buyerTrades   Trade[]        @relation("BuyerTrades")
+  sellerTrades  Trade[]        @relation("SellerTrades")
+  notifications Notification[]
+}
+
+model Product {
+  id          String    @id @default(cuid())
+  name        String
+  brand       String
+  sku         String    @unique
+  description String
+  images      String[]
+  category    String
+  retailPrice Float
+  releaseDate DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  sizes ProductSize[]
+}
+
+model ProductSize {
+  id            String   @id @default(cuid())
+  productId     String
+  size          String
+  lastSalePrice Float?
+  lowestAsk     Float?
+  highestBid    Float?
+  salesCount    Int      @default(0)
+  createdAt     DateTime @default(now())
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  bids    Bid[]
+  asks    Ask[]
+  trades  Trade[]
+
+  @@unique([productId, size])
+}
+
+model Bid {
+  id            String    @id @default(cuid())
+  userId        String
+  productSizeId String
+  price         Float
+  status        BidStatus @default(ACTIVE)
+  expiresAt     DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  productSize ProductSize @relation(fields: [productSizeId], references: [id], onDelete: Cascade)
+  trade       Trade?
+
+  @@index([productSizeId, status])
+}
+
+model Ask {
+  id            String    @id @default(cuid())
+  userId        String
+  productSizeId String
+  price         Float
+  status        AskStatus @default(ACTIVE)
+  expiresAt     DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  productSize ProductSize @relation(fields: [productSizeId], references: [id], onDelete: Cascade)
+  trade       Trade?
+
+  @@index([productSizeId, status])
+}
+
+model Trade {
+  id              String      @id @default(cuid())
+  buyerId         String
+  sellerId        String
+  productSizeId   String
+  bidId           String      @unique
+  askId           String      @unique
+  price           Float
+  platformFee     Float
+  chatChannelId   String?
+  status          TradeStatus @default(MATCHED)
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  buyer       User        @relation("BuyerTrades", fields: [buyerId], references: [id], onDelete: Cascade)
+  seller      User        @relation("SellerTrades", fields: [sellerId], references: [id], onDelete: Cascade)
+  productSize ProductSize @relation(fields: [productSizeId], references: [id], onDelete: Cascade)
+  bid         Bid         @relation(fields: [bidId], references: [id], onDelete: Cascade)
+  ask         Ask         @relation(fields: [askId], references: [id], onDelete: Cascade)
+  payment     Payment?
+
+  @@index([buyerId])
+  @@index([sellerId])
+}
+
+model Payment {
+  id              String        @id @default(cuid())
+  tradeId         String        @unique
+  whopPaymentId   String        @unique
+  amount          Float
+  platformFee     Float
+  status          PaymentStatus @default(PENDING)
+  idempotencyKey  String        @unique
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  trade Trade @relation(fields: [tradeId], references: [id], onDelete: Cascade)
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  type      NotificationType
+  title     String
+  message   String
+  read      Boolean          @default(false)
+  metadata  Json?
+  createdAt DateTime         @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, read])
+}
