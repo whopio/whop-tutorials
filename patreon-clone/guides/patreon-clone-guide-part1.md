@@ -1,9 +1,9 @@
 # Patreon Clone with Whop Payments Network (WPN)
 
 > **This tutorial is also available in 3 parts** for easier navigation:
-> - **Part 1 (this file, https://whop.com/blog/content/files/2026/02/patreon-clone-guide-part1.md)**: Foundation - Project setup, database, authentication, SDK setup, creator registration (Steps 1-5)
-> - **Part 2 (https://whop.com/blog/content/files/2026/02/patreon-clone-guide-part2.md)**: Monetization - Subscription tiers, content management, checkouts, webhooks (Steps 6-9)
-> - **Part 3 (https://whop.com/blog/content/files/2026/02/patreon-clone-guide-part3.md)**: Access & Growth - Content gating, payouts, homepage, deployment (Steps 10-14)
+> - **Part 1 (this file, https://raw.githubusercontent.com/whopio/whop-tutorials/refs/heads/main/patreon-clone/guides/patreon-clone-guide-part1.md)**: Foundation - Project setup, database, authentication, SDK setup, creator registration (Steps 1-5)
+> - **Part 2 (https://raw.githubusercontent.com/whopio/whop-tutorials/refs/heads/main/patreon-clone/guides/patreon-clone-guide-part2.md)**: Monetization - Subscription tiers, content management, checkouts, webhooks (Steps 6-9)
+> - **Part 3 (https://raw.githubusercontent.com/whopio/whop-tutorials/refs/heads/main/patreon-clone/guides/patreon-clone-guide-part3.md)**: Access & Growth - Content gating, payouts, homepage, deployment (Steps 10-14)
 >
 > Use the split files if this single file is too large for your context window. Each part includes context bridges to help maintain continuity.
 
