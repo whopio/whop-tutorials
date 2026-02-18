@@ -1,9 +1,9 @@
 # Patreon Clone with Whop Payments Network (WPN) - Part 2: Monetization
 
 > **This is Part 2 of a 3-part tutorial series.**
-> - **Part 1 (https://whop.com/blog/content/files/2026/02/patreon-clone-guide-part1.md)**: Foundation - Project setup, database, authentication, SDK setup, creator registration (Steps 1-5)
-> - **Part 2 (this file, https://whop.com/blog/content/files/2026/02/patreon-clone-guide-part2.md)**: Monetization - Subscription tiers, content management, checkouts, webhooks (Steps 6-9)
-> - **Part 3 (https://whop.com/blog/content/files/2026/02/patreon-clone-guide-part3.md)**: Access & Growth - Content gating, payouts, homepage, deployment (Steps 10-14)
+> - **Part 1 (https://raw.githubusercontent.com/whopio/whop-tutorials/refs/heads/main/patreon-clone/guides/patreon-clone-guide-part1.md)**: Foundation - Project setup, database, authentication, SDK setup, creator registration (Steps 1-5)
+> - **Part 2 (this file, https://raw.githubusercontent.com/whopio/whop-tutorials/refs/heads/main/patreon-clone/guides/patreon-clone-guide-part2.md)**: Monetization - Subscription tiers, content management, checkouts, webhooks (Steps 6-9)
+> - **Part 3 (https://raw.githubusercontent.com/whopio/whop-tutorials/refs/heads/main/patreon-clone/guides/patreon-clone-guide-part3.md)**: Access & Growth - Content gating, payouts, homepage, deployment (Steps 10-14)
 >
 > Each part builds on the previous. Complete them in order.
 
@@ -1194,4 +1194,5 @@ You now have a fully functional payment system:
 - Checkout flow that redirects to Whop's hosted payment page
 - Webhooks that create subscription records when payments succeed
 
-**Continue to Part 3 (https://whop.com/blog/content/files/2026/02/patreon-clone-guide-part3.md)** to complete the app: content gating, creator payouts, homepage with discovery, and production deployment.
+
+**Continue to Part 3 (https://raw.githubusercontent.com/whopio/whop-tutorials/refs/heads/main/patreon-clone/guides/patreon-clone-guide-part3.md)** to complete the app: content gating, creator payouts, homepage with discovery, and production deployment.
