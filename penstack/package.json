@@ -1,0 +1,48 @@
+{
+  "name": "penstack",
+  "version": "1.0.0",
+  "license": "MIT",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint",
+    "db:seed": "tsx prisma/seed.ts"
+  },
+  "dependencies": {
+    "@prisma/adapter-pg": "^7.4.1",
+    "@prisma/client": "^7.4.1",
+    "@tailwindcss/typography": "^0.5.19",
+    "@tiptap/core": "^3.20.0",
+    "@tiptap/extension-image": "^3.20.0",
+    "@tiptap/extension-link": "^3.20.0",
+    "@tiptap/extension-placeholder": "^3.20.0",
+    "@tiptap/extension-underline": "^3.20.0",
+    "@tiptap/pm": "^3.20.0",
+    "@tiptap/react": "^3.20.0",
+    "@tiptap/starter-kit": "^3.20.0",
+    "@uploadthing/react": "^7.3.3",
+    "@whop/embedded-components-react-js": "^0.0.12",
+    "@whop/embedded-components-vanilla-js": "^0.0.12",
+    "@whop/sdk": "^0.0.29",
+    "iron-session": "^8.0.4",
+    "lucide-react": "^0.575.0",
+    "next": "16.1.6",
+    "prisma": "^7.4.1",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "uploadthing": "^7.7.4",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "dotenv": "^17.3.1",
+    "eslint": "^9",
+    "eslint-config-next": "16.1.6",
+    "tailwindcss": "^4",
+    "typescript": "^5"
+  }
+}

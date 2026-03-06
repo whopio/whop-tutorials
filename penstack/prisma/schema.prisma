@@ -1,0 +1,193 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─── Enums ───────────────────────────────────────────────
+
+enum PublicationCategory {
+  TECHNOLOGY
+  BUSINESS
+  CULTURE
+  POLITICS
+  SCIENCE
+  HEALTH
+  FINANCE
+  SPORTS
+  FOOD
+  TRAVEL
+  MUSIC
+  ART
+  EDUCATION
+  OTHER
+}
+
+enum PostVisibility {
+  FREE
+  PAID
+  PREVIEW
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  PAST_DUE
+  CANCELLED
+  PAUSED
+  TRIALING
+}
+
+enum NotificationType {
+  NEW_POST
+  NEW_SUBSCRIBER
+  NEW_FOLLOWER
+  PAYMENT_RECEIVED
+  PAYMENT_FAILED
+}
+
+// ─── Models ──────────────────────────────────────────────
+
+model User {
+  id          String   @id @default(cuid())
+  whopUserId  String   @unique
+  email       String?
+  username    String?
+  displayName String?
+  avatarUrl   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  writer        Writer?
+  subscriptions Subscription[]
+  follows       Follow[]
+  likes         Like[]
+  notifications Notification[]
+}
+
+model Writer {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Publication info
+  handle    String              @unique // URL slug — /[writer]
+  name      String // Publication name
+  bio       String?
+  avatarUrl String?
+  bannerUrl String?
+  category  PublicationCategory @default(OTHER)
+
+  // Whop integration
+  whopCompanyId     String? // Connected account company
+  whopProductId     String? // Product for subscriptions
+  whopPlanId        String? // Plan (single tier)
+  whopChatChannelId String? // Embedded chat channel
+
+  // Monetization
+  kycCompleted        Boolean @default(false)
+  monthlyPriceInCents Int?
+  chatPublic          Boolean @default(true) // false = subscriber-only chat
+
+  posts         Post[]
+  subscriptions Subscription[]
+  followers     Follow[]
+
+  @@index([handle])
+  @@index([category])
+}
+
+model Post {
+  id        String   @id @default(cuid())
+  writerId  String
+  writer    Writer   @relation(fields: [writerId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  slug          String
+  title         String
+  subtitle      String?
+  coverImageUrl String?
+  content       Json // Tiptap ProseMirror JSON document
+  visibility    PostVisibility @default(FREE)
+  paywallIndex  Int? // Node index for PREVIEW — server slices here
+
+  published   Boolean   @default(false)
+  publishedAt DateTime?
+  viewCount   Int       @default(0)
+
+  likes Like[]
+
+  @@unique([writerId, slug])
+  @@index([writerId, published, publishedAt])
+  @@index([published, publishedAt])
+  @@index([visibility])
+}
+
+model Subscription {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  writerId  String
+  writer    Writer   @relation(fields: [writerId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  status             SubscriptionStatus @default(ACTIVE)
+  whopMembershipId   String?            @unique
+  currentPeriodEnd   DateTime?
+  cancelledAt        DateTime?
+  lastWebhookEventId String?
+
+  @@unique([userId, writerId])
+  @@index([writerId, status])
+}
+
+model Follow {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  writerId  String
+  writer    Writer   @relation(fields: [writerId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, writerId])
+  @@index([writerId])
+}
+
+model Like {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  postId    String
+  post      Post     @relation(fields: [postId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, postId])
+  @@index([postId])
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      NotificationType
+  title     String
+  message   String
+  postId    String?
+  writerId  String?
+  read      Boolean          @default(false)
+  createdAt DateTime         @default(now())
+
+  @@index([userId, read, createdAt])
+}
+
+model WebhookEvent {
+  id          String   @id // Whop event ID — used for idempotency
+  eventType   String
+  processedAt DateTime @default(now())
+}

@@ -1,0 +1,75 @@
+@import "tailwindcss";
+@plugin "@tailwindcss/typography";
+
+@theme {
+  --color-brand-50: #fdf4f3;
+  --color-brand-100: #fce8e4;
+  --color-brand-200: #fad4ce;
+  --color-brand-300: #f5b5ab;
+  --color-brand-400: #ed8b7a;
+  --color-brand-500: #e06450;
+  --color-brand-600: #cc4a34;
+  --color-brand-700: #ab3b27;
+  --color-brand-800: #8d3424;
+  --color-brand-900: #763024;
+  --color-brand-950: #40150e;
+
+  --font-serif: Georgia, Cambria, "Times New Roman", serif;
+}
+
+@layer base {
+  body {
+    @apply bg-white text-gray-900 antialiased;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+      Oxygen-Sans, Ubuntu, Cantarell, "Helvetica Neue", sans-serif;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    @apply font-serif;
+  }
+}
+
+@layer components {
+  .btn-primary {
+    @apply inline-flex items-center justify-center rounded-full bg-brand-600 px-6 py-2.5 text-sm font-medium text-white transition-colors hover:bg-brand-700 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .btn-secondary {
+    @apply inline-flex items-center justify-center rounded-full border border-gray-300 bg-white px-6 py-2.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+
+  .btn-ghost {
+    @apply inline-flex items-center justify-center rounded-lg px-3 py-2 text-sm font-medium text-gray-600 transition-colors hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:ring-offset-2;
+  }
+
+  .input {
+    @apply block w-full rounded-lg border border-gray-300 bg-white px-4 py-2.5 text-sm text-gray-900 placeholder-gray-400 transition-colors focus:border-brand-500 focus:outline-none focus:ring-1 focus:ring-brand-500;
+  }
+
+  .card {
+    @apply rounded-xl border border-gray-200 bg-white p-6 shadow-sm;
+  }
+}
+
+/* Tiptap editor styles */
+.tiptap {
+  @apply prose prose-lg max-w-none focus:outline-none;
+}
+
+.tiptap p.is-editor-empty:first-child::before {
+  @apply text-gray-400 pointer-events-none float-left h-0;
+  content: attr(data-placeholder);
+}
+
+/* Paywall break node in editor */
+.paywall-break {
+  @apply my-8 flex items-center gap-4 rounded-lg border-2 border-dashed border-amber-400 bg-amber-50 p-4 text-sm text-amber-800;
+}
+
+.paywall-break::before {
+  content: "\1F512";
+  @apply text-2xl;
+}
