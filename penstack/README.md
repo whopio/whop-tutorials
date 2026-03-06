@@ -71,9 +71,13 @@ npx prisma db push
 
 ### 5. (Optional) Seed demo data
 
+To populate the app with demo writers and posts:
+
 ```bash
 npm run db:seed
 ```
+
+To enable real Whop checkout for seeded writers, set `SEED_EMAIL` in your `.env` to a real email address. The seed script will create Whop sandbox companies for each demo writer. Without it, seeded writers use the demo subscribe fallback.
 
 ### 6. Run the development server
 

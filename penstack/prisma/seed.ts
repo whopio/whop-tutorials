@@ -1,8 +1,50 @@
+import "dotenv/config";
 import { PrismaClient, PublicationCategory, PostVisibility } from "../src/generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
+import Whop from "@whop/sdk";
 
 const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
 const prisma = new PrismaClient({ adapter });
+
+// Initialize Whop SDK for creating sandbox companies
+function getWhopClient(): Whop | null {
+  const { WHOP_APP_ID, WHOP_API_KEY, WHOP_WEBHOOK_SECRET, WHOP_SANDBOX } = process.env;
+  if (!WHOP_APP_ID || !WHOP_API_KEY || !WHOP_WEBHOOK_SECRET) {
+    console.log("  ⚠ Whop credentials not found — seeding without company IDs (demo subscribe only)");
+    return null;
+  }
+  return new Whop({
+    appID: WHOP_APP_ID,
+    apiKey: WHOP_API_KEY,
+    webhookKey: btoa(WHOP_WEBHOOK_SECRET),
+    ...(WHOP_SANDBOX === "true" && {
+      baseURL: "https://sandbox-api.whop.com/api/v1",
+    }),
+  });
+}
+
+async function createWhopCompany(
+  whopClient: Whop | null,
+  writerName: string,
+): Promise<string | null> {
+  if (!whopClient) return null;
+  const seedEmail = process.env.SEED_EMAIL;
+  if (!seedEmail) {
+    console.log("  ⚠ SEED_EMAIL not set — skipping Whop company creation");
+    return null;
+  }
+  try {
+    const company = await whopClient.companies.create({
+      title: writerName,
+      parent_company_id: process.env.WHOP_COMPANY_ID!,
+      email: seedEmail,
+    });
+    return company.id;
+  } catch (err) {
+    console.log(`  ⚠ Failed to create Whop company for "${writerName}": ${err instanceof Error ? err.message : err}`);
+    return null;
+  }
+}
 
 // ── Tiptap content helpers ───────────────────────────────
 
@@ -77,7 +119,7 @@ const DEMO_WRITERS = [
     name: "Broke the Build",
     bio: "Software opinions from someone who has shipped too many bad deploys to be polite about it.",
     category: "TECHNOLOGY" as PublicationCategory,
-    email: "nora@demo.penstack.dev",
+    email: "nora@example.com",
     displayName: "Nora Trent",
     posts: [
       // TECH POST 1 — Opinion/hot take — ~700 words — FREE
@@ -183,7 +225,7 @@ const DEMO_WRITERS = [
     name: "The Long Take",
     bio: "Trying to figure out what the culture is doing and why, one overly long essay at a time.",
     category: "CULTURE" as PublicationCategory,
-    email: "rowan@demo.penstack.dev",
+    email: "rowan@example.com",
     displayName: "Rowan Achebe",
     posts: [
       // CULTURE POST 1 — Essayistic think-piece — ~1,100 words — FREE
@@ -267,7 +309,7 @@ const DEMO_WRITERS = [
     name: "Raw Material",
     bio: "Art seen up close. What it looks like, what it does, why it sticks with you or doesn't.",
     category: "ART" as PublicationCategory,
-    email: "tomás@demo.penstack.dev",
+    email: "tomas@example.com",
     displayName: "Tomás Vega",
     posts: [
       // ART POST 1 — Gallery review/personal essay — ~1,000 words — FREE
@@ -320,7 +362,7 @@ const DEMO_WRITERS = [
     name: "Off the Route",
     bio: "Travel writing about the parts they leave out of the guidebook. Mostly the weird parts.",
     category: "TRAVEL" as PublicationCategory,
-    email: "mika@demo.penstack.dev",
+    email: "mika@example.com",
     displayName: "Mika Sørensen",
     posts: [
       // TRAVEL POST 1 — Observational essay — ~1,000 words — FREE
@@ -383,11 +425,22 @@ const DEMO_WRITERS = [
 // ── Main seed function ───────────────────────────────────
 
 async function main() {
+  console.log("Cleaning up previous demo data...");
+
+  // Delete demo users and their cascading data (writers, posts, follows, likes, etc.)
+  await prisma.user.deleteMany({
+    where: { whopUserId: { startsWith: "demo_" } },
+  });
+
   console.log("Seeding demo data...\n");
 
+  const whopClient = getWhopClient();
   const createdUsers: { id: string; writerId: string }[] = [];
 
   for (const writerData of DEMO_WRITERS) {
+    // Create a Whop company so this writer gets real checkout
+    const whopCompanyId = await createWhopCompany(whopClient, writerData.name);
+
     // Create user
     const user = await prisma.user.create({
       data: {
@@ -407,6 +460,7 @@ async function main() {
         name: writerData.name,
         bio: writerData.bio,
         category: writerData.category,
+        whopCompanyId,
         kycCompleted: true,
         monthlyPriceInCents: 500 + Math.floor(Math.random() * 1500),
         chatPublic: Math.random() > 0.3,
@@ -440,7 +494,7 @@ async function main() {
       });
     }
 
-    console.log(`  Created writer: ${writerData.name} (@${writerData.handle})`);
+    console.log(`  Created writer: ${writerData.name} (@${writerData.handle})${whopCompanyId ? ` — Whop company: ${whopCompanyId}` : " — demo mode (no Whop company)"}`);
   }
 
   // Create cross-follows and likes
