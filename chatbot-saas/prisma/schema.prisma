@@ -1,0 +1,117 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id          String   @id @default(cuid())
+  whopUserId  String   @unique
+  email       String?
+  name        String?
+  avatarUrl   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  membership    Membership?
+  bots          Bot[]
+  conversations Conversation[]
+}
+
+model Plan {
+  id              String   @id @default(cuid())
+  name            String
+  price           Int      // cents per month
+  whopProductId   String   @unique
+  whopPlanId      String   @unique
+  checkoutUrl     String
+  allowCustomBots Boolean  @default(false)
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  bots        Bot[]
+  memberships Membership[]
+}
+
+enum MembershipStatus {
+  ACTIVE
+  CANCELLED
+  PAST_DUE
+}
+
+model Membership {
+  id                 String           @id @default(cuid())
+  userId             String           @unique
+  user               User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  planId             String?
+  plan               Plan?            @relation(fields: [planId], references: [id])
+  whopMembershipId   String?          @unique
+  status             MembershipStatus @default(ACTIVE)
+  periodStart        DateTime?
+  periodEnd          DateTime?
+  lastWebhookEventId String?
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+}
+
+enum BotType {
+  SYSTEM
+  USER
+  MODEL
+}
+
+model Bot {
+  id           String   @id @default(cuid())
+  name         String
+  description  String
+  avatarUrl    String?
+  systemPrompt String
+  knowledge    String?
+  model        String?
+  type         BotType  @default(SYSTEM)
+  planId       String?
+  plan         Plan?    @relation(fields: [planId], references: [id])
+  createdById  String?
+  createdBy    User?    @relation(fields: [createdById], references: [id], onDelete: Cascade)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  conversations Conversation[]
+}
+
+model Conversation {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  botId     String
+  bot       Bot      @relation(fields: [botId], references: [id], onDelete: Cascade)
+  title     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  messages Message[]
+}
+
+enum Role {
+  USER
+  ASSISTANT
+}
+
+model Message {
+  id             String       @id @default(cuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  role           Role
+  content        String
+  tokenCount     Int          @default(0)
+  createdAt      DateTime     @default(now())
+}
+
+model WebhookEvent {
+  id        String   @id
+  createdAt DateTime @default(now())
+}
