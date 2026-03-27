@@ -1,0 +1,151 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Category {
+  DEVELOPMENT
+  BUSINESS
+  DESIGN
+  MARKETING
+  PHOTOGRAPHY
+  MUSIC
+  HEALTH
+  LIFESTYLE
+}
+
+enum CourseStatus {
+  DRAFT
+  PUBLISHED
+}
+
+model User {
+  id         String   @id @default(cuid())
+  whopUserId String   @unique
+  email      String?
+  name       String?
+  avatarUrl  String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  creatorProfile CreatorProfile?
+  enrollments    Enrollment[]
+  progress       Progress[]
+  reviews        Review[]
+}
+
+model CreatorProfile {
+  id            String  @id @default(cuid())
+  userId        String  @unique
+  user          User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  headline      String?
+  bio           String?
+  whopCompanyId String  @unique
+  kycComplete   Boolean @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  courses Course[]
+}
+
+model Course {
+  id              String       @id @default(cuid())
+  title           String
+  slug            String       @unique
+  description     String
+  price           Int
+  thumbnailUrl    String?
+  category        Category
+  status          CourseStatus @default(DRAFT)
+  creatorId       String
+  creator         CreatorProfile @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  whopProductId   String?
+  whopPlanId      String?
+  whopCheckoutUrl String?
+  whopExperienceId  String?
+  whopChatChannelId String?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  sections    Section[]
+  enrollments Enrollment[]
+  reviews     Review[]
+}
+
+model Section {
+  id       String @id @default(cuid())
+  title    String
+  order    Int
+  courseId  String
+  course   Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  lessons Lesson[]
+
+  @@unique([courseId, order])
+}
+
+model Lesson {
+  id            String  @id @default(cuid())
+  title         String
+  order         Int
+  isFree        Boolean @default(false)
+  sectionId     String
+  section       Section @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  muxAssetId    String? @unique
+  muxPlaybackId String?
+  muxUploadId   String?
+  duration      Int?
+  videoReady    Boolean @default(false)
+
+  progress Progress[]
+
+  @@unique([sectionId, order])
+}
+
+model Enrollment {
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  courseId       String
+  course        Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  whopPaymentId String?
+  createdAt     DateTime @default(now())
+
+  @@unique([userId, courseId])
+}
+
+model Progress {
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lessonId    String
+  lesson      Lesson    @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  completed   Boolean   @default(false)
+  completedAt DateTime?
+
+  @@unique([userId, lessonId])
+}
+
+model Review {
+  id       String   @id @default(cuid())
+  userId   String
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  courseId  String
+  course   Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  rating   Int
+  comment  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, courseId])
+}
+
+model WebhookEvent {
+  id          String   @id
+  source      String
+  processedAt DateTime @default(now())
+}
