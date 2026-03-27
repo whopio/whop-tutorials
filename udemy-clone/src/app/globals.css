@@ -1,0 +1,44 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --color-background: #0A0A0F;
+  --color-surface: #13131A;
+  --color-surface-elevated: #1C1C26;
+  --color-border: #2A2A3C;
+  --color-text-primary: #F0F0F5;
+  --color-text-secondary: #8A8A9A;
+  --color-accent: #14B8A6;
+  --color-accent-hover: #0D9488;
+  --color-success: #34D399;
+  --color-warning: #FBBF24;
+  --color-error: #F87171;
+
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+}
+
+body {
+  background-color: var(--color-background);
+  color: var(--color-text-primary);
+}
+
+::selection {
+  background-color: var(--color-accent);
+  color: white;
+}
+
+/* Coursera-inspired base refinements */
+* {
+  transition-property: color, background-color, border-color, box-shadow, opacity, transform;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
+}
+
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--color-background), 0 0 0 4px var(--color-accent);
+}
