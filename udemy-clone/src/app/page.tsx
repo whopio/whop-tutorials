@@ -177,21 +177,18 @@ export default async function HomePage() {
         )}
 
         {/* Features */}
-        <section className="max-w-6xl mx-auto px-8 py-16">
-          <h2 className="text-2xl font-bold tracking-tight mb-8">Why Courstar</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+        <section className="max-w-6xl mx-auto px-8 py-16 border-t border-[var(--color-border)]">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-10">
             {[
               { icon: BookOpen, title: "Expert Courses", desc: "Structured video lessons from industry professionals" },
               { icon: DollarSign, title: "Fair Revenue", desc: "Instructors keep 80% of every sale" },
               { icon: Users, title: "Growing Community", desc: "Join thousands of students and instructors" },
               { icon: GraduationCap, title: "Track Progress", desc: "Pick up where you left off, every time" },
             ].map((item) => (
-              <div key={item.title} className="p-7 rounded-lg bg-[var(--color-surface)] border border-[var(--color-border)] hover:bg-[var(--color-surface-elevated)]">
-                <div className="w-12 h-12 rounded-lg bg-[var(--color-accent)]/10 flex items-center justify-center mb-5">
-                  <item.icon className="w-6 h-6 text-[var(--color-accent)]" />
-                </div>
-                <h3 className="font-semibold text-lg mb-2">{item.title}</h3>
-                <p className="text-sm text-[var(--color-text-secondary)] leading-relaxed">{item.desc}</p>
+              <div key={item.title} className="text-center">
+                <item.icon className="w-6 h-6 text-[var(--color-accent)] mx-auto mb-3" />
+                <h3 className="font-semibold text-sm mb-1">{item.title}</h3>
+                <p className="text-xs text-[var(--color-text-secondary)] leading-relaxed">{item.desc}</p>
               </div>
             ))}
           </div>
