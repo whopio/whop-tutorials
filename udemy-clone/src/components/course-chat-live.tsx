@@ -15,14 +15,13 @@ const elementsPromise = loadWhopElements({
   },
 });
 
-async function getToken(): Promise<string> {
-  const res = await fetch("/api/token");
-  if (!res.ok) throw new Error("Token fetch failed");
-  const data = await res.json();
-  return data.token;
-}
-
-export function CourseChatLive({ channelId }: { channelId: string }) {
+export function CourseChatLive({ channelId, companyId }: { channelId: string; companyId: string }) {
+  const getToken = async (): Promise<string> => {
+    const res = await fetch(`/api/token?companyId=${encodeURIComponent(companyId)}`);
+    if (!res.ok) throw new Error("Token fetch failed");
+    const data = await res.json();
+    return data.token;
+  };
   const [ready, setReady] = useState(false);
   const [timedOut, setTimedOut] = useState(false);
 

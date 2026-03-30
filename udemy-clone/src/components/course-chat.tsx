@@ -5,6 +5,7 @@ import { MessageCircle, Lock } from "lucide-react";
 
 interface CourseChatProps {
   channelId: string | null;
+  companyId: string;
   isEnrolled: boolean;
 }
 
@@ -71,8 +72,8 @@ const ChatLive = dynamic(
   }
 );
 
-export function CourseChat({ channelId, isEnrolled }: CourseChatProps) {
+export function CourseChat({ channelId, companyId, isEnrolled }: CourseChatProps) {
   if (!channelId) return null;
   if (!isEnrolled) return <ChatBlurredMock />;
-  return <ChatLive channelId={channelId} />;
+  return <ChatLive channelId={channelId} companyId={companyId} />;
 }

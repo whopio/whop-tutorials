@@ -233,6 +233,7 @@ export default async function CourseDetailPage({
           </div>
           <CourseChat
             channelId={course.whopChatChannelId}
+            companyId={course.creator.whopCompanyId}
             isEnrolled={isEnrolled || isCreator}
           />
         </div>
