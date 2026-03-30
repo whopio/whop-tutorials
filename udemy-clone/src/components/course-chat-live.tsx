@@ -15,9 +15,9 @@ const elementsPromise = loadWhopElements({
   },
 });
 
-export function CourseChatLive({ channelId, companyId }: { channelId: string; companyId: string }) {
+export function CourseChatLive({ channelId }: { channelId: string }) {
   const getToken = async (): Promise<string> => {
-    const res = await fetch(`/api/token?companyId=${encodeURIComponent(companyId)}`);
+    const res = await fetch("/api/token");
     if (!res.ok) throw new Error("Token fetch failed");
     const data = await res.json();
     return data.token;

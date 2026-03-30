@@ -116,7 +116,6 @@ export default async function LessonPage({
         {isEnrolled && course.whopChatChannelId && (
           <ChatToggle
             channelId={course.whopChatChannelId}
-            companyId={course.creator.whopCompanyId}
           />
         )}
       </div>

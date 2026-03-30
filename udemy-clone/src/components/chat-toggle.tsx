@@ -18,10 +18,8 @@ const ChatLive = dynamic(
 
 export function ChatToggle({
   channelId,
-  companyId,
 }: {
   channelId: string;
-  companyId: string;
 }) {
   const [open, setOpen] = useState(false);
 
@@ -39,7 +37,7 @@ export function ChatToggle({
       </button>
       {open && (
         <div className="px-8 pb-6">
-          <ChatLive channelId={channelId} companyId={companyId} />
+          <ChatLive channelId={channelId} />
         </div>
       )}
     </div>
