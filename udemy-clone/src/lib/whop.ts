@@ -37,7 +37,7 @@ export const WHOP_OAUTH = {
   get clientSecret() {
     return process.env.WHOP_CLIENT_SECRET!;
   },
-  scopes: ["openid", "profile", "email", "chat:message:create", "chat:read"],
+  scopes: ["openid", "profile", "email"],
   get redirectUri() {
     return `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/callback`;
   },

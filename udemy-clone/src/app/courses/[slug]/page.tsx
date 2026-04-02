@@ -4,7 +4,6 @@ import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth";
 import { formatPrice, formatDuration } from "@/lib/utils";
 import { Star, Clock, Play, Lock, Users, BookOpen } from "lucide-react";
-import { CourseChat } from "@/components/course-chat";
 import { ReviewForm } from "@/components/review-form";
 import type { Metadata } from "next";
 
@@ -231,11 +230,6 @@ export default async function CourseDetailPage({
               </div>
             </div>
           </div>
-          <CourseChat
-            channelId={course.whopChatChannelId}
-            isEnrolled={isEnrolled || isCreator}
-          />
-        </div>
       </div>
     </div>
   );

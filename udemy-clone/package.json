@@ -14,8 +14,6 @@
     "@mux/mux-uploader-react": "^1.4.1",
     "@prisma/adapter-pg": "^7.5.0",
     "@prisma/client": "^7.5.0",
-    "@whop/embedded-components-react-js": "^0.0.13-beta.10",
-    "@whop/embedded-components-vanilla-js": "^0.0.13-beta.10",
     "@whop/sdk": "^0.0.35",
     "clsx": "^2.1.1",
     "iron-session": "^8.0.4",

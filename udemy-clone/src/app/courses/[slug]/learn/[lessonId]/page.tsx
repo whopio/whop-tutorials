@@ -6,7 +6,6 @@ import { formatDuration } from "@/lib/utils";
 import { CheckCircle, Circle, ChevronLeft, ChevronRight } from "lucide-react";
 import { VideoPlayer } from "@/components/video-player";
 import { MarkCompleteButton } from "@/components/mark-complete-button";
-import { ChatToggle } from "@/components/chat-toggle";
 
 export default async function LessonPage({
   params,
@@ -113,12 +112,6 @@ export default async function LessonPage({
           </div>
         </div>
 
-        {isEnrolled && course.whopChatChannelId && (
-          <ChatToggle
-            channelId={course.whopChatChannelId}
-          />
-        )}
-      </div>
 
       <aside className="w-full lg:w-80 flex-shrink-0 border-l border-[var(--color-border)] bg-[var(--color-surface)] overflow-y-auto">
         <div className="p-5 border-b border-[var(--color-border)]">
