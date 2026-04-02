@@ -11,6 +11,7 @@
   --color-text-secondary: #8A8A9A;
   --color-accent: #14B8A6;
   --color-accent-hover: #0D9488;
+  --color-accent-active: #14B8A6;
   --color-success: #34D399;
   --color-warning: #FBBF24;
   --color-error: #F87171;
@@ -53,6 +54,7 @@ textarea:focus-visible {
   --color-text-secondary: #6B7280;
   --color-accent: #14B8A6;
   --color-accent-hover: #0D9488;
+  --color-accent-active: #0F766E;
   --color-success: #059669;
   --color-warning: #D97706;
   --color-error: #DC2626;

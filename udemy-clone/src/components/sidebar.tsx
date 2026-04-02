@@ -135,7 +135,7 @@ export function Sidebar({
                       onClick={() => setMobileOpen(false)}
                       className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
                         active
-                          ? "bg-[var(--color-accent)]/10 text-[var(--color-accent)] font-medium"
+                          ? "bg-[var(--color-accent)]/15 text-[var(--color-accent-active)] font-medium"
                           : "text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-surface-elevated)]"
                       }`}
                     >
@@ -183,7 +183,7 @@ export function Sidebar({
             onClick={() => setMobileOpen(false)}
             className={`flex items-center gap-3 px-3 py-2 rounded-lg text-sm transition-colors ${
               pathname === "/sign-in"
-                ? "bg-[var(--color-accent)]/10 text-[var(--color-accent)] font-medium"
+                ? "bg-[var(--color-accent)]/15 text-[var(--color-accent-active)] font-medium"
                 : "text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-surface-elevated)]"
             }`}
           >
