@@ -4,6 +4,10 @@ import { formatPrice } from "@/lib/utils";
 import {
   BookOpen, DollarSign, Users, GraduationCap, Star, ArrowRight,
   Code, Briefcase, Palette, Megaphone, Camera, Music, Heart, Sparkles,
+  Database, Brain, Shield, Cloud, Smartphone, Gamepad2, TrendingUp,
+  Rocket, ClipboardList, Target, PenTool, Video, Clapperboard,
+  Building2, Wrench, FlaskConical, Calculator, Languages, CookingPot,
+  Dumbbell, Baby, School,
 } from "lucide-react";
 
 const CATEGORY_META: Record<string, { icon: typeof Code; label: string }> = {
@@ -15,6 +19,28 @@ const CATEGORY_META: Record<string, { icon: typeof Code; label: string }> = {
   MUSIC: { icon: Music, label: "Music" },
   HEALTH: { icon: Heart, label: "Health" },
   LIFESTYLE: { icon: Sparkles, label: "Lifestyle" },
+  DATA_SCIENCE: { icon: Database, label: "Data Science" },
+  ARTIFICIAL_INTELLIGENCE: { icon: Brain, label: "Artificial Intelligence" },
+  CYBERSECURITY: { icon: Shield, label: "Cybersecurity" },
+  CLOUD_COMPUTING: { icon: Cloud, label: "Cloud Computing" },
+  MOBILE_DEVELOPMENT: { icon: Smartphone, label: "Mobile Development" },
+  GAME_DEVELOPMENT: { icon: Gamepad2, label: "Game Development" },
+  FINANCE: { icon: TrendingUp, label: "Finance" },
+  ENTREPRENEURSHIP: { icon: Rocket, label: "Entrepreneurship" },
+  PROJECT_MANAGEMENT: { icon: ClipboardList, label: "Project Management" },
+  PERSONAL_DEVELOPMENT: { icon: Target, label: "Personal Development" },
+  WRITING: { icon: PenTool, label: "Writing" },
+  VIDEO_PRODUCTION: { icon: Video, label: "Video Production" },
+  ANIMATION: { icon: Clapperboard, label: "Animation" },
+  ARCHITECTURE: { icon: Building2, label: "Architecture" },
+  ENGINEERING: { icon: Wrench, label: "Engineering" },
+  SCIENCE: { icon: FlaskConical, label: "Science" },
+  MATHEMATICS: { icon: Calculator, label: "Mathematics" },
+  LANGUAGE: { icon: Languages, label: "Language" },
+  COOKING: { icon: CookingPot, label: "Cooking" },
+  FITNESS: { icon: Dumbbell, label: "Fitness" },
+  PARENTING: { icon: Baby, label: "Parenting" },
+  TEACHING: { icon: School, label: "Teaching" },
 };
 
 export default async function HomePage() {

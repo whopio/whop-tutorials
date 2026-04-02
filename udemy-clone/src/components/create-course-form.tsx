@@ -6,6 +6,12 @@ import { useRouter } from "next/navigation";
 const CATEGORIES = [
   "DEVELOPMENT", "BUSINESS", "DESIGN", "MARKETING",
   "PHOTOGRAPHY", "MUSIC", "HEALTH", "LIFESTYLE",
+  "DATA_SCIENCE", "ARTIFICIAL_INTELLIGENCE", "CYBERSECURITY", "CLOUD_COMPUTING",
+  "MOBILE_DEVELOPMENT", "GAME_DEVELOPMENT", "FINANCE", "ENTREPRENEURSHIP",
+  "PROJECT_MANAGEMENT", "PERSONAL_DEVELOPMENT", "WRITING", "VIDEO_PRODUCTION",
+  "ANIMATION", "ARCHITECTURE", "ENGINEERING", "SCIENCE",
+  "MATHEMATICS", "LANGUAGE", "COOKING", "FITNESS",
+  "PARENTING", "TEACHING",
 ];
 
 export function CreateCourseForm() {
@@ -106,7 +112,7 @@ export function CreateCourseForm() {
           >
             <option value="">Select...</option>
             {CATEGORIES.map((c) => (
-              <option key={c} value={c}>{c.charAt(0) + c.slice(1).toLowerCase()}</option>
+              <option key={c} value={c}>{c.split("_").map(w => w.charAt(0) + w.slice(1).toLowerCase()).join(" ")}</option>
             ))}
           </select>
         </div>

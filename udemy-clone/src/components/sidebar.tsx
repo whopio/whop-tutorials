@@ -14,7 +14,10 @@ import {
   LogOut,
   Menu,
   X,
+  Sun,
+  Moon,
 } from "lucide-react";
+import { useTheme } from "next-themes";
 
 interface SidebarUser {
   id: string;
@@ -43,6 +46,7 @@ export function Sidebar({
 }) {
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const { resolvedTheme, setTheme } = useTheme();
 
   const sections: NavSection[] = [
     {
@@ -187,6 +191,17 @@ export function Sidebar({
             <span>Sign In</span>
           </Link>
         )}
+        <button
+          onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
+          className="flex items-center gap-3 px-3 py-2 mt-0.5 w-full rounded-lg text-sm text-[var(--color-text-secondary)] hover:text-[var(--color-text-primary)] hover:bg-[var(--color-surface-elevated)] transition-colors"
+        >
+          {resolvedTheme === "dark" ? (
+            <Sun className="w-5 h-5" />
+          ) : (
+            <Moon className="w-5 h-5" />
+          )}
+          <span>{resolvedTheme === "dark" ? "Light Mode" : "Dark Mode"}</span>
+        </button>
       </div>
     </>
   );
