@@ -62,11 +62,16 @@ export default async function HomePage() {
   ]);
 
   // Get categories with course counts
-  const categoryCounts = await prisma.course.groupBy({
+  const rawCounts = await prisma.course.groupBy({
     by: ["category"],
     where: { status: "PUBLISHED" },
     _count: true,
   });
+  const countMap = Object.fromEntries(rawCounts.map(({ category, _count }) => [category, _count]));
+  const allCategories = Object.keys(CATEGORY_META).map((cat) => ({
+    category: cat,
+    _count: countMap[cat] || 0,
+  }));
 
   return (
     <div className="min-h-full bg-[var(--color-background)]">
@@ -177,11 +182,11 @@ export default async function HomePage() {
         )}
 
         {/* Categories */}
-        {categoryCounts.length > 0 && (
+        {allCategories.length > 0 && (
           <section className="max-w-6xl mx-auto px-8 py-16">
             <h2 className="text-2xl font-bold tracking-tight mb-8">Browse by Category</h2>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-              {categoryCounts.map(({ category, _count }) => {
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+              {allCategories.map(({ category, _count }) => {
                 const meta = CATEGORY_META[category] || { icon: BookOpen, label: category };
                 const Icon = meta.icon;
                 return (
