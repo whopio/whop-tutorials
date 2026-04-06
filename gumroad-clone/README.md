@@ -121,7 +121,6 @@ gumroad-clone/
 │   ├── components/                # Product card, like button, cookie rating, navbar
 │   ├── constants/                 # Product categories
 │   └── lib/                       # Auth, prisma, session, whop, env, utils
-├── guides/                        # Step-by-step tutorial (6 parts)
 └── prisma.config.ts               # Prisma CLI configuration
 ```
 
