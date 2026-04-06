@@ -4,7 +4,7 @@ import { requireSeller } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { formatPrice } from "@/lib/utils";
 import { env } from "@/lib/env";
-import { ProfileEditor } from "./profile-editor";
+import { ProfileEditor } from "@/components/profile-editor";
 
 export default async function SellerDashboardPage() {
   const { sellerProfile } = await requireSeller();

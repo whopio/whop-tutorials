@@ -5,10 +5,10 @@ import { ArrowLeft } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { requireSeller } from "@/lib/auth";
 import { formatPrice, formatFileSize } from "@/lib/utils";
-import { PublishButton } from "./publish-button";
-import { UnpublishButton } from "./unpublish-button";
-import { DeleteButton } from "./delete-button";
-import { EditForm } from "./edit-form";
+import { PublishButton } from "@/components/publish-button";
+import { UnpublishButton } from "@/components/unpublish-button";
+import { DeleteButton } from "@/components/delete-button";
+import { EditForm } from "@/components/edit-form";
 
 export default async function EditProductPage({
   params,
