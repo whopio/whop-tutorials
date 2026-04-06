@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <rect width="32" height="32" fill="#1A0A10"/>
+  <!-- Bold geometric S shape -->
+  <path d="M21 9.5C21 7 18.5 5 15.5 5S10 7 10 9.5c0 2.8 2 4 5.5 5.2 3.2 1.1 5.5 2.4 5.5 5.3 0 3-2.5 5-5.5 5s-5.5-2-5.5-5" stroke="#B8293D" stroke-width="3.5" stroke-linecap="square" fill="none"/>
+</svg>

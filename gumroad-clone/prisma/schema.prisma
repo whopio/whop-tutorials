@@ -1,0 +1,152 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─── Users ─────────────────────────────────────
+
+model User {
+  id         String   @id @default(cuid())
+  whopUserId String   @unique
+  email      String
+  name       String?
+  avatar     String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  sellerProfile SellerProfile?
+  purchases     Purchase[]
+  likes         Like[]
+  ratings       Rating[]
+}
+
+// ─── Sellers ───────────────────────────────────
+
+model SellerProfile {
+  id            String   @id @default(cuid())
+  userId        String   @unique
+  username      String   @unique
+  headline      String?
+  bio           String?
+  whopCompanyId String   @unique
+  kycComplete   Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  products Product[]
+}
+
+// ─── Products ──────────────────────────────────
+
+enum Category {
+  TEMPLATES
+  EBOOKS
+  SOFTWARE
+  DESIGN
+  AUDIO
+  VIDEO
+  PHOTOGRAPHY
+  EDUCATION
+  OTHER
+}
+
+enum ProductStatus {
+  DRAFT
+  PUBLISHED
+}
+
+model Product {
+  id              String        @id @default(cuid())
+  sellerProfileId String
+  title           String
+  slug            String        @unique
+  description     String
+  price           Int // cents, 0 = free
+  category        Category
+  status          ProductStatus @default(DRAFT)
+  content         String? // optional markdown/text
+  externalUrl     String? // optional link
+  thumbnailUrl    String?
+  whopProductId   String?
+  whopPlanId      String?
+  whopCheckoutUrl String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  sellerProfile SellerProfile @relation(fields: [sellerProfileId], references: [id], onDelete: Cascade)
+  files         ProductFile[]
+  purchases     Purchase[]
+  likes         Like[]
+  ratings       Rating[]
+}
+
+model ProductFile {
+  id           String @id @default(cuid())
+  productId    String
+  fileName     String
+  fileKey      String @unique
+  fileUrl      String
+  fileSize     Int // bytes
+  mimeType     String
+  displayOrder Int    @default(0)
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+}
+
+// ─── Purchases ─────────────────────────────────
+
+model Purchase {
+  id            String   @id @default(cuid())
+  userId        String
+  productId     String
+  whopPaymentId String?
+  pricePaid     Int // cents, 0 for free
+  createdAt     DateTime @default(now())
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, productId])
+}
+
+// ─── Likes ─────────────────────────────────────
+
+model Like {
+  id        String   @id @default(cuid())
+  userId    String
+  productId String
+  createdAt DateTime @default(now())
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, productId])
+}
+
+// ─── Ratings ──────────────────────────────────
+
+model Rating {
+  id        String   @id @default(cuid())
+  userId    String
+  productId String
+  cookies   Float // 0.5-5 in 0.5 increments
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, productId])
+}
+
+// ─── Webhooks ──────────────────────────────────
+
+model WebhookEvent {
+  id          String   @id
+  processedAt DateTime @default(now())
+}

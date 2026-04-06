@@ -1,0 +1,60 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  /* Cream / black / crimson palette */
+  --color-background: #1A0A10;
+  --color-surface: #221218;
+  --color-surface-elevated: #2D1A22;
+  --color-border: #3D2830;
+  --color-text-primary: #F5F0E1;
+  --color-text-secondary: #A89890;
+  --color-accent: #B8293D;
+  --color-accent-hover: #D4324A;
+  --color-success: #4ADE80;
+  --color-warning: #FBBF24;
+  --color-error: #F87171;
+
+  --font-sans: "Inter", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", monospace;
+
+  /* Sharp corners — editorial/brutalist direction */
+  --radius-xs: 0px;
+  --radius-sm: 0px;
+  --radius-md: 0px;
+  --radius-lg: 0px;
+  --radius-xl: 0px;
+  --radius-2xl: 0px;
+  --radius-3xl: 0px;
+}
+
+.dark {
+  --color-background: #1A0A10;
+  --color-surface: #221218;
+  --color-surface-elevated: #2D1A22;
+  --color-border: #3D2830;
+  --color-text-primary: #F5F0E1;
+  --color-text-secondary: #A89890;
+  --color-accent: #B8293D;
+  --color-accent-hover: #D4324A;
+  --color-success: #4ADE80;
+  --color-warning: #FBBF24;
+  --color-error: #F87171;
+}
+
+/* Focus ring for keyboard navigation */
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/* Respect reduced motion preferences */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
