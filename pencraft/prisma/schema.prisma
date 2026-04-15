@@ -1,0 +1,106 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum MembershipStatus {
+  ACTIVE
+  CANCELLED
+}
+
+enum Tier {
+  FREE
+  PRO
+}
+
+enum MessageRole {
+  USER
+  ASSISTANT
+}
+
+model User {
+  id         String   @id @default(cuid())
+  whopUserId String   @unique
+  email      String
+  name       String?
+  avatarUrl  String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  membership  Membership?
+  generations Generation[]
+}
+
+model Plan {
+  id            String   @id @default(cuid())
+  name          String
+  price         Int
+  whopProductId String
+  whopPlanId    String
+  checkoutUrl   String
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+
+  memberships Membership[]
+}
+
+model Membership {
+  id                 String           @id @default(cuid())
+  userId             String           @unique
+  planId             String
+  whopMembershipId   String           @unique
+  status             MembershipStatus
+  periodStart        DateTime
+  periodEnd          DateTime
+  cancelAtPeriodEnd  Boolean          @default(false)
+  lastWebhookEventId String?
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+
+  user User @relation(fields: [userId], references: [id])
+  plan Plan @relation(fields: [planId], references: [id])
+}
+
+model Template {
+  id           String   @id @default(cuid())
+  name         String
+  slug         String   @unique
+  description  String
+  category     String
+  systemPrompt String
+  inputFields  Json
+  tier         Tier
+  model        String
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+
+  generations Generation[]
+}
+
+model Generation {
+  id         String   @id @default(cuid())
+  userId     String
+  templateId String
+  inputs     Json
+  output     String
+  title      String
+  createdAt  DateTime @default(now())
+
+  user     User     @relation(fields: [userId], references: [id])
+  template Template @relation(fields: [templateId], references: [id])
+  messages Message[]
+}
+
+model Message {
+  id           String      @id @default(cuid())
+  generationId String
+  role         MessageRole
+  content      String
+  createdAt    DateTime    @default(now())
+
+  generation Generation @relation(fields: [generationId], references: [id], onDelete: Cascade)
+}
