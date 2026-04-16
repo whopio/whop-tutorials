@@ -15,7 +15,7 @@ const PRO_FEATURES = [
   "Priority support",
 ];
 
-export function Pricing({ isAuthenticated }: { isAuthenticated: boolean }) {
+export function Pricing({ isAuthenticated, proCheckoutUrl }: { isAuthenticated: boolean; proCheckoutUrl: string }) {
   return (
     <section id="pricing" className="relative border-t border-border-subtle bg-bg py-24">
       <div className="mx-auto max-w-6xl px-6">
@@ -45,7 +45,7 @@ export function Pricing({ isAuthenticated }: { isAuthenticated: boolean }) {
             </ul>
             <Link
               href={isAuthenticated ? "/studio" : "/api/auth/login"}
-              className="mt-8 inline-flex items-center justify-center rounded-lg border border-border bg-bg px-4 py-2.5 text-sm font-medium text-text-primary transition-colors hover:bg-surface-hover"
+              className="mt-auto inline-flex items-center justify-center rounded-lg border border-border bg-bg px-4 py-2.5 text-sm font-medium text-text-primary transition-colors hover:bg-surface-hover"
             >
               {isAuthenticated ? "Open studio" : "Get started"}
             </Link>
@@ -61,7 +61,7 @@ export function Pricing({ isAuthenticated }: { isAuthenticated: boolean }) {
                   "radial-gradient(ellipse 90% 50% at 50% 0%, rgba(139, 92, 246, 0.12), transparent 70%)",
               }}
             />
-            <div className="relative">
+            <div className="relative flex flex-col flex-1">
               <div className="flex items-center justify-between">
                 <h3 className="text-lg font-semibold text-text-primary">Pro</h3>
                 <span className="rounded-full bg-accent-subtle px-2 py-0.5 text-xs font-semibold text-accent">Most popular</span>
@@ -80,10 +80,10 @@ export function Pricing({ isAuthenticated }: { isAuthenticated: boolean }) {
                 ))}
               </ul>
               <Link
-                href={isAuthenticated ? "/studio" : "/api/auth/login"}
-                className="mt-8 inline-flex items-center justify-center rounded-lg bg-accent px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-accent-hover"
+                href={proCheckoutUrl}
+                className="mt-auto inline-flex items-center justify-center rounded-lg bg-accent px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-accent-hover"
               >
-                {isAuthenticated ? "Upgrade in studio" : "Start Pro"}
+                Get started
               </Link>
             </div>
           </div>

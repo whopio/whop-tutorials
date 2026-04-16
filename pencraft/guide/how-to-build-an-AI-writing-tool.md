@@ -801,62 +801,13 @@ All components live under `src/components/`. They use the theme tokens from `glo
 **Landing (`/`)**
 
 - `landing/landing-nav.tsx` (client, takes `isAuthenticated`) — sticky top nav. Logo on left; "Pricing", "Templates" anchors, and auth-aware CTA ("Sign in" or "Go to Studio") on the right.
-- `landing/hero.tsx` (server, takes `isAuthenticated`) — hero with dual-gradient background, H1 "Draft anything. Refine with AI." (second line gradient-filled indigo → violet), subhead, primary + secondary CTAs. Contains `<Marquee />`.
-- `landing/marquee.tsx` (client) — two absolutely-positioned rows of editorial text (blog sample + email sample) scrolling horizontally in opposite directions behind the hero. Radial mask fades text to transparent in the center so the headline stays readable.
+- `landing/hero.tsx` (server, takes `isAuthenticated`) — hero with dual-gradient background, H1 "Draft anything. Refine with AI." (second line gradient-filled indigo → violet), subhead, primary + secondary CTAs.
 - `landing/how-it-works.tsx` (server) — 3-step grid: Pick template → Fill inputs → Refine through chat.
 - `landing/features-bento.tsx` (server) — bento grid (6-col × 2-row on desktop). Tiles: Eight templates (large), Streaming output, Refinement chat, Every draft saved, Light/dark modes.
 - `landing/template-showcase.tsx` (server, takes `templates` prop) — responsive 4-col grid of all 8 templates with category, name, description, Pro badge on locked ones.
 - `landing/pricing.tsx` (server, takes `isAuthenticated`) — two-card pricing: Free $0 vs Pro $20. Pro card has indigo border + glow + "Most popular" pill.
 - `landing/final-cta.tsx` (server, takes `isAuthenticated`) — closing CTA with subtle indigo radial-gradient background.
 - `landing/landing-footer.tsx` (server) — minimal footer: logo, copyright, GitHub link, "Built with Whop" link.
-
-### Marquee CSS keyframes
-
-The non-obvious part of the landing page. Paste into `globals.css`:
-
-```css
-.marquee-row {
-  overflow: hidden;
-  white-space: nowrap;
-}
-
-.marquee-track {
-  display: inline-flex;
-  gap: 4rem;
-  font-family: Georgia, "Times New Roman", serif;
-  font-style: italic;
-  font-size: 1.25rem;
-  line-height: 1.5;
-  color: var(--color-text-tertiary);
-  opacity: 0.55;
-  will-change: transform;
-}
-
-.marquee-row-ltr .marquee-track {
-  animation: marquee-ltr 160s linear infinite;
-}
-
-.marquee-row-rtl .marquee-track {
-  animation: marquee-rtl 160s linear infinite;
-}
-
-@keyframes marquee-ltr {
-  from { transform: translateX(-50%); }
-  to   { transform: translateX(0); }
-}
-
-@keyframes marquee-rtl {
-  from { transform: translateX(0); }
-  to   { transform: translateX(-50%); }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .marquee-row-ltr .marquee-track,
-  .marquee-row-rtl .marquee-track {
-    animation: none;
-  }
-}
-```
 
 ---
 
@@ -1067,7 +1018,7 @@ export async function POST(request: NextRequest) {
 - **Accent:** `#6366f1` (indigo). Hover darkens to `#4f46e5` in light, brightens to `#818cf8` in dark.
 - **Background:** `#ffffff` (light) / `#0a0a0b` (dark). Surface tones ladder up (`--surface`, `--surface-hover`, `--surface-active`).
 - **Text:** primary / secondary / tertiary / muted, each with a light + dark value. Defined as CSS variables in `:root` and `.dark`.
-- **Typography:** Inter (`next/font/google`). Landing H1 at `clamp(3rem, 6vw, 5.5rem)`, weight 600, tracking `-0.04em`. Section H2s at `clamp(2rem, 3vw, 3rem)`. Body 16px weight 400. Marquee sample text: Georgia italic, muted, 55% opacity.
+- **Typography:** Inter (`next/font/google`). Landing H1 at `clamp(3rem, 6vw, 5.5rem)`, weight 600, tracking `-0.04em`. Section H2s at `clamp(2rem, 3vw, 3rem)`. Body 16px weight 400.
 - **Theme toggle:** the user dropdown in the header has Light / Dark / System buttons. The selected value is written to `localStorage.theme`. The inline script in `layout.tsx` reads it on page load to prevent FOUC.
 
 ---

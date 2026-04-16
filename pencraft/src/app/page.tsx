@@ -1,5 +1,6 @@
 import { getOptionalUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { getCheckoutUrl } from "@/lib/tier";
 import { LandingNav } from "@/components/landing/landing-nav";
 import { Hero } from "@/components/landing/hero";
 import { HowItWorks } from "@/components/landing/how-it-works";
@@ -12,6 +13,7 @@ import { LandingFooter } from "@/components/landing/landing-footer";
 export default async function LandingPage() {
   const user = await getOptionalUser();
   const isAuthenticated = !!user;
+  const proCheckoutUrl = await getCheckoutUrl();
 
   const templates = await prisma.template.findMany({
     where: { isActive: true },
@@ -35,7 +37,7 @@ export default async function LandingPage() {
         <HowItWorks />
         <FeaturesBento />
         <TemplateShowcase templates={templateShowcase} />
-        <Pricing isAuthenticated={isAuthenticated} />
+        <Pricing isAuthenticated={isAuthenticated} proCheckoutUrl={proCheckoutUrl ?? "#pricing"} />
         <FinalCta isAuthenticated={isAuthenticated} />
       </main>
       <LandingFooter />
