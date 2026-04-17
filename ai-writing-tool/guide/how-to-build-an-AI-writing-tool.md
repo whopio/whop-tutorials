@@ -794,7 +794,7 @@ All components live under `src/components/`. They use the theme tokens from `glo
 
 **Studio (three-panel IDE at `/studio`)**
 
-- `app-shell.tsx` (client) — root layout that positions the three panels, manages shared state via React Context (selected template, active generation, modal open states), slots `UpgradeModal` and `LimitModal`. Provides a `useApp()` hook.
+- `app-shell.tsx` (client) — root layout that positions the three panels, manages shared state via React Context (selected template, active generation, modal open states), slots `UpgradeModal` and `LimitModal`. Sidebars default to closed on mobile and open as overlays with a backdrop; on desktop (`md+`) they open inline. Provides a `useApp()` hook.
 - `header.tsx` (client) — top bar with logo, user dropdown (theme toggle, "Upgrade to Pro" entry if free, sign out). Never renders a "Sign in" button — `/studio` is always authenticated.
 - `history-sidebar.tsx` (client) — left panel listing the user's recent Generations. Clicking one loads it into the center panel. Shows title + template name + relative date.
 - `template-sidebar.tsx` (client) — right panel template browser. Groups templates by category. Shows Pro badge + lock icon on Pro templates when the user is Free. Clicking a Pro template while free opens the `UpgradeModal` instead of selecting it.
@@ -803,7 +803,7 @@ All components live under `src/components/`. They use the theme tokens from `glo
 - `refinement-chat.tsx` (client) — chat thread using `useChat` from `@ai-sdk/react`. `api: "/api/chat"`, passes `{ generationId }` as extra body data. Hydrates previous messages from the Generation's `messages` relation on mount.
 - `markdown.tsx` (client) — `ReactMarkdown` + `remark-gfm` wrapper with Tailwind-styled `h1-h3`, `p`, `ul`, `ol`, `li`, `strong`, `em`, `a`, `code`, `pre`, `blockquote`, `hr`, and `table` components.
 - `upgrade-modal.tsx` (client) — blurred backdrop modal with the Pro pitch. Clicking "Upgrade now" closes this modal and opens the embedded checkout popup via `openCheckoutPopup()` from AppShell context.
-- `checkout-popup.tsx` (client) — modal overlay with `WhopCheckoutEmbed` from `@whop/checkout/react`. Renders the Whop checkout form inline. `onComplete` callback closes the popup and triggers a page refresh.
+- `checkout-popup.tsx` (client) — modal overlay with `WhopCheckoutEmbed` from `@whop/checkout/react`. Renders the Whop checkout form inline. On mobile, slides up from the bottom as a sheet; on desktop, centers as a dialog. `onComplete` callback closes the popup and triggers a page refresh.
 - `welcome-popup.tsx` (client) — auto-dismissing modal (5 seconds) shown after a successful upgrade. Confirms Pro status and lists unlocked features.
 - `limit-modal.tsx` (client) — blurred backdrop modal shown when a Free user exhausts their daily limit.
 

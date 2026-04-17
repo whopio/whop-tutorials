@@ -18,14 +18,14 @@ export function CheckoutPopup({
     : "light" as const;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center sm:justify-center">
       <div
         className="absolute inset-0 bg-black/60 backdrop-blur-sm"
         onClick={onClose}
       />
-      <div className="relative z-10 mx-4 w-full max-w-lg rounded-xl border border-border bg-surface shadow-2xl overflow-hidden sm:mx-auto">
-        <div className="flex items-center justify-between border-b border-border px-6 py-4">
-          <h2 className="text-base font-semibold text-text-primary">Upgrade to Pro</h2>
+      <div className="relative z-10 w-full rounded-t-xl border border-border bg-surface shadow-2xl overflow-hidden sm:mx-auto sm:max-w-lg sm:rounded-xl">
+        <div className="flex items-center justify-between border-b border-border px-4 py-3 sm:px-6 sm:py-4">
+          <h2 className="text-sm font-semibold text-text-primary sm:text-base">Upgrade to Pro</h2>
           <button
             onClick={onClose}
             className="rounded p-1 text-text-tertiary hover:bg-surface-hover hover:text-text-primary transition-colors cursor-pointer"
@@ -35,7 +35,7 @@ export function CheckoutPopup({
           </button>
         </div>
 
-        <div className="min-h-[400px]">
+        <div className="min-h-[400px] max-h-[80vh] overflow-y-auto">
           <WhopCheckoutEmbed
             planId={planId}
             environment={environment}
