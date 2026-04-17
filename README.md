@@ -12,4 +12,4 @@ Example projects and tutorials for building with the Whop API.
 | [chatbot-saas](./chatbot-saas) | Multi-bot AI chatbot SaaS with streaming chat, tiered subscriptions, and custom bot builder. Built with Next.js 16, Prisma 7, and the Whop SDK. |
 | [udemy-clone](./udemy-clone) | Multi-instructor course marketplace with video hosting, one-time purchases, and progress tracking. Built with Next.js 16, Prisma 7, Mux, and the Whop SDK. |
 | [gumroad-clone](./gumroad-clone) | Multi-seller digital product marketplace with file uploads, cookie ratings, and hosted checkout. Built with Next.js 16, Prisma 7, and the Whop SDK. |
-| [pencraft](./pencraft) | AI writing studio with 8 templates, streaming generation, refinement chat, and tiered subscriptions. Built with Next.js 16, Prisma 7, the Vercel AI SDK, and the Whop SDK. |
+| [ai-writing-tool](./ai-writing-tool) | AI writing studio with 8 templates, streaming generation, refinement chat, and tiered subscriptions. Built with Next.js 16, Prisma 7, the Vercel AI SDK, and the Whop SDK. |
