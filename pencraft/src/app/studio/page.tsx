@@ -1,6 +1,7 @@
 import { requireAuth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { getUserTier, getCheckoutUrl, checkGenerationLimit } from "@/lib/tier";
+import { env } from "@/lib/env";
+import { getUserTier, getProPlanId, checkGenerationLimit } from "@/lib/tier";
 import { AppShell } from "@/components/app-shell";
 import { Header } from "@/components/header";
 import { HistorySidebar } from "@/components/history-sidebar";
@@ -9,13 +10,21 @@ import { CenterPanel } from "@/components/center-panel";
 import { UpgradeModal } from "@/components/upgrade-modal";
 import { LimitModal } from "@/components/limit-modal";
 
-export default async function StudioPage() {
+export default async function StudioPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ upgrade?: string; welcome?: string }>;
+}) {
   const user = await requireAuth();
+  const params = await searchParams;
 
   const tier = await getUserTier(user.id);
-  const checkoutUrl = tier === "FREE" ? await getCheckoutUrl() : null;
+  const proWhopPlanId = tier === "FREE" ? await getProPlanId() : null;
+  const checkoutEnv = env.WHOP_SANDBOX === "true" ? "sandbox" as const : "production" as const;
   const limitCheck = await checkGenerationLimit(user.id);
   const remaining = limitCheck.remaining;
+
+  const autoOpenCheckout = params.upgrade === "true" && tier === "FREE";
 
   const gens = await prisma.generation.findMany({
     where: { userId: user.id },
@@ -77,9 +86,12 @@ export default async function StudioPage() {
       leftSidebar={<HistorySidebar generations={generations} />}
       centerPanel={<CenterPanel generations={generationDetails} />}
       rightSidebar={<TemplateSidebar templates={templateData} userTier={tier} />}
-      upgradeModal={<UpgradeModal checkoutUrl={checkoutUrl} />}
+      upgradeModal={<UpgradeModal />}
       limitModal={<LimitModal />}
       initialRemaining={remaining}
+      proWhopPlanId={proWhopPlanId}
+      checkoutEnvironment={checkoutEnv}
+      autoOpenCheckout={autoOpenCheckout}
     />
   );
 }

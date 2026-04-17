@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ProCheckoutCta } from "./pro-checkout-cta";
 
 const FREE_FEATURES = [
   "3 writing templates",
@@ -15,7 +16,7 @@ const PRO_FEATURES = [
   "Priority support",
 ];
 
-export function Pricing({ isAuthenticated, proCheckoutUrl }: { isAuthenticated: boolean; proCheckoutUrl: string }) {
+export function Pricing({ isAuthenticated, planId, environment }: { isAuthenticated: boolean; planId: string | null; environment: "sandbox" | "production" }) {
   return (
     <section id="pricing" className="relative border-t border-border-subtle bg-bg py-24">
       <div className="mx-auto max-w-6xl px-6">
@@ -79,12 +80,7 @@ export function Pricing({ isAuthenticated, proCheckoutUrl }: { isAuthenticated: 
                   </li>
                 ))}
               </ul>
-              <Link
-                href={proCheckoutUrl}
-                className="mt-auto inline-flex items-center justify-center rounded-lg bg-accent px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-accent-hover"
-              >
-                Get started
-              </Link>
+              <ProCheckoutCta isAuthenticated={isAuthenticated} planId={planId} environment={environment} />
             </div>
           </div>
         </div>

@@ -20,7 +20,7 @@ Condensed reference for building Pencraft, an AI writing studio on Whop. Use thi
 | Framework | Next.js 16 (App Router), React 19 |
 | Styling | Tailwind CSS v4 |
 | Auth | Whop OAuth 2.1 (PKCE) + iron-session |
-| Payments | Whop Payments (checkout links + webhooks) |
+| Payments | Whop Payments (embedded checkout via `@whop/checkout` + webhooks) |
 | AI | Vercel AI SDK with direct provider keys (`@ai-sdk/anthropic`, `@ai-sdk/openai`) |
 | Database | Neon (PostgreSQL) via Vercel Marketplace |
 | ORM | Prisma 7 (client generated to `src/generated/prisma`) |
@@ -48,7 +48,7 @@ Condensed reference for building Pencraft, an AI writing studio on Whop. Use thi
 2. User picks a template from the right sidebar, fills inputs, submits.
 3. `/api/generate` calls `generateText` with the template's system prompt + inputs, persists the result, returns the generation ID.
 4. User refines through the chat panel. `/api/chat` streams with `useChat`, persists each turn as a Message.
-5. Free user hits 5/day → upgrade modal → Whop hosted checkout URL.
+5. Free user hits 5/day → upgrade modal → embedded checkout popup (via `@whop/checkout`).
 6. Whop fires `membership.activated` webhook → Membership row upserted → user instantly becomes Pro.
 
 ---
@@ -394,6 +394,13 @@ export async function getCheckoutUrl(): Promise<string | null> {
     where: { isActive: true },
   });
   return plan?.checkoutUrl ?? null;
+}
+
+export async function getProPlanId(): Promise<string | null> {
+  const plan = await prisma.plan.findFirst({
+    where: { isActive: true },
+  });
+  return plan?.whopPlanId ?? null;
 }
 ```
 
@@ -795,8 +802,10 @@ All components live under `src/components/`. They use the theme tokens from `glo
 - `generation-output.tsx` (client) — renders the generated text via the `<Markdown>` wrapper, with a copy-to-clipboard button.
 - `refinement-chat.tsx` (client) — chat thread using `useChat` from `@ai-sdk/react`. `api: "/api/chat"`, passes `{ generationId }` as extra body data. Hydrates previous messages from the Generation's `messages` relation on mount.
 - `markdown.tsx` (client) — `ReactMarkdown` + `remark-gfm` wrapper with Tailwind-styled `h1-h3`, `p`, `ul`, `ol`, `li`, `strong`, `em`, `a`, `code`, `pre`, `blockquote`, `hr`, and `table` components.
-- `upgrade-modal.tsx` (client) — blurred backdrop modal with the Pro checkout CTA. Fetches the checkout URL from the Plan record (via server component or fetch).
-- `limit-modal.tsx` (client) — blurred backdrop modal shown when a Free user exhausts their daily limit. Routes to the same checkout URL.
+- `upgrade-modal.tsx` (client) — blurred backdrop modal with the Pro pitch. Clicking "Upgrade now" closes this modal and opens the embedded checkout popup via `openCheckoutPopup()` from AppShell context.
+- `checkout-popup.tsx` (client) — modal overlay with `WhopCheckoutEmbed` from `@whop/checkout/react`. Renders the Whop checkout form inline. `onComplete` callback closes the popup and triggers a page refresh.
+- `welcome-popup.tsx` (client) — auto-dismissing modal (5 seconds) shown after a successful upgrade. Confirms Pro status and lists unlocked features.
+- `limit-modal.tsx` (client) — blurred backdrop modal shown when a Free user exhausts their daily limit.
 
 **Landing (`/`)**
 
@@ -815,7 +824,7 @@ All components live under `src/components/`. They use the theme tokens from `glo
 
 - `src/app/layout.tsx` — root layout. Includes an inline `<script>` that reads `localStorage.theme` (or matches OS via `prefers-color-scheme`) and sets `<html class="dark">` before React hydrates. Prevents theme FOUC. Renders `{children}` and mounts the theme Inter font.
 - `src/app/page.tsx` (landing) — server component. Reads `getOptionalUser()` + `prisma.template.findMany({ where: { isActive: true } })`. Composes `<LandingNav>`, `<Hero>`, `<HowItWorks>`, `<FeaturesBento>`, `<TemplateShowcase>`, `<Pricing>`, `<FinalCta>`, `<LandingFooter>`.
-- `src/app/studio/page.tsx` — server component. Calls `requireAuth()` (redirects to `/` if not authenticated), fetches templates + user's generations + Pro plan checkout URL, renders `<AppShell>` with `<Header>`, `<HistorySidebar>`, `<CenterPanel>`, `<TemplateSidebar>`, and slotted `<UpgradeModal>` + `<LimitModal>`. No `LoginModal` — guests are redirected before reaching this page.
+- `src/app/studio/page.tsx` — server component. Calls `requireAuth()` (redirects to `/` if not authenticated), fetches templates + user's generations + Pro plan ID via `getProPlanId()`, reads `searchParams.upgrade` for auto-opening checkout popup after OAuth redirect. Renders `<AppShell>` with `<Header>`, `<HistorySidebar>`, `<CenterPanel>`, `<TemplateSidebar>`, and slotted `<UpgradeModal>` + `<LimitModal>`. Passes `proWhopPlanId`, `checkoutEnvironment`, and `autoOpenCheckout` to AppShell.
 
 ---
 
@@ -937,8 +946,8 @@ export async function POST(request: NextRequest) {
   switch (type) {
     case "membership.activated": {
       const membershipId = data.id as string;
-      const userId = data.user_id as string;
-      const planId = data.plan_id as string;
+      const userId = (data.user as { id: string }).id;
+      const planId = (data.plan as { id: string }).id;
 
       const existing = await prisma.membership.findUnique({
         where: { whopMembershipId: membershipId },
@@ -1004,12 +1013,12 @@ export async function POST(request: NextRequest) {
 
 ### Upgrade flow
 
-1. Free user clicks "Upgrade to Pro" in the header dropdown or hits a Pro template / daily limit. `UpgradeModal` or `LimitModal` opens.
-2. The modal reads the checkout URL from the Plan row (fetched server-side into `AppShell`).
-3. Clicking the primary button opens `checkoutUrl` in a new tab.
-4. User pays on Whop's hosted checkout.
+1. Free user clicks "Upgrade to Pro" in the header dropdown or hits a Pro template / daily limit. `UpgradeModal` opens.
+2. Clicking "Upgrade now" closes the modal and opens `CheckoutPopup` — an embedded Whop checkout form rendered inline via `@whop/checkout`.
+3. User completes payment without leaving the app.
+4. `onComplete` fires → popup closes → 3-second processing overlay → `router.refresh()`.
 5. Whop fires `membership.activated` → the handler upserts a Membership row with `status: "ACTIVE"`.
-6. Next time the app checks `getUserTier(userId)`, the user is Pro.
+6. Page refresh picks up the new tier. `WelcomePopup` shows for 5 seconds confirming the upgrade.
 
 ---
 
@@ -1030,8 +1039,8 @@ export async function POST(request: NextRequest) {
 3. **`openid` scope requires a `nonce` parameter** on the auth request.
 4. **Webhook signing key is base64-encoded** when instantiating the Whop SDK client: `webhookKey: btoa(env.WHOP_WEBHOOK_SECRET)`.
 5. **Webhook verification:** call `whop.webhooks.unwrap(bodyText, { headers })`. Pass the raw body text, not parsed JSON. Convert headers with `Object.fromEntries(request.headers)`.
-6. **Webhook payload nesting:** membership events expose `data.id`, `data.user_id`, `data.plan_id` directly on `data` (not nested under `data.membership`).
-7. **`products.create`** takes `company_id`, `title`, `description`. `plans.create` takes `company_id`, `product_id`, `billing_period` (days), `currency`, `initial_price`, `renewal_price`. Checkout URL format: `https://{sandbox.}whop.com/checkout/{plan.id}`.
+6. **Webhook payload nesting:** membership events use nested objects: `data.user.id` (not `data.user_id`), `data.plan.id` (not `data.plan_id`). The membership ID is at `data.id`.
+7. **`products.create`** takes `company_id`, `title`, `description`. `plans.create` takes `company_id`, `product_id`, `billing_period` (days), `currency`, `initial_price`, `renewal_price`. Embedded checkout uses `planId` prop on `WhopCheckoutEmbed` with `environment: "sandbox" | "production"`.
 8. **Prisma 7:** generator is `"prisma-client"` (no `-js`), output path is explicit, `url` is NOT in `schema.prisma` (comes from the `PrismaPg` adapter at runtime). CLI uses `DATABASE_URL_UNPOOLED` via `prisma.config.ts`.
 9. **Vercel AI SDK provider routing:** the provider packages (`@ai-sdk/anthropic`, `@ai-sdk/openai`) are called as factories: `anthropic("claude-haiku-4-5-20251001")`, `openai("gpt-4o-mini")`. They return a `LanguageModel` passed to `generateText` or `streamText`.
 10. **`streamText` chat protocol:** return `result.toUIMessageStreamResponse()` to speak the `useChat` UI message protocol. Persist with the `onFinish` callback so the DB write only happens after the full stream completes.

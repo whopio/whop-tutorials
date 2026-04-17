@@ -48,3 +48,10 @@ export async function getCheckoutUrl(): Promise<string | null> {
   });
   return plan?.checkoutUrl ?? null;
 }
+
+export async function getProPlanId(): Promise<string | null> {
+  const plan = await prisma.plan.findFirst({
+    where: { isActive: true },
+  });
+  return plan?.whopPlanId ?? null;
+}

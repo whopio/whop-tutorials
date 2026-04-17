@@ -27,8 +27,8 @@ export async function POST(request: NextRequest) {
   switch (type) {
     case "membership.activated": {
       const membershipId = data.id as string;
-      const userId = data.user_id as string;
-      const planId = data.plan_id as string;
+      const userId = (data.user as { id: string }).id;
+      const planId = (data.plan as { id: string }).id;
 
       // Idempotency: check if we already processed this event
       const existing = await prisma.membership.findUnique({

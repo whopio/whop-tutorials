@@ -2,8 +2,8 @@
 
 import { useApp } from "./app-shell";
 
-export function UpgradeModal({ checkoutUrl }: { checkoutUrl: string | null }) {
-  const { closeUpgradeModal } = useApp();
+export function UpgradeModal() {
+  const { closeUpgradeModal, openCheckoutPopup } = useApp();
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
@@ -57,21 +57,15 @@ export function UpgradeModal({ checkoutUrl }: { checkoutUrl: string | null }) {
           </p>
         </div>
 
-        {checkoutUrl ? (
-          <a
-            href={checkoutUrl}
-            className="mt-4 flex w-full items-center justify-center rounded-lg bg-accent px-4 py-2.5 text-sm font-medium text-white hover:bg-accent-hover transition-colors cursor-pointer"
-          >
-            Upgrade now
-          </a>
-        ) : (
-          <button
-            disabled
-            className="mt-4 w-full rounded-lg bg-surface-hover px-4 py-2.5 text-sm font-medium text-text-muted cursor-not-allowed"
-          >
-            Upgrade unavailable
-          </button>
-        )}
+        <button
+          onClick={() => {
+            closeUpgradeModal();
+            openCheckoutPopup();
+          }}
+          className="mt-4 flex w-full items-center justify-center rounded-lg bg-accent px-4 py-2.5 text-sm font-medium text-white hover:bg-accent-hover transition-colors cursor-pointer"
+        >
+          Upgrade now
+        </button>
       </div>
     </div>
   );

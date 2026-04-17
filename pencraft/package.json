@@ -17,6 +17,7 @@
     "@ai-sdk/react": "^3.0.155",
     "@prisma/adapter-pg": "^7.7.0",
     "@prisma/client": "^7.7.0",
+    "@whop/checkout": "^0.0.52",
     "@whop/sdk": "^0.0.35",
     "ai": "^6.0.153",
     "iron-session": "^8.0.4",

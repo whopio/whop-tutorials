@@ -22,7 +22,10 @@ async function sha256(str: string): Promise<string> {
   );
 }
 
-export async function GET() {
+export async function GET(request: Request) {
+  const url = new URL(request.url);
+  const redirectTo = url.searchParams.get("redirect") || "/studio";
+
   const codeVerifier = randomString(32);
   const codeChallenge = await sha256(codeVerifier);
   const state = randomString(16);
@@ -30,6 +33,13 @@ export async function GET() {
 
   const cookieStore = await cookies();
   cookieStore.set("pkce_verifier", codeVerifier, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    maxAge: 600,
+    path: "/",
+  });
+  cookieStore.set("oauth_redirect", redirectTo, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",

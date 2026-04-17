@@ -1,6 +1,9 @@
 "use client";
 
-import { useState, createContext, useContext, type ReactNode } from "react";
+import { useState, useEffect, useCallback, createContext, useContext, type ReactNode } from "react";
+import { useRouter } from "next/navigation";
+import { CheckoutPopup } from "./checkout-popup";
+import { WelcomePopup } from "./welcome-popup";
 
 interface AppState {
   selectedGenerationId: string | null;
@@ -9,6 +12,9 @@ interface AppState {
   rightSidebarOpen: boolean;
   upgradeModalOpen: boolean;
   limitModalOpen: boolean;
+  checkoutPopupOpen: boolean;
+  welcomePopupOpen: boolean;
+  processingUpgrade: boolean;
   generationsRemaining: number;
 }
 
@@ -21,6 +27,9 @@ interface AppContextType extends AppState {
   closeUpgradeModal: () => void;
   openLimitModal: () => void;
   closeLimitModal: () => void;
+  openCheckoutPopup: () => void;
+  closeCheckoutPopup: () => void;
+  closeWelcomePopup: () => void;
   setGenerationsRemaining: (n: number) => void;
   isAtLimit: boolean;
 }
@@ -41,6 +50,9 @@ export function AppShell({
   upgradeModal,
   limitModal,
   initialRemaining,
+  proWhopPlanId,
+  checkoutEnvironment,
+  autoOpenCheckout,
 }: {
   header: ReactNode;
   leftSidebar: ReactNode;
@@ -49,7 +61,12 @@ export function AppShell({
   upgradeModal: ReactNode;
   limitModal: ReactNode;
   initialRemaining: number;
+  proWhopPlanId: string | null;
+  checkoutEnvironment: "sandbox" | "production";
+  autoOpenCheckout?: boolean;
 }) {
+  const router = useRouter();
+
   const [state, setState] = useState<AppState>({
     selectedGenerationId: null,
     selectedTemplateSlug: null,
@@ -57,8 +74,38 @@ export function AppShell({
     rightSidebarOpen: true,
     upgradeModalOpen: false,
     limitModalOpen: false,
+    checkoutPopupOpen: false,
+    welcomePopupOpen: false,
+    processingUpgrade: false,
     generationsRemaining: initialRemaining,
   });
+
+  // Auto-open checkout on mount (from ?upgrade=true redirect)
+  useEffect(() => {
+    if (autoOpenCheckout && proWhopPlanId) {
+      setState((s) => ({ ...s, checkoutPopupOpen: true }));
+    }
+  }, [autoOpenCheckout, proWhopPlanId]);
+
+  // Auto-open welcome popup on mount (from ?welcome=true redirect)
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("welcome") === "true") {
+        setState((s) => ({ ...s, welcomePopupOpen: true }));
+        // Clean the URL
+        window.history.replaceState({}, "", window.location.pathname);
+      }
+    }
+  }, []);
+
+  const handleCheckoutComplete = useCallback(() => {
+    setState((s) => ({ ...s, checkoutPopupOpen: false, processingUpgrade: true }));
+    setTimeout(() => {
+      router.refresh();
+      setState((s) => ({ ...s, processingUpgrade: false, welcomePopupOpen: true }));
+    }, 3000);
+  }, [router]);
 
   const isAtLimit = state.generationsRemaining <= 0;
 
@@ -81,6 +128,12 @@ export function AppShell({
       setState((s) => ({ ...s, limitModalOpen: true })),
     closeLimitModal: () =>
       setState((s) => ({ ...s, limitModalOpen: false })),
+    openCheckoutPopup: () =>
+      setState((s) => ({ ...s, checkoutPopupOpen: true })),
+    closeCheckoutPopup: () =>
+      setState((s) => ({ ...s, checkoutPopupOpen: false })),
+    closeWelcomePopup: () =>
+      setState((s) => ({ ...s, welcomePopupOpen: false })),
     setGenerationsRemaining: (n) =>
       setState((s) => ({ ...s, generationsRemaining: n })),
   };
@@ -114,6 +167,28 @@ export function AppShell({
 
       {state.upgradeModalOpen && upgradeModal}
       {state.limitModalOpen && limitModal}
+
+      {state.checkoutPopupOpen && proWhopPlanId && (
+        <CheckoutPopup
+          planId={proWhopPlanId}
+          environment={checkoutEnvironment}
+          onClose={() => setState((s) => ({ ...s, checkoutPopupOpen: false }))}
+          onComplete={handleCheckoutComplete}
+        />
+      )}
+
+      {state.welcomePopupOpen && (
+        <WelcomePopup onClose={() => setState((s) => ({ ...s, welcomePopupOpen: false }))} />
+      )}
+
+      {state.processingUpgrade && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="flex flex-col items-center gap-3 text-center">
+            <div className="h-8 w-8 animate-spin rounded-full border-2 border-white border-t-transparent" />
+            <p className="text-sm font-medium text-white">Setting up your Pro account...</p>
+          </div>
+        </div>
+      )}
     </AppContext.Provider>
   );
 }

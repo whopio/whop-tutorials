@@ -18,9 +18,11 @@ export async function GET(request: NextRequest) {
   const cookieStore = await cookies();
   const storedState = cookieStore.get("oauth_state")?.value;
   const codeVerifier = cookieStore.get("pkce_verifier")?.value;
+  const redirectTo = cookieStore.get("oauth_redirect")?.value || "/studio";
 
   cookieStore.delete("oauth_state");
   cookieStore.delete("pkce_verifier");
+  cookieStore.delete("oauth_redirect");
 
   if (!code || !state || !codeVerifier || state !== storedState) {
     return NextResponse.redirect(new URL("/?error=invalid_state", env.NEXT_PUBLIC_APP_URL));
@@ -80,5 +82,5 @@ export async function GET(request: NextRequest) {
   session.userId = user.id;
   await session.save();
 
-  return NextResponse.redirect(new URL("/studio", env.NEXT_PUBLIC_APP_URL));
+  return NextResponse.redirect(new URL(redirectTo, env.NEXT_PUBLIC_APP_URL));
 }
