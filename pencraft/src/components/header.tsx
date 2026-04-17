@@ -87,7 +87,7 @@ export function Header({
               </button>
 
               {dropdownOpen && (
-                <div className="absolute right-0 top-full mt-1 w-48 rounded-lg border border-border bg-surface shadow-lg z-50">
+                <div className="absolute right-0 top-full mt-1 w-48 max-w-[calc(100vw-2rem)] rounded-lg border border-border bg-surface shadow-lg z-50">
                   <div className="px-3 py-2">
                     <p className="text-xs font-medium text-text-muted mb-1.5">Theme</p>
                     <div className="flex gap-1">

@@ -12,7 +12,7 @@ export function LandingFooter() {
           <span className="text-xs text-text-muted">&copy; {new Date().getFullYear()} Pencraft</span>
         </div>
         <div className="flex items-center gap-5 text-xs text-text-tertiary">
-          <Link href="https://github.com/whopio/pencraft" className="transition-colors hover:text-text-primary" target="_blank" rel="noreferrer">
+          <Link href="https://github.com/whopio/whop-tutorials/" className="transition-colors hover:text-text-primary" target="_blank" rel="noreferrer">
             GitHub
           </Link>
           <Link href="https://whop.com" className="transition-colors hover:text-text-primary" target="_blank" rel="noreferrer">

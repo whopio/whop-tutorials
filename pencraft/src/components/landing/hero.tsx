@@ -11,7 +11,7 @@ export function Hero({ isAuthenticated }: { isAuthenticated: boolean }) {
             "radial-gradient(ellipse 90% 60% at 50% 0%, rgba(139, 92, 246, 0.18) 0%, transparent 55%), radial-gradient(ellipse 70% 50% at 50% 100%, rgba(99, 102, 241, 0.15) 0%, transparent 60%)",
         }}
       />
-      <div className="relative mx-auto flex min-h-[720px] max-w-4xl flex-col items-center justify-center px-6 py-32 text-center">
+      <div className="relative mx-auto flex min-h-[520px] sm:min-h-[720px] max-w-4xl flex-col items-center justify-center px-6 py-32 text-center">
         <h1 className="font-sans text-[clamp(3rem,6vw,5.5rem)] font-semibold leading-[0.95] tracking-[-0.04em] text-text-primary">
           Draft anything.
           <br />
