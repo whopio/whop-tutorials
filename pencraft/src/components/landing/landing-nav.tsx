@@ -3,7 +3,7 @@ import Link from "next/link";
 export function LandingNav({ isAuthenticated }: { isAuthenticated: boolean }) {
   return (
     <nav className="sticky top-0 z-30 border-b border-border-subtle bg-bg/70 backdrop-blur-md">
-      <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4 sm:px-6">
+      <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-3 sm:px-6">
         <Link href="/" className="flex items-center" aria-label="Pencraft home">
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 140 24" fill="none" className="h-7 w-auto text-text-primary">
             <path d="M2 20 L5 4 L8 4 L11 12 L10 4 L13 4 L10 20 L7 20 L4 12 L5 20 Z" fill="#6366f1"/>
