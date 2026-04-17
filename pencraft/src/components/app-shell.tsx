@@ -70,8 +70,8 @@ export function AppShell({
   const [state, setState] = useState<AppState>({
     selectedGenerationId: null,
     selectedTemplateSlug: null,
-    leftSidebarOpen: true,
-    rightSidebarOpen: true,
+    leftSidebarOpen: false,
+    rightSidebarOpen: false,
     upgradeModalOpen: false,
     limitModalOpen: false,
     checkoutPopupOpen: false,
@@ -79,6 +79,13 @@ export function AppShell({
     processingUpgrade: false,
     generationsRemaining: initialRemaining,
   });
+
+  // Open sidebars on desktop, keep closed on mobile
+  useEffect(() => {
+    if (window.innerWidth >= 768) {
+      setState((s) => ({ ...s, leftSidebarOpen: true, rightSidebarOpen: true }));
+    }
+  }, []);
 
   // Auto-open checkout on mount (from ?upgrade=true redirect)
   useEffect(() => {
@@ -142,10 +149,19 @@ export function AppShell({
     <AppContext.Provider value={ctx}>
       <div className="flex h-dvh flex-col overflow-hidden">
         {header}
-        <div className="flex flex-1 overflow-hidden">
+        <div className="relative flex flex-1 overflow-hidden">
+          {/* Left sidebar — overlay on mobile, inline on md+ */}
+          {state.leftSidebarOpen && (
+            <div
+              className="absolute inset-0 z-10 bg-black/40 md:hidden"
+              onClick={() => setState((s) => ({ ...s, leftSidebarOpen: false }))}
+            />
+          )}
           <aside
             className={`flex-shrink-0 border-r border-border bg-surface overflow-y-auto transition-all duration-200 ${
-              state.leftSidebarOpen ? "w-64" : "w-0"
+              state.leftSidebarOpen
+                ? "absolute inset-y-0 left-0 z-20 w-[280px] md:relative md:w-64 md:z-auto"
+                : "w-0"
             }`}
           >
             {state.leftSidebarOpen && leftSidebar}
@@ -155,9 +171,18 @@ export function AppShell({
             {centerPanel}
           </main>
 
+          {/* Right sidebar — overlay on mobile, inline on md+ */}
+          {state.rightSidebarOpen && (
+            <div
+              className="absolute inset-0 z-10 bg-black/40 md:hidden"
+              onClick={() => setState((s) => ({ ...s, rightSidebarOpen: false }))}
+            />
+          )}
           <aside
             className={`flex-shrink-0 border-l border-border bg-surface overflow-y-auto transition-all duration-200 ${
-              state.rightSidebarOpen ? "w-[40rem]" : "w-0"
+              state.rightSidebarOpen
+                ? "absolute inset-y-0 right-0 z-20 w-full max-w-[340px] md:relative md:w-[40rem] md:max-w-none md:z-auto"
+                : "w-0"
             }`}
           >
             {state.rightSidebarOpen && rightSidebar}

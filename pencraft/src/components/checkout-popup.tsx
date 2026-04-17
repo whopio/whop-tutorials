@@ -23,7 +23,7 @@ export function CheckoutPopup({
         className="absolute inset-0 bg-black/60 backdrop-blur-sm"
         onClick={onClose}
       />
-      <div className="relative z-10 w-full max-w-lg rounded-xl border border-border bg-surface shadow-2xl overflow-hidden">
+      <div className="relative z-10 mx-4 w-full max-w-lg rounded-xl border border-border bg-surface shadow-2xl overflow-hidden sm:mx-auto">
         <div className="flex items-center justify-between border-b border-border px-6 py-4">
           <h2 className="text-base font-semibold text-text-primary">Upgrade to Pro</h2>
           <button

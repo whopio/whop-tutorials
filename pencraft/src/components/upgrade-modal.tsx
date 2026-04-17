@@ -11,7 +11,7 @@ export function UpgradeModal() {
         className="absolute inset-0 bg-black/60 backdrop-blur-sm"
         onClick={closeUpgradeModal}
       />
-      <div className="relative z-10 w-full max-w-md rounded-xl border border-border bg-surface p-8 shadow-2xl">
+      <div className="relative z-10 mx-4 w-full max-w-md rounded-xl border border-border bg-surface p-6 shadow-2xl sm:mx-auto sm:p-8">
         <button
           onClick={closeUpgradeModal}
           className="absolute right-3 top-3 rounded p-1 text-text-tertiary hover:bg-surface-hover hover:text-text-primary transition-colors cursor-pointer"
