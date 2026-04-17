@@ -26,16 +26,17 @@ export function LandingNav({ isAuthenticated }: { isAuthenticated: boolean }) {
           {isAuthenticated ? (
             <Link
               href="/studio"
-              className="rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-accent-hover"
+              className="rounded-md bg-accent px-2 py-1.5 text-xs font-medium text-white transition-colors hover:bg-accent-hover whitespace-nowrap sm:px-3 sm:text-sm"
             >
-              Go to Studio
+              Studio
             </Link>
           ) : (
             <Link
               href="/api/auth/login"
-              className="rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-white transition-colors hover:bg-accent-hover"
+              className="rounded-md bg-accent px-2 py-1.5 text-xs font-medium text-white transition-colors hover:bg-accent-hover whitespace-nowrap sm:px-3 sm:text-sm"
             >
-              Sign in with Whop
+              <span className="sm:hidden">Sign in</span>
+              <span className="hidden sm:inline">Sign in with Whop</span>
             </Link>
           )}
         </div>
