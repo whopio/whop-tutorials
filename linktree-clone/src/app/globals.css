@@ -1,0 +1,63 @@
+@import "tailwindcss";
+
+:root {
+  /* Page surfaces. The site's default background is a warm off-white so
+     that pure white surfaces (cards, the public profile canvas, modals)
+     visually pop one level above the page. Foreground is near-black with
+     a hair of warmth to match. */
+  --background: #fafaf9;
+  --background-alt: #ffffff;
+  --foreground: #0a0a0c;
+  --foreground-muted: #525258;
+  --foreground-subtle: #8a8a92;
+  --border: #e7e5e4;
+  --border-muted: #f1efee;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+  --font-display: var(--font-bricolage);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-geist-sans), -apple-system, BlinkMacSystemFont,
+    "Segoe UI", Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+/* Slow drift animations used on the homepage hero. Each card picks one of
+   four variants so they don't move in lockstep. Transform-only, so the
+   browser composites them on the GPU without layout thrash. */
+@keyframes hero-drift-a {
+  0%, 100% { transform: translate3d(0, 0, 0) rotate(-4deg); }
+  50%      { transform: translate3d(0, -14px, 0) rotate(-2deg); }
+}
+@keyframes hero-drift-b {
+  0%, 100% { transform: translate3d(0, 0, 0) rotate(3deg); }
+  50%      { transform: translate3d(0, 12px, 0) rotate(5deg); }
+}
+@keyframes hero-drift-c {
+  0%, 100% { transform: translate3d(0, 0, 0) rotate(-6deg); }
+  50%      { transform: translate3d(0, -18px, 0) rotate(-8deg); }
+}
+@keyframes hero-drift-d {
+  0%, 100% { transform: translate3d(0, 0, 0) rotate(5deg); }
+  50%      { transform: translate3d(0, 16px, 0) rotate(7deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* Keep the cards in their starting orientation but skip the animation. */
+  .hero-drift-a,
+  .hero-drift-b,
+  .hero-drift-c,
+  .hero-drift-d {
+    animation: none !important;
+  }
+}

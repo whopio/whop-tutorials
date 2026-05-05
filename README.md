@@ -13,3 +13,4 @@ Example projects and tutorials for building with the Whop API.
 | [udemy-clone](./udemy-clone) | Multi-instructor course marketplace with video hosting, one-time purchases, and progress tracking. Built with Next.js 16, Prisma 7, Mux, and the Whop SDK. |
 | [gumroad-clone](./gumroad-clone) | Multi-seller digital product marketplace with file uploads, cookie ratings, and hosted checkout. Built with Next.js 16, Prisma 7, and the Whop SDK. |
 | [ai-writing-tool](./ai-writing-tool) | AI writing studio with 8 templates, streaming generation, refinement chat, and tiered subscriptions. Built with Next.js 16, Prisma 7, the Vercel AI SDK, and the Whop SDK. |
+| [linktree-clone](./linktree-clone) | Link-in-bio platform with customizable profiles, drag-to-reorder links, premium-link unlocks via hosted checkout, connected accounts, and an embedded payout portal. Built with Next.js 16, Prisma, and the Whop SDK. |

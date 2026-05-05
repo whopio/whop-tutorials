@@ -1,0 +1,89 @@
+// This is your Prisma schema file
+// Learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(cuid())
+  whopUserId String  @unique // Whop OAuth user ID
+  email     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  creator   Creator?
+}
+
+model Creator {
+  id             String   @id @default(cuid())
+  userId         String   @unique
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  handle         String   @unique // URL slug e.g. "jane"
+  title          String   @default("")
+  bio            String   @default("")
+  avatarUrl      String?
+  unlockPrice    Int      @default(500) // cents, e.g. 500 = $5.00
+  accentColor    String   @default("violet") // preset key, mapped to hex in src/lib/theme.ts
+
+  // Whop Connected Account
+  whopCompanyId  String?  // set after "Enable Earnings" enrollment
+  payoutEnabled  Boolean  @default(false) // true only after KYC onboarding is complete
+  // Application fee in cents (what the platform keeps)
+  applicationFee Int      @default(50) // cents
+
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  links          Link[]
+  unlocks        Unlock[]
+}
+
+model Link {
+  id         String   @id @default(cuid())
+  creatorId  String
+  creator    Creator  @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+
+  title      String
+  url        String
+  isPremium  Boolean  @default(false)
+  isVisible  Boolean  @default(true)
+  sortOrder  Int      @default(0)
+
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model Unlock {
+  id             String   @id @default(cuid())
+  creatorId      String
+  creator        Creator  @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+
+  buyerEmail     String?
+  buyerWhopUserId String?
+
+  status         UnlockStatus @default(PENDING)
+  whopPaymentId  String?  @unique // Whop charge/payment ID
+
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+enum UnlockStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+}
+
+model WebhookEvent {
+  id          String   @id // Whop event ID, used as idempotency key
+  type        String
+  receivedAt  DateTime @default(now())
+}
