@@ -1,0 +1,39 @@
+{
+  "name": "gigflow",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint",
+    "seed:gigs": "tsx scripts/seed-gigs-and-reviews.ts",
+    "demo:design": "tsx scripts/demo-gigs-from-design.ts"
+  },
+  "dependencies": {
+    "@supabase/ssr": "^0.9.0",
+    "@supabase/supabase-js": "^2.99.1",
+    "@whop/checkout": "^0.0.52",
+    "@whop/embedded-components-react-js": "^0.0.13-beta.10",
+    "@whop/embedded-components-vanilla-js": "^0.0.13-beta.10",
+    "@whop/sdk": "^0.0.32",
+    "clsx": "^2.1.1",
+    "lucide-react": "^0.577.0",
+    "next": "16.1.6",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "tailwind-merge": "^3.3.1"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.2",
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.1.6",
+    "tailwindcss": "^4",
+    "tw-animate-css": "1.3.3",
+    "typescript": "^5"
+  }
+}

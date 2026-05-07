@@ -1,0 +1,23 @@
+// Brand colors and design tokens - shared between server and client
+export const C = {
+  brand: "#FF6B00",
+  brandLight: "#FF8533",
+  brandDark: "#CC5500",
+  brandMuted: "rgba(255,107,0,0.10)",
+  black: "#0A0A0A",
+  ink: "#111111",
+  surface: "#F8F8F8",
+  surfaceAlt: "#F1F1F1",
+  border: "#E8E8E8",
+  borderDark: "#D0D0D0",
+  muted: "#8A8A8A",
+  subtle: "#C4C4C4",
+  white: "#FFFFFF",
+  success: "#10B981",
+  warning: "#F59E0B",
+  error: "#EF4444",
+  info: "#3B82F6",
+  sidebarBg: "#0D0D0D",
+  sidebarBorder: "#1E1E1E",
+  sidebarHover: "#1A1A1A",
+};

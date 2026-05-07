@@ -1,0 +1,126 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  /* gigflow brand colors */
+  --brand: #FF6B00;
+  --brand-light: #FF8533;
+  --brand-dark: #CC5500;
+  --brand-muted: rgba(255, 107, 0, 0.12);
+
+  /* Surface palette */
+  --background: oklch(0.985 0 0);
+  --foreground: oklch(0.08 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.08 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.08 0 0);
+
+  /* Primary = brand orange */
+  --primary: #FF6B00;
+  --primary-foreground: #ffffff;
+
+  /* Secondary = near-black */
+  --secondary: oklch(0.11 0 0);
+  --secondary-foreground: oklch(0.985 0 0);
+
+  --muted: oklch(0.955 0 0);
+  --muted-foreground: oklch(0.50 0 0);
+  --accent: oklch(0.955 0 0);
+  --accent-foreground: oklch(0.11 0 0);
+  --destructive: oklch(0.577 0.245 27.325);
+  --destructive-foreground: #fff;
+  --border: oklch(0.91 0 0);
+  --input: oklch(0.91 0 0);
+  --ring: #FF6B00;
+
+  /* Status */
+  --success: #10B981;
+  --warning: #F59E0B;
+  --error: #EF4444;
+  --info: #3B82F6;
+
+  --radius: 0.75rem;
+
+  --sidebar: oklch(0.07 0 0);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: #FF6B00;
+  --sidebar-primary-foreground: #fff;
+  --sidebar-accent: oklch(0.14 0 0);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border: oklch(0.16 0 0);
+  --sidebar-ring: #FF6B00;
+
+  --chart-1: #FF6B00;
+  --chart-2: oklch(0.6 0.118 184.704);
+  --chart-3: oklch(0.398 0.07 227.392);
+  --chart-4: oklch(0.828 0.189 84.429);
+  --chart-5: oklch(0.769 0.188 70.08);
+
+  /* Legacy compat */
+  --black: #0A0A0A;
+  --white: #FFFFFF;
+  --gray-900: #1a1a1a;
+  --gray-800: #2d2d2d;
+  --gray-600: #6b6b6b;
+  --gray-500: #737373;
+  --gray-400: #9ca3af;
+  --gray-300: #d1d5db;
+  --gray-200: #e5e5e5;
+  --gray-100: #f5f5f5;
+  --gray-50: #fafafa;
+  --primary-light: #FF8533;
+  --primary-dark: #CC5500;
+}
+
+@theme inline {
+  --font-sans: 'Inter', 'Geist', 'Geist Fallback';
+  --font-mono: 'JetBrains Mono', 'Geist Mono', 'Geist Mono Fallback';
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground overflow-x-hidden;
+  }
+}
