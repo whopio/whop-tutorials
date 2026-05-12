@@ -2,9 +2,6 @@
 
 Condensed reference for building Soundify, a Spotify-style music platform on Whop where independent artists publish songs, gate premium tracks behind one-time payments, and withdraw earnings through an embedded payout portal. Non-obvious code (Whop SDK calls, OAuth/PKCE, embedded components, webhook handler, signed Supabase uploads) is included in full. Standard React/Next.js UI files are described in prose so the LLM can generate them.
 
-**Demo:** https://whop-spotify-clone.vercel.app/
-**GitHub:** https://github.com/paulayuk/whop-spotify-clone
-
 ---
 
 ## 1. Overview
