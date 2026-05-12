@@ -1,0 +1,28 @@
+@import "tailwindcss";
+
+@theme inline {
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+  --font-bricolage: var(--font-bricolage);
+}
+
+body {
+  background: #ffffff;
+  color: #000000;
+}
+
+/* Hide scrollbar for horizontal scroll sections */
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* Audio element — dark controls */
+audio {
+  accent-color: #7c3aed;
+  color-scheme: dark;
+}
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}

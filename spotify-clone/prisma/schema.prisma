@@ -1,0 +1,100 @@
+generator client {
+  provider = "prisma-client-js"
+  previewFeatures = ["driverAdapters"]
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id          String         @id @default(cuid())
+  whopUserId  String         @unique
+  email       String?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  creator     Artist?
+  playlists   UserPlaylist[]
+}
+
+model Artist {
+  id               String   @id @default(cuid())
+  userId           String   @unique
+  handle           String   @unique
+  displayName      String
+  bio              String?
+  avatarUrl        String?
+  whopCompanyId    String?
+  payoutEnabled    Boolean  @default(false)
+  applicationFee   Int      @default(50)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  user    User     @relation(fields: [userId], references: [id])
+  songs   Song[]
+  unlocks Unlock[]
+}
+
+model Song {
+  id          String   @id @default(cuid())
+  artistId    String
+  title       String
+  description String?
+  coverUrl    String?
+  audioUrl    String
+  previewUrl  String?
+  duration    Int
+  isPremium   Boolean  @default(false)
+  price       Int      @default(199)
+  plays       Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  artist        Artist             @relation(fields: [artistId], references: [id])
+  unlocks       Unlock[]
+  playlistSongs UserPlaylistSong[]
+}
+
+model UserPlaylist {
+  id        String             @id @default(cuid())
+  userId    String
+  user      User               @relation(fields: [userId], references: [id])
+  name      String
+  createdAt DateTime           @default(now())
+  updatedAt DateTime           @updatedAt
+  songs     UserPlaylistSong[]
+}
+
+model UserPlaylistSong {
+  id         String       @id @default(cuid())
+  playlistId String
+  playlist   UserPlaylist @relation(fields: [playlistId], references: [id], onDelete: Cascade)
+  songId     String
+  song       Song         @relation(fields: [songId], references: [id], onDelete: Cascade)
+  position   Int
+  addedAt    DateTime     @default(now())
+
+  @@unique([playlistId, songId])
+}
+
+enum UnlockStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+}
+
+model Unlock {
+  id               String       @id @default(cuid())
+  artistId         String
+  songId           String
+  buyerWhopUserId  String?
+  buyerEmail       String?
+  status           UnlockStatus @default(PENDING)
+  whopPaymentId    String?      @unique
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  artist Artist @relation(fields: [artistId], references: [id])
+  song   Song   @relation(fields: [songId], references: [id])
+}
