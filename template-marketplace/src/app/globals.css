@@ -25,7 +25,7 @@
      would dip to 3.0-4.2:1. */
   --color-tool-notion: #1F1F1F;
   --color-tool-figma: #C23E18;
-  --color-tool-webflow: #4353FF;
+  --color-tool-webflow: #146EF5;
   --color-tool-framer: #0073BF;
   --color-tool-code: #24292E;
   --color-tool-docx: #185ABD;
@@ -51,10 +51,11 @@
   --color-accent-hover: #5F76E8;
   --color-accent-subtle: rgba(122, 141, 239, 0.12);
 
-  /* Tool brand colors brightened for dark surfaces (≥4.5:1 against #171A26) */
+  /* Tool brand colors brightened for dark surfaces (≥4.5:1 against #171A26).
+     Webflow stays at its brand #146EF5 in both themes per design intent. */
   --color-tool-notion: #F0F0F0;
   --color-tool-figma: #FF6B3F;
-  --color-tool-webflow: #6E7DFF;
+  --color-tool-webflow: #146EF5;
   --color-tool-framer: #33B0FF;
   --color-tool-code: #C9D1D9;
   --color-tool-docx: #5B97E6;
