@@ -35,11 +35,8 @@ export function TemplateCard({ template }: { template: TemplateCardSummary }) {
           />
         )}
         <span
-          className="absolute left-2 top-2 inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-semibold backdrop-blur-sm"
-          style={{
-            color: `var(${tool.cssVar})`,
-            backgroundColor: `color-mix(in srgb, var(${tool.cssVar}) 16%, transparent)`,
-          }}
+          className="absolute left-2 top-2 inline-flex items-center rounded-md bg-[var(--color-surface)]/95 px-2 py-0.5 text-[11px] font-semibold shadow-sm ring-1 ring-[var(--color-border)] backdrop-blur-sm"
+          style={{ color: `var(${tool.cssVar})` }}
         >
           {tool.label}
         </span>

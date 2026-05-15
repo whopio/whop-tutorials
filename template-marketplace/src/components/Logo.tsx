@@ -2,9 +2,9 @@ import { cn } from "@/lib/utils";
 
 export function Logo({ className }: { className?: string }) {
   return (
-    <div className={cn("inline-flex items-center gap-2.5", className)}>
-      <LogoMark className="h-7 w-7" />
-      <span className="font-display text-xl font-bold tracking-tight text-[var(--color-text-primary)]">
+    <div className={cn("inline-flex items-center gap-3", className)}>
+      <LogoMark className="h-10 w-10" />
+      <span className="font-display text-2xl font-bold tracking-tight text-[var(--color-text-primary)]">
         stax
       </span>
     </div>

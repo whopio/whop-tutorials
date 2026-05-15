@@ -4,8 +4,10 @@ import { isAuthenticated } from "@/lib/auth";
 import { listPublishedTemplates } from "@/lib/templates";
 import { TemplatesGrid } from "@/components/TemplatesGrid";
 import { Pagination } from "@/components/Pagination";
+import { ToolIcon } from "@/components/ToolIcon";
+import type { Tool } from "@/generated/prisma/client";
 
-const tools = [
+const tools: Array<{ name: string; value: Tool; color: string }> = [
   // Clone-URL tools
   { name: "Notion", value: "NOTION", color: "var(--color-tool-notion)" },
   { name: "Figma", value: "FIGMA", color: "var(--color-tool-figma)" },
@@ -90,8 +92,13 @@ export default async function HomePage({
                 key={tool.value}
                 href={`/templates?tool=${tool.value}`}
                 prefetch={false}
-                className="group flex items-center justify-center rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-5 transition hover:-translate-y-0.5 hover:border-[color-mix(in_srgb,var(--color-accent)_40%,var(--color-border))] hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-background)]"
+                className="group flex items-center justify-center gap-2.5 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-5 transition hover:-translate-y-0.5 hover:border-[color-mix(in_srgb,var(--color-accent)_40%,var(--color-border))] hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-background)]"
               >
+                <ToolIcon
+                  tool={tool.value}
+                  className="h-5 w-5 shrink-0"
+                  style={{ color: tool.color }}
+                />
                 <span
                   className="text-sm font-semibold tracking-tight"
                   style={{ color: tool.color }}
