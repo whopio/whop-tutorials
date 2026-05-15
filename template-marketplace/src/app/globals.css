@@ -19,15 +19,19 @@
   --color-error: #DC2626;
   --color-rating: #F59E0B;
 
+  /* Light-mode tool brand colors. Figma / Framer / AI-Prompt are darker
+     than the canonical brand hex to clear WCAG AA 4.5:1 for small text
+     on white surfaces. Originals (kept in dark mode + seed thumbnails)
+     would dip to 3.0-4.2:1. */
   --color-tool-notion: #1F1F1F;
-  --color-tool-figma: #F24E1E;
+  --color-tool-figma: #C23E18;
   --color-tool-webflow: #4353FF;
-  --color-tool-framer: #0099FF;
+  --color-tool-framer: #0073BF;
   --color-tool-code: #24292E;
   --color-tool-docx: #185ABD;
   --color-tool-xlsx: #107C41;
   --color-tool-pptx: #C43E1C;
-  --color-tool-ai-prompt: #8B5CF6;
+  --color-tool-ai-prompt: #7A51D8;
   --color-tool-other: #6A6E7E;
 
   /* Font stacks fed by next/font CSS variables */
