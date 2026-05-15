@@ -1,11 +1,4 @@
-import {
-  Code2,
-  FileText,
-  Package,
-  Presentation,
-  Sparkles,
-  Table2,
-} from "lucide-react";
+import { Code2, Package, Sparkles } from "lucide-react";
 import type { Tool } from "@/generated/prisma/client";
 
 interface ToolIconProps {
@@ -14,24 +7,35 @@ interface ToolIconProps {
   style?: React.CSSProperties;
 }
 
+/**
+ * Tool icons.
+ *
+ * For brand tools (Notion / Figma / Webflow / Framer / Word / Excel /
+ * PowerPoint) we ship the official multi-color SVG from public/tool-icons/.
+ * Those icons keep their own intrinsic colors and ignore the `style` color.
+ *
+ * For generic categories (Code / AI Prompt / Other) we use Lucide and the
+ * `style` color is applied via `currentColor`.
+ */
 export function ToolIcon({ tool, className, style }: ToolIconProps) {
+  const brand = BRAND_SVG[tool];
+  if (brand) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={brand.src}
+        alt={brand.alt}
+        className={className}
+        style={{ objectFit: "contain" }}
+        loading="lazy"
+        decoding="async"
+      />
+    );
+  }
+
   switch (tool) {
-    case "NOTION":
-      return <NotionGlyph className={className} style={style} />;
-    case "FIGMA":
-      return <FigmaGlyph className={className} style={style} />;
-    case "WEBFLOW":
-      return <WebflowGlyph className={className} style={style} />;
-    case "FRAMER":
-      return <FramerGlyph className={className} style={style} />;
     case "CODE":
       return <Code2 className={className} style={style} aria-hidden />;
-    case "DOCX":
-      return <FileText className={className} style={style} aria-hidden />;
-    case "XLSX":
-      return <Table2 className={className} style={style} aria-hidden />;
-    case "PPTX":
-      return <Presentation className={className} style={style} aria-hidden />;
     case "AI_PROMPT":
       return <Sparkles className={className} style={style} aria-hidden />;
     case "OTHER":
@@ -40,68 +44,12 @@ export function ToolIcon({ tool, className, style }: ToolIconProps) {
   }
 }
 
-interface GlyphProps {
-  className?: string;
-  style?: React.CSSProperties;
-}
-
-function NotionGlyph({ className, style }: GlyphProps) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="currentColor"
-      xmlns="http://www.w3.org/2000/svg"
-      aria-hidden
-      className={className}
-      style={style}
-    >
-      <path d="M5.5 3.5h3l8 11V3.5h2.5v17h-3l-8-11v11H5.5z" />
-    </svg>
-  );
-}
-
-function FigmaGlyph({ className, style }: GlyphProps) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="currentColor"
-      xmlns="http://www.w3.org/2000/svg"
-      aria-hidden
-      className={className}
-      style={style}
-    >
-      <path d="M9 3.5h3v5H9a2.5 2.5 0 010-5zM12 3.5h3a2.5 2.5 0 010 5h-3v-5zM9 8.5h3v5H9a2.5 2.5 0 010-5zM12 8.5h0a2.5 2.5 0 110 5 2.5 2.5 0 010-5zM9 13.5a2.5 2.5 0 012.5 2.5v2.5A2.5 2.5 0 119 16v-2.5z" />
-    </svg>
-  );
-}
-
-function WebflowGlyph({ className, style }: GlyphProps) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="currentColor"
-      xmlns="http://www.w3.org/2000/svg"
-      aria-hidden
-      className={className}
-      style={style}
-    >
-      <path d="M3 6h3.6l1.55 5.05L9.8 6h2.7l1.55 5.05L15.7 6H21l-3.9 12h-2.9l-1.7-5.6L10.7 18H7.8z" />
-    </svg>
-  );
-}
-
-function FramerGlyph({ className, style }: GlyphProps) {
-  return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="currentColor"
-      xmlns="http://www.w3.org/2000/svg"
-      aria-hidden
-      className={className}
-      style={style}
-    >
-      <path d="M6.5 3.5h11v6H12.5L17.5 15.5h-11v-6H12.5L6.5 3.5z" />
-      <path d="M6.5 15.5h6v5z" />
-    </svg>
-  );
-}
+const BRAND_SVG: Partial<Record<Tool, { src: string; alt: string }>> = {
+  NOTION: { src: "/tool-icons/notion.svg", alt: "Notion" },
+  FIGMA: { src: "/tool-icons/figma.svg", alt: "Figma" },
+  WEBFLOW: { src: "/tool-icons/webflow.svg", alt: "Webflow" },
+  FRAMER: { src: "/tool-icons/framer.svg", alt: "Framer" },
+  DOCX: { src: "/tool-icons/word.svg", alt: "Microsoft Word" },
+  XLSX: { src: "/tool-icons/excel.svg", alt: "Microsoft Excel" },
+  PPTX: { src: "/tool-icons/powerpoint.svg", alt: "Microsoft PowerPoint" },
+};
