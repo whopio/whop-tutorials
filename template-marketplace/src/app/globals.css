@@ -1,0 +1,125 @@
+@import "tailwindcss";
+@import "@uploadthing/react/styles.css";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  /* Light mode (default) */
+  --color-background: #FAFBFC;
+  --color-surface: #FFFFFF;
+  --color-surface-elevated: #F4F5F8;
+  --color-border: #E2E4EA;
+  --color-text-primary: #14161F;
+  --color-text-secondary: #6A6E7E;
+  --color-accent: #3D52CC;
+  --color-accent-hover: #3344B0;
+  --color-accent-subtle: rgba(61, 82, 204, 0.08);
+  --color-success: #15803D;
+  --color-warning: #B45309;
+  --color-error: #DC2626;
+  --color-rating: #F59E0B;
+
+  --color-tool-notion: #1F1F1F;
+  --color-tool-figma: #F24E1E;
+  --color-tool-webflow: #4353FF;
+  --color-tool-framer: #0099FF;
+  --color-tool-code: #24292E;
+  --color-tool-docx: #185ABD;
+  --color-tool-xlsx: #107C41;
+  --color-tool-pptx: #C43E1C;
+  --color-tool-ai-prompt: #8B5CF6;
+  --color-tool-other: #6A6E7E;
+
+  /* Font stacks fed by next/font CSS variables */
+  --font-sans: var(--font-sans), system-ui, -apple-system, sans-serif;
+  --font-display: var(--font-display), system-ui, -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+}
+
+.dark {
+  --color-background: #0E1018;
+  --color-surface: #171A26;
+  --color-surface-elevated: #222633;
+  --color-border: #2C3142;
+  --color-text-primary: #F0F1F5;
+  --color-text-secondary: #8C90A0;
+  --color-accent: #7A8DEF;
+  --color-accent-hover: #5F76E8;
+  --color-accent-subtle: rgba(122, 141, 239, 0.12);
+
+  /* Tool brand colors brightened for dark surfaces (≥4.5:1 against #171A26) */
+  --color-tool-notion: #F0F0F0;
+  --color-tool-figma: #FF6B3F;
+  --color-tool-webflow: #6E7DFF;
+  --color-tool-framer: #33B0FF;
+  --color-tool-code: #C9D1D9;
+  --color-tool-docx: #5B97E6;
+  --color-tool-xlsx: #4FC785;
+  --color-tool-pptx: #E47452;
+  --color-tool-ai-prompt: #A78BFA;
+}
+
+html, body {
+  font-family: var(--font-sans);
+}
+
+body {
+  background: var(--color-background);
+  color: var(--color-text-primary);
+}
+
+/* Display class, Space Grotesk for big headlines */
+.font-display {
+  font-family: var(--font-display);
+  letter-spacing: -0.02em;
+}
+
+/* Hero mesh gradient, three soft orbs blending */
+.hero-mesh {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+.hero-mesh::before,
+.hero-mesh::after,
+.hero-mesh > span {
+  content: "";
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(80px);
+  opacity: 0.65;
+}
+.hero-mesh::before {
+  width: 520px;
+  height: 520px;
+  top: -160px;
+  left: -120px;
+  background: radial-gradient(circle, #6B5FCB 0%, transparent 70%);
+}
+.hero-mesh::after {
+  width: 460px;
+  height: 460px;
+  top: 80px;
+  right: -100px;
+  background: radial-gradient(circle, #B85FCB 0%, transparent 70%);
+}
+.hero-mesh > span {
+  width: 380px;
+  height: 380px;
+  bottom: -120px;
+  left: 30%;
+  background: radial-gradient(circle, #3D52CC 0%, transparent 70%);
+}
+
+.dark .hero-mesh::before { opacity: 0.45; }
+.dark .hero-mesh::after { opacity: 0.4; }
+.dark .hero-mesh > span { opacity: 0.5; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

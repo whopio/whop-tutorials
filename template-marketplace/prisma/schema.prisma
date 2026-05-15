@@ -1,0 +1,165 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─── Users ─────────────────────────────────────
+
+model User {
+  id          String   @id @default(cuid())
+  whopUserId  String   @unique
+  email       String
+  name        String?
+  avatar      String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  sellerProfile SellerProfile?
+  purchases     Purchase[]
+  reviews       Review[]
+}
+
+// ─── Sellers ───────────────────────────────────
+
+model SellerProfile {
+  id            String   @id @default(cuid())
+  userId        String   @unique
+  username      String   @unique
+  headline      String?
+  bio           String?
+  whopCompanyId String   @unique
+  kycComplete   Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  templates Template[]
+}
+
+// ─── Templates ─────────────────────────────────
+
+enum Tool {
+  NOTION
+  FIGMA
+  WEBFLOW
+  FRAMER
+  CODE
+  DOCX
+  XLSX
+  PPTX
+  AI_PROMPT
+  OTHER
+}
+
+enum Category {
+  PRODUCTIVITY
+  PROJECT_MANAGEMENT
+  LANDING_PAGES
+  DASHBOARDS
+  BRANDING
+  DEV_BOILERPLATES
+  MARKETING
+  FINANCE
+  OTHER
+}
+
+enum DeliveryType {
+  FILE_DOWNLOAD
+  SHARE_URL
+}
+
+enum TemplateStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum TemplateFileKind {
+  PREVIEW
+  DOWNLOAD
+}
+
+model Template {
+  id              String         @id @default(cuid())
+  sellerProfileId String
+  title           String
+  slug            String         @unique
+  description     String
+  price           Int
+  tool            Tool
+  category        Category
+  deliveryType    DeliveryType
+  shareUrl        String?
+  content         String?
+  thumbnailUrl    String?
+  status          TemplateStatus @default(DRAFT)
+  whopProductId   String?
+  whopPlanId      String?
+  whopCheckoutUrl String?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  sellerProfile SellerProfile  @relation(fields: [sellerProfileId], references: [id], onDelete: Cascade)
+  files         TemplateFile[]
+  purchases     Purchase[]
+  reviews       Review[]
+}
+
+model TemplateFile {
+  id           String           @id @default(cuid())
+  templateId   String
+  kind         TemplateFileKind
+  fileName     String
+  fileKey      String           @unique
+  fileUrl      String
+  fileSize     Int
+  mimeType     String
+  displayOrder Int              @default(0)
+
+  template Template @relation(fields: [templateId], references: [id], onDelete: Cascade)
+}
+
+// ─── Purchases ─────────────────────────────────
+
+model Purchase {
+  id            String   @id @default(cuid())
+  userId        String
+  templateId    String
+  whopPaymentId String?
+  pricePaid     Int
+  createdAt     DateTime @default(now())
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  template Template @relation(fields: [templateId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, templateId])
+}
+
+// ─── Reviews ───────────────────────────────────
+
+model Review {
+  id         String   @id @default(cuid())
+  userId     String
+  templateId String
+  stars      Int
+  title      String?
+  body       String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  template Template @relation(fields: [templateId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, templateId])
+}
+
+// ─── Webhooks ──────────────────────────────────
+
+model WebhookEvent {
+  id          String   @id
+  processedAt DateTime @default(now())
+}
