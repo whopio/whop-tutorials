@@ -30,8 +30,7 @@ A multi-seller marketplace for digital templates where any signed-in user can be
 | [UploadThing](https://uploadthing.com/) | File storage for preview images + downloadable bundles (16MB max) |
 | [Iron Session](https://github.com/vvo/iron-session) | Encrypted cookie sessions, no DB session table |
 | [Zod 4](https://zod.dev/) | Runtime validation at API boundaries; lazy Proxy for env var schema |
-| [Tailwind CSS v4](https://tailwindcss.com/) | CSS-first theming via `@theme` |
-| [next-themes](https://github.com/pacocoursey/next-themes) | System/light/dark theme toggle |
+| [Tailwind CSS v4](https://tailwindcss.com/) | CSS-first theming via `@theme`; dark mode via `@media (prefers-color-scheme: dark)` (no JS-side provider) |
 | [Vercel](https://vercel.com/) | Hosting; build configured via TypeScript `vercel.ts` |
 
 ## Getting Started

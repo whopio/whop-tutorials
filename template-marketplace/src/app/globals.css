@@ -1,7 +1,7 @@
 @import "tailwindcss";
 @import "@uploadthing/react/styles.css";
 
-@custom-variant dark (&:where(.dark, .dark *));
+@custom-variant dark (@media (prefers-color-scheme: dark));
 
 @theme {
   /* Light mode (default) */
@@ -47,29 +47,31 @@
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
 }
 
-.dark {
-  --color-background: #0A0F0E;
-  --color-surface: #141A18;
-  --color-surface-elevated: #1F2624;
-  --color-border: #2A302E;
-  --color-text-primary: #F2F2EE;
-  --color-text-secondary: #9CA29F;
-  --color-accent: #2DD4BF;
-  --color-accent-hover: #5EEAD4;
-  --color-accent-subtle: rgba(45, 212, 191, 0.13);
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-background: #0A0F0E;
+    --color-surface: #141A18;
+    --color-surface-elevated: #1F2624;
+    --color-border: #2A302E;
+    --color-text-primary: #F2F2EE;
+    --color-text-secondary: #9CA29F;
+    --color-accent: #2DD4BF;
+    --color-accent-hover: #5EEAD4;
+    --color-accent-subtle: rgba(45, 212, 191, 0.13);
 
-  /* Tool brand colors brightened for dark surfaces (≥4.5:1 against #171A26).
-     Webflow stays at its brand #146EF5 in both themes per design intent. */
-  --color-tool-notion: #F0F0F0;
-  --color-tool-figma: #FF6B3F;
-  --color-tool-webflow: #146EF5;
-  --color-tool-framer: #33B0FF;
-  --color-tool-wordpress: #4A9EE0;
-  --color-tool-code: #C9D1D9;
-  --color-tool-docx: #5B97E6;
-  --color-tool-xlsx: #4FC785;
-  --color-tool-pptx: #E47452;
-  --color-tool-ai-prompt: #A78BFA;
+    /* Tool brand colors brightened for dark surfaces (≥4.5:1 against #171A26).
+       Webflow stays at its brand #146EF5 in both themes per design intent. */
+    --color-tool-notion: #F0F0F0;
+    --color-tool-figma: #FF6B3F;
+    --color-tool-webflow: #146EF5;
+    --color-tool-framer: #33B0FF;
+    --color-tool-wordpress: #4A9EE0;
+    --color-tool-code: #C9D1D9;
+    --color-tool-docx: #5B97E6;
+    --color-tool-xlsx: #4FC785;
+    --color-tool-pptx: #E47452;
+    --color-tool-ai-prompt: #A78BFA;
+  }
 }
 
 html, body {
@@ -125,9 +127,11 @@ body {
   background: radial-gradient(circle, #0F766E 0%, transparent 70%);
 }
 
-.dark .hero-mesh::before { opacity: 0.45; }
-.dark .hero-mesh::after { opacity: 0.4; }
-.dark .hero-mesh > span { opacity: 0.5; }
+@media (prefers-color-scheme: dark) {
+  .hero-mesh::before { opacity: 0.45; }
+  .hero-mesh::after { opacity: 0.4; }
+  .hero-mesh > span { opacity: 0.5; }
+}
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {

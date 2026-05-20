@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { Inter, Space_Grotesk } from "next/font/google";
-import { ThemeProvider } from "next-themes";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
 import "./globals.css";
@@ -32,14 +31,11 @@ export default function RootLayout({
     <html
       lang="en"
       className={`${inter.variable} ${spaceGrotesk.variable} h-full antialiased`}
-      suppressHydrationWarning
     >
       <body className="min-h-full flex flex-col bg-[var(--color-background)]">
-        <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-          <Header />
-          <div className="flex-1">{children}</div>
-          <Footer />
-        </ThemeProvider>
+        <Header />
+        <div className="flex-1">{children}</div>
+        <Footer />
       </body>
     </html>
   );

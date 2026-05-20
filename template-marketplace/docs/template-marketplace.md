@@ -20,7 +20,7 @@ Condensed reference for building Stax, a multi-seller marketplace for digital te
 | Category | Technology |
 |----------|-----------|
 | Framework | Next.js 16 (App Router), React 19, Turbopack |
-| Styling | Tailwind CSS v4 (CSS-first via `@theme`), next-themes, lucide-react |
+| Styling | Tailwind CSS v4 (CSS-first via `@theme`), `lucide-react` |
 | Auth | Whop OAuth 2.1 (PKCE + nonce) + iron-session 8 (encrypted cookie, no DB sessions) |
 | Payments | Whop for Platforms: `companies.create`, `products.create`, `checkoutConfigurations.create` with `application_fee_amount` on an inline one-time plan |
 | Promo codes | Whop Promo Codes API — `promoCodes.list / create / delete`, no local model |
@@ -96,7 +96,7 @@ Install everything upfront so `package.json` stays stable as the project grows.
 
 ```bash
 npm install @whop/sdk @prisma/client @prisma/adapter-pg pg iron-session zod \
-  lucide-react next-themes clsx tailwind-merge dotenv \
+  lucide-react clsx tailwind-merge dotenv \
   uploadthing @uploadthing/react
 npm install -D prisma @types/pg @vercel/config
 ```
@@ -175,11 +175,11 @@ export default defineConfig({
 
 ### Global CSS
 
-`src/app/globals.css` imports Tailwind and the UploadThing styles, defines the light/dark CSS variables via `@theme`, and exposes nine `--color-tool-*` brand colors that drive the tool badges across the marketplace. The hero on `/` uses three blurred gradient orbs (`.hero-mesh`) and respects `prefers-reduced-motion`.
+`src/app/globals.css` imports Tailwind and the UploadThing styles, defines the light-mode design tokens via `@theme`, and exposes ten `--color-tool-*` brand colors that drive the tool badges across the marketplace. Dark mode is wired in via a single `@media (prefers-color-scheme: dark) { :root { ... } }` block that overrides the same tokens, plus the Tailwind v4 custom variant `@custom-variant dark (@media (prefers-color-scheme: dark));` so every `dark:` utility class follows the OS preference. No JS-side theme provider — the browser does the resolution natively, which means no hydration race and no need to track theme state. The hero on `/` uses three blurred gradient orbs (`.hero-mesh`).
 
 ### Root layout
 
-`src/app/layout.tsx` registers Inter (`--font-sans`) and Space Grotesk (`--font-display`, used for headlines via the `.font-display` utility class) from `next/font/google`, wraps the tree in `<ThemeProvider attribute="class" defaultTheme="system" enableSystem>` from `next-themes`, and renders a shared `<Header>` and `<Footer>` around `{children}`.
+`src/app/layout.tsx` registers Inter (`--font-sans`) and Space Grotesk (`--font-display`, used for headlines via the `.font-display` utility class) from `next/font/google`, then renders a shared `<Header>` and `<Footer>` around `{children}`. No `<ThemeProvider>` wrapper — dark mode is handled entirely by CSS in `globals.css`.
 
 ---
 
