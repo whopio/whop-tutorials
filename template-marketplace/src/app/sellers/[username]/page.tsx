@@ -39,32 +39,33 @@ export default async function SellerProfilePage({
   const initial = (seller.user.name ?? seller.username).slice(0, 1).toUpperCase();
 
   return (
-    <main className="mx-auto max-w-6xl px-4 py-12 sm:px-6 lg:py-16">
+    <main className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:py-16">
       <div className="flex flex-col items-start gap-6 sm:flex-row sm:items-center">
         {seller.user.avatar ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
             src={seller.user.avatar}
             alt=""
-            className="h-20 w-20 rounded-full border border-[var(--color-border)] object-cover"
+            className="h-24 w-24 rounded-full border border-[var(--color-border)] object-cover"
           />
         ) : (
-          <div className="grid h-20 w-20 place-items-center rounded-full bg-[var(--color-accent-subtle)] font-display text-2xl font-bold text-[var(--color-accent)]">
+          <div className="grid h-24 w-24 place-items-center rounded-full bg-[var(--color-accent-subtle)] font-display text-3xl font-bold text-[var(--color-accent)]">
             {initial}
           </div>
         )}
         <div className="min-w-0 flex-1">
-          <p className="text-sm text-[var(--color-text-secondary)]">@{seller.username}</p>
-          <h1 className="mt-1 font-display text-3xl font-bold tracking-tight text-[var(--color-text-primary)] sm:text-4xl">
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--color-text-secondary)]">Seller</p>
+          <h1 className="mt-2 font-display text-3xl font-bold tracking-tight text-[var(--color-text-primary)] sm:text-4xl lg:text-5xl">
             {seller.user.name ?? seller.username}
           </h1>
+          <p className="mt-1 text-sm text-[var(--color-text-secondary)]">@{seller.username}</p>
           {seller.headline && (
             <p className="mt-2 max-w-2xl text-base text-[var(--color-text-secondary)]">
               {seller.headline}
             </p>
           )}
         </div>
-        <div className="flex gap-6 text-sm text-[var(--color-text-secondary)] sm:flex-col sm:text-right">
+        <div className="flex gap-6 text-sm text-[var(--color-text-secondary)]">
           <Stat value={String(seller._count.templates)} label="Templates" />
           <Stat value={String(salesAgg._count)} label="Sales" />
         </div>

@@ -1,6 +1,6 @@
 # Stax: Template Marketplace Tutorial (LLM Context)
 
-Condensed reference for building Stax, a multi-seller marketplace for digital templates (Notion, Figma, Webflow, Framer, code, Word, Excel, PowerPoint, AI prompts) built on Next.js and Whop. Non-obvious code (Whop SDK calls, dual-client setup, OAuth/PKCE, webhook handler, UploadThing two-route pattern, promo codes, payouts portal, the publish flow with `application_fee_amount`) is included in full. Standard React/Next.js UI files are described in prose so the LLM can generate them.
+Condensed reference for building Stax, a multi-seller marketplace for digital templates (Notion, Figma, Webflow, Framer, WordPress, code, Word, Excel, PowerPoint, AI prompts) built on Next.js and Whop. Non-obvious code (Whop SDK calls, dual-client setup, OAuth/PKCE, webhook handler, UploadThing two-route pattern, promo codes, payouts portal, the publish flow with `application_fee_amount`) is included in full. Standard React/Next.js UI files are described in prose so the LLM can generate them.
 
 ---
 
@@ -185,7 +185,7 @@ export default defineConfig({
 
 ## 3. Database schema
 
-Seven models. `User` is keyed by `whopUserId` (the OAuth `sub`). `SellerProfile` is the creator profile and stores the seller's `whopCompanyId` — the connected sub-company that owns their products and receives payouts. `Template` is the product, with a `Tool` enum (10 values) and a `Category` enum (9 values) feeding the discovery filters and a `DeliveryType` enum picking between file downloads and a revealed share URL. `TemplateFile` holds rows for both preview images (`kind: PREVIEW`) and downloadable files (`kind: DOWNLOAD`). `Purchase` is the buyer's access record (one per `(userId, templateId)`). `Review` is the 1–5 star rating, also one per `(userId, templateId)`. `WebhookEvent` is the idempotency table, primary-keyed on Whop's event ID.
+Seven models. `User` is keyed by `whopUserId` (the OAuth `sub`). `SellerProfile` is the creator profile and stores the seller's `whopCompanyId` — the connected sub-company that owns their products and receives payouts. `Template` is the product, with a `Tool` enum (11 values) and a `Category` enum (9 values) feeding the discovery filters and a `DeliveryType` enum picking between file downloads and a revealed share URL. `TemplateFile` holds rows for both preview images (`kind: PREVIEW`) and downloadable files (`kind: DOWNLOAD`). `Purchase` is the buyer's access record (one per `(userId, templateId)`). `Review` is the 1–5 star rating, also one per `(userId, templateId)`. `WebhookEvent` is the idempotency table, primary-keyed on Whop's event ID.
 
 `prisma/schema.prisma`:
 
@@ -233,6 +233,7 @@ enum Tool {
   FIGMA
   WEBFLOW
   FRAMER
+  WORDPRESS
   CODE
   DOCX
   XLSX
@@ -553,13 +554,16 @@ Whop OAuth 2.1 mandates PKCE. The `nonce` parameter is also required because we 
 
 ### `src/app/api/auth/login/route.ts`
 
+Also accepts a `?redirect_to=<path>` query param so callers (like the "Become a seller" CTA on the homepage) can route the user to a specific landing page after sign-in. The target is validated as a same-origin relative path and stored in a short-lived httpOnly cookie that the callback reads.
+
 ```ts
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { randomBytes, createHash } from "crypto";
 import { appUrl, whopOauthBaseUrl } from "@/lib/whop";
 
 const VERIFIER_COOKIE = "stax_pkce_verifier";
 const STATE_COOKIE = "stax_oauth_state";
+const REDIRECT_COOKIE = "stax_oauth_redirect";
 
 function base64url(input: Buffer) {
   return input
@@ -569,7 +573,15 @@ function base64url(input: Buffer) {
     .replace(/=+$/, "");
 }
 
-export async function GET() {
+// Only accept same-origin paths like "/sell" — never absolute URLs or
+// protocol-relative URLs ("//evil.com") that could redirect off-site.
+function safeRedirectTarget(raw: string | null): string | null {
+  if (!raw) return null;
+  if (!raw.startsWith("/") || raw.startsWith("//")) return null;
+  return raw;
+}
+
+export async function GET(request: NextRequest) {
   const verifier = base64url(randomBytes(32));
   const challenge = base64url(
     createHash("sha256").update(verifier).digest(),
@@ -607,13 +619,26 @@ export async function GET() {
     path: "/",
   });
 
+  const redirectTo = safeRedirectTarget(
+    new URL(request.url).searchParams.get("redirect_to"),
+  );
+  if (redirectTo) {
+    response.cookies.set(REDIRECT_COOKIE, redirectTo, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: 60 * 10,
+      path: "/",
+    });
+  }
+
   return response;
 }
 ```
 
 ### `src/app/api/auth/callback/route.ts`
 
-Token exchange uses **JSON body** with `Content-Type: application/json`. A `application/x-www-form-urlencoded` body returns 400. `client_secret` is required alongside `client_id` and `code_verifier`. Stax fetches `/oauth/userinfo` rather than decoding the `id_token` JWT — both work; userinfo is more forgiving when the JWT layout shifts.
+Token exchange uses **JSON body** with `Content-Type: application/json`. A `application/x-www-form-urlencoded` body returns 400. `client_secret` is required alongside `client_id` and `code_verifier`. Stax fetches `/oauth/userinfo` rather than decoding the `id_token` JWT — both work; userinfo is more forgiving when the JWT layout shifts. After the session is written, the callback reads the `stax_oauth_redirect` cookie (set by the login route) and routes the user to that path; otherwise it falls back to `/`.
 
 ```ts
 import { NextRequest, NextResponse } from "next/server";
@@ -623,6 +648,15 @@ import { appUrl, whopOauthBaseUrl } from "@/lib/whop";
 
 const VERIFIER_COOKIE = "stax_pkce_verifier";
 const STATE_COOKIE = "stax_oauth_state";
+const REDIRECT_COOKIE = "stax_oauth_redirect";
+
+// Only accept same-origin paths the login route stored — defense in depth
+// against a stale cookie that somehow holds an absolute URL.
+function safeRedirectTarget(raw: string | undefined): string | null {
+  if (!raw) return null;
+  if (!raw.startsWith("/") || raw.startsWith("//")) return null;
+  return raw;
+}
 
 interface TokenResponse {
   access_token: string;
@@ -710,9 +744,13 @@ export async function GET(request: NextRequest) {
   session.accessToken = tokens.access_token;
   await session.save();
 
-  const response = NextResponse.redirect(`${appUrl}/`);
+  const redirectTo =
+    safeRedirectTarget(request.cookies.get(REDIRECT_COOKIE)?.value) ?? "/";
+
+  const response = NextResponse.redirect(`${appUrl}${redirectTo}`);
   response.cookies.delete(VERIFIER_COOKIE);
   response.cookies.delete(STATE_COOKIE);
+  response.cookies.delete(REDIRECT_COOKIE);
   return response;
 }
 ```
@@ -1201,13 +1239,30 @@ export async function POST(
 
 ## 9. Marketplace and discovery
 
+### Persistent header chrome
+
+Filters live in the sticky header, not on the catalog page itself. Three small client components read the current URL and push the user back to `/templates` with the right querystring.
+
+- **`<HeaderSearch>`** (`src/components/HeaderSearch.tsx`) — the inline search input in the top bar. Uses `useRouter` + `useSearchParams` to seed its value from `?q=` on `/templates`, then `router.push('/templates?q=...')` on submit.
+- **`<NavToolBar>`** (`src/components/NavToolBar.tsx`) — horizontal-scrolling tab strip below the brand row with one tab per `Tool` (Notion, Figma, Webflow, Framer, WordPress, Code, Word, Excel, PowerPoint, AI Prompts). The active tab is determined by reading `?tool=` and tinting the tab in that tool's brand color via `--color-tool-*`. Tapping a tab links to `/templates?tool=<TOOL>`, preserving any active `q`.
+- **`<NavCategoryBar>`** (`src/components/NavCategoryBar.tsx`) — second sub-nav with one chip per `Category`. Rendered conditionally — only on `/templates` — by checking `usePathname()`. Chips work the same way as the tool tabs (read `?category=`, write it back on click).
+
+The header renders all three components in `Header.tsx` so they stick across page navigations. The `Header` server component itself reads the session and conditionally renders the "Become a seller" / "Seller dashboard" links and the user pill; the search + nav components below it are pure client components.
+
+### `<HomeHeroSearch>` (`src/components/HomeHeroSearch.tsx`)
+
+A bigger version of `<HeaderSearch>` used in the homepage hero only. Same submit handler (pushes to `/templates?q=...`), bigger input. Lives on its own so the homepage `<Header>` and the hero search don't share state.
+
 ### `/templates` catalog
 
 Server component. Reads `tool`, `category`, `q`, `page`, and `sort` from `searchParams`, calls `listPublishedTemplates({ tool, category, q, page, sort, pageSize: 12 })`, and renders:
 
-- A filter bar at the top: tool chips (colored by `--color-tool-*`), category chips, sort dropdown, search input.
+- A left-aligned header: "Marketplace" eyebrow, the active filter as the H1 (`All templates`, `Notion templates`, `Dashboards templates`, etc.), and a single line below combining the result count, the active category sub-filter, and the active `q`.
+- An active-query chip (with an `X` to clear) below the header when `?q=` is set.
 - A grid of `<TemplateCard>`s (3 cols at `lg`, 2 at `md`, 1 at `sm`).
 - A `<Pagination>` strip at the bottom with prev/next + numbered pages, preserving the current querystring.
+
+The tool/category/search filters all live in the persistent header above — this page never renders a filter bar.
 
 Empty states are honest: if a Tool filter is set to a clone-URL tool that's never been populated, show "Be the first seller to publish a [Tool] template" with a CTA to `/sell`.
 
@@ -1223,7 +1278,7 @@ Server component. Calls `getTemplateBySlug(slug)` (returns the template + seller
 
 ### `/sellers/[username]` profile
 
-Server component. Loads the SellerProfile + headline + bio + recent published templates. Renders a hero with the seller name, headline, bio, and a grid of their templates using `<TemplateCard>`.
+Server component. Loads the SellerProfile + user (for the avatar) + headline + bio + recent published templates + an aggregated purchase count across the seller's templates. Renders a hero row with the seller's avatar (or an initial-circle placeholder if `user.avatar === null`), the seller name, `@username`, headline, bio, and a horizontal **Templates** / **Sales** counter on the right at every breakpoint. Below the hero, the bio and a grid of their templates using `<TemplateCard>`.
 
 ### `<TemplateCard>` (`src/components/TemplateCard.tsx`)
 
@@ -1755,6 +1810,8 @@ export async function POST(
 }
 ```
 
+The DELETE endpoint has to do an extra ownership check that's easy to miss: the Company API Key has org-wide permission to delete any promo code on the platform, so verifying "this seller owns the template at `[id]`" is not enough — we must also verify "the `[codeId]` actually belongs to that template's product." Without it, an authenticated seller could pass any `codeId` in the URL and archive promo codes belonging to other sellers' templates.
+
 ```ts
 // src/app/api/sell/templates/[id]/promo-codes/[codeId]/route.ts
 import { NextRequest, NextResponse } from "next/server";
@@ -1774,10 +1831,42 @@ export async function DELETE(
 
   const template = await prisma.template.findFirst({
     where: { id, sellerProfile: { userId: session.userId } },
-    select: { id: true },
+    include: { sellerProfile: { select: { whopCompanyId: true } } },
   });
   if (!template) {
     return NextResponse.json({ error: "Template not found" }, { status: 404 });
+  }
+  if (!template.whopProductId) {
+    return NextResponse.json({ error: "Promo code not found" }, { status: 404 });
+  }
+
+  // Defense in depth: the Company API Key has org-wide permission to delete
+  // any promo code on the platform. Without this check, an authenticated
+  // seller could pass any codeId in the URL and archive promo codes
+  // belonging to other sellers' templates. Verify the codeId actually
+  // belongs to this template's product before deleting.
+  let belongsToTemplate = false;
+  try {
+    for await (const code of whopCompany.promoCodes.list({
+      company_id: template.sellerProfile.whopCompanyId,
+      product_ids: [template.whopProductId],
+    })) {
+      if (code.id === codeId) {
+        belongsToTemplate = true;
+        break;
+      }
+    }
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("Promo code ownership check failed", { codeId, message });
+    return NextResponse.json(
+      { error: "Couldn't verify promo code", detail: message.slice(0, 500) },
+      { status: 500 },
+    );
+  }
+
+  if (!belongsToTemplate) {
+    return NextResponse.json({ error: "Promo code not found" }, { status: 404 });
   }
 
   try {
@@ -1843,16 +1932,18 @@ The Stax tutorial stays in sandbox throughout development. The production switch
 
 13. **100%-off promo codes break paid plans.** The application fee can't exceed the total. Free distribution should use the free-template path (price = 0, direct purchase route), not a 100% percentage code on a paid plan. The promo-codes POST validates and rejects this explicitly.
 
-14. **`whop.companies.create({ parent_company_id })` is how the connected-account sub-company is created.** The resulting `company.id` is what every subsequent call (`accountLinks.create`, `products.create`, `checkoutConfigurations.create`, `promoCodes.*`) keys off — store it as `SellerProfile.whopCompanyId`.
+14. **Promo code DELETE requires explicit ownership verification.** `whopCompany.promoCodes.delete(codeId)` succeeds against any promo code on the platform because the Company API Key has org-wide permissions. Verifying "this seller owns the template at `[id]`" is not enough — the route also has to verify the `codeId` actually belongs to that template's product (list codes for the company filtered by `product_id`, search for `codeId`, 404 if missing). Skipping this check lets one seller archive another seller's codes.
 
-15. **`whop.accountLinks.create` requires HTTPS** for `return_url` and `refresh_url`. Vercel preview deploys work; localhost doesn't. The `use_case` is `"account_onboarding"` for KYC and `"payouts_portal"` for the withdraw flow.
+15. **`whop.companies.create({ parent_company_id })` is how the connected-account sub-company is created.** The resulting `company.id` is what every subsequent call (`accountLinks.create`, `products.create`, `checkoutConfigurations.create`, `promoCodes.*`) keys off — store it as `SellerProfile.whopCompanyId`.
 
-16. **`<Link>` RSC prefetch on a route handler that issues a cross-origin redirect triggers CORS errors.** The sign-in CTA must be a plain `<a href>`, not `<Link>`. Add `prefetch={false}` to any other links that point at redirect-issuing routes.
+16. **`whop.accountLinks.create` requires HTTPS** for `return_url` and `refresh_url`. Vercel preview deploys work; localhost doesn't. The `use_case` is `"account_onboarding"` for KYC and `"payouts_portal"` for the withdraw flow.
 
-17. **Vercel UI silently keeps leading/trailing whitespace on paste.** A leading tab in `NEXT_PUBLIC_APP_URL` shows up as `%09` in the OAuth redirect URI and breaks the exact-match check on Whop's authorize endpoint. Same goes for the webhook secret — a trailing newline 401s every signature verification. Stax trims every Whop credential and the app URL inside `lib/whop.ts` as defense in depth.
+17. **`<Link>` RSC prefetch on a route handler that issues a cross-origin redirect triggers CORS errors.** The sign-in CTA must be a plain `<a href>`, not `<Link>`. Add `prefetch={false}` to any other links that point at redirect-issuing routes.
 
-18. **Prisma 7 schema cannot include `url` in the datasource block.** Use `prisma.config.ts` to inject the URL at runtime, and leave the datasource as just `{ provider = "postgresql" }`. The `prisma db push` CLI flag `--skip-generate` was also removed in Prisma 7; drop it from the build command.
+18. **Vercel UI silently keeps leading/trailing whitespace on paste.** A leading tab in `NEXT_PUBLIC_APP_URL` shows up as `%09` in the OAuth redirect URI and breaks the exact-match check on Whop's authorize endpoint. Same goes for the webhook secret — a trailing newline 401s every signature verification. Stax trims every Whop credential and the app URL inside `lib/whop.ts` as defense in depth.
 
-19. **Vercel marks `DATABASE_URL_UNPOOLED` Sensitive by default.** `vercel env pull` writes it as `""` in `.env.local`. Stax's `prisma.config.ts` falls back to `DATABASE_URL` (pooled) or a placeholder so local `prisma generate` keeps working; real DB operations on Vercel use the injected value at build time.
+19. **Prisma 7 schema cannot include `url` in the datasource block.** Use `prisma.config.ts` to inject the URL at runtime, and leave the datasource as just `{ provider = "postgresql" }`. The `prisma db push` CLI flag `--skip-generate` was also removed in Prisma 7; drop it from the build command.
 
-20. **`Purchase.whopPaymentId` is nullable.** The free-template direct path writes Purchase rows without a Whop payment, and the webhook upsert fills it in for paid purchases. Don't make it `@unique` — multiple free purchases by different users on the same template all have a null `whopPaymentId`, and a unique constraint would block them.
+20. **Vercel marks `DATABASE_URL_UNPOOLED` Sensitive by default.** `vercel env pull` writes it as `""` in `.env.local`. Stax's `prisma.config.ts` falls back to `DATABASE_URL` (pooled) or a placeholder so local `prisma generate` keeps working; real DB operations on Vercel use the injected value at build time.
+
+21. **`Purchase.whopPaymentId` is nullable.** The free-template direct path writes Purchase rows without a Whop payment, and the webhook upsert fills it in for paid purchases. Don't make it `@unique` — multiple free purchases by different users on the same template all have a null `whopPaymentId`, and a unique constraint would block them.

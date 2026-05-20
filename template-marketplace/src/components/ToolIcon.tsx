@@ -49,6 +49,7 @@ const BRAND_SVG: Partial<Record<Tool, { src: string; alt: string }>> = {
   FIGMA: { src: "/tool-icons/figma.svg", alt: "Figma" },
   WEBFLOW: { src: "/tool-icons/webflow.svg", alt: "Webflow" },
   FRAMER: { src: "/tool-icons/framer.svg", alt: "Framer" },
+  WORDPRESS: { src: "/tool-icons/wordpress.svg", alt: "WordPress" },
   DOCX: { src: "/tool-icons/word.svg", alt: "Microsoft Word" },
   XLSX: { src: "/tool-icons/excel.svg", alt: "Microsoft Excel" },
   PPTX: { src: "/tool-icons/powerpoint.svg", alt: "Microsoft PowerPoint" },

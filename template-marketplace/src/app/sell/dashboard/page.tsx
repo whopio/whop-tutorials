@@ -42,11 +42,11 @@ export default async function SellerDashboardPage() {
     totals.ratingCount > 0 ? (totals.ratingSum / totals.ratingCount).toFixed(1) : "0.0";
 
   return (
-    <main className="mx-auto max-w-6xl px-4 py-12 sm:px-6 lg:py-16">
+    <main className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:py-16">
       <div className="flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p className="text-sm text-[var(--color-text-secondary)]">Seller dashboard</p>
-          <h1 className="mt-1 font-display text-3xl font-bold tracking-tight text-[var(--color-text-primary)] sm:text-4xl">
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--color-text-secondary)]">Seller dashboard</p>
+          <h1 className="mt-2 font-display text-3xl font-bold tracking-tight text-[var(--color-text-primary)] sm:text-4xl lg:text-5xl">
             @{seller.username}
           </h1>
           {seller.headline && (
@@ -59,7 +59,7 @@ export default async function SellerDashboardPage() {
           <PayoutsButton />
           <Link
             href="/sell/templates/new"
-            className="inline-flex items-center justify-center gap-2 rounded-lg bg-[var(--color-accent)] px-4 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-[var(--color-accent-hover)]"
+            className="inline-flex items-center justify-center gap-2 rounded-full bg-[var(--color-accent)] px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-[var(--color-accent-hover)]"
           >
             <Plus className="h-4 w-4" />
             New template
@@ -88,7 +88,7 @@ export default async function SellerDashboardPage() {
           </p>
           <Link
             href="/sell/templates/new"
-            className="mt-6 inline-flex items-center gap-2 rounded-lg bg-[var(--color-accent)] px-4 py-2.5 text-sm font-medium text-white transition hover:bg-[var(--color-accent-hover)]"
+            className="mt-6 inline-flex items-center gap-2 rounded-full bg-[var(--color-accent)] px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-[var(--color-accent-hover)]"
           >
             <Plus className="h-4 w-4" />
             Create your first template

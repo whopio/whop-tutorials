@@ -5,19 +5,25 @@
 
 @theme {
   /* Light mode (default) */
-  --color-background: #FAFBFC;
+  --color-background: #FAFAF7;
   --color-surface: #FFFFFF;
-  --color-surface-elevated: #F4F5F8;
-  --color-border: #E2E4EA;
-  --color-text-primary: #14161F;
-  --color-text-secondary: #6A6E7E;
-  --color-accent: #3D52CC;
-  --color-accent-hover: #3344B0;
-  --color-accent-subtle: rgba(61, 82, 204, 0.08);
-  --color-success: #15803D;
+  --color-surface-elevated: #F2F2EC;
+  --color-border: #E4E3DC;
+  --color-text-primary: #16181C;
+  --color-text-secondary: #5C5E66;
+  --color-accent: #0F766E;
+  --color-accent-hover: #0B5E58;
+  --color-accent-subtle: rgba(15, 118, 110, 0.09);
+  --color-success: #047857;
   --color-warning: #B45309;
   --color-error: #DC2626;
   --color-rating: #F59E0B;
+
+  /* Dark utility strip used in header + sign-in card header. Always dark
+     regardless of theme — provides visual anchor + brand chrome. */
+  --color-chrome: #14181A;
+  --color-chrome-text: #F5F4EE;
+  --color-chrome-text-muted: #A8ACA8;
 
   /* Light-mode tool brand colors. Figma / Framer / AI-Prompt are darker
      than the canonical brand hex to clear WCAG AA 4.5:1 for small text
@@ -27,6 +33,7 @@
   --color-tool-figma: #C23E18;
   --color-tool-webflow: #146EF5;
   --color-tool-framer: #0073BF;
+  --color-tool-wordpress: #135E96;
   --color-tool-code: #24292E;
   --color-tool-docx: #185ABD;
   --color-tool-xlsx: #107C41;
@@ -41,15 +48,15 @@
 }
 
 .dark {
-  --color-background: #0E1018;
-  --color-surface: #171A26;
-  --color-surface-elevated: #222633;
-  --color-border: #2C3142;
-  --color-text-primary: #F0F1F5;
-  --color-text-secondary: #8C90A0;
-  --color-accent: #7A8DEF;
-  --color-accent-hover: #5F76E8;
-  --color-accent-subtle: rgba(122, 141, 239, 0.12);
+  --color-background: #0A0F0E;
+  --color-surface: #141A18;
+  --color-surface-elevated: #1F2624;
+  --color-border: #2A302E;
+  --color-text-primary: #F2F2EE;
+  --color-text-secondary: #9CA29F;
+  --color-accent: #2DD4BF;
+  --color-accent-hover: #5EEAD4;
+  --color-accent-subtle: rgba(45, 212, 191, 0.13);
 
   /* Tool brand colors brightened for dark surfaces (≥4.5:1 against #171A26).
      Webflow stays at its brand #146EF5 in both themes per design intent. */
@@ -57,6 +64,7 @@
   --color-tool-figma: #FF6B3F;
   --color-tool-webflow: #146EF5;
   --color-tool-framer: #33B0FF;
+  --color-tool-wordpress: #4A9EE0;
   --color-tool-code: #C9D1D9;
   --color-tool-docx: #5B97E6;
   --color-tool-xlsx: #4FC785;
@@ -100,21 +108,21 @@ body {
   height: 520px;
   top: -160px;
   left: -120px;
-  background: radial-gradient(circle, #6B5FCB 0%, transparent 70%);
+  background: radial-gradient(circle, #2DD4BF 0%, transparent 70%);
 }
 .hero-mesh::after {
   width: 460px;
   height: 460px;
   top: 80px;
   right: -100px;
-  background: radial-gradient(circle, #B85FCB 0%, transparent 70%);
+  background: radial-gradient(circle, #F59E0B 0%, transparent 70%);
 }
 .hero-mesh > span {
   width: 380px;
   height: 380px;
   bottom: -120px;
   left: 30%;
-  background: radial-gradient(circle, #3D52CC 0%, transparent 70%);
+  background: radial-gradient(circle, #0F766E 0%, transparent 70%);
 }
 
 .dark .hero-mesh::before { opacity: 0.45; }
@@ -127,4 +135,13 @@ body {
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+/* Horizontal nav rows scroll on overflow but never show a scrollbar */
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
 }

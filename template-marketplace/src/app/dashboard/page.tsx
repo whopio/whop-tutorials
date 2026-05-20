@@ -19,7 +19,13 @@ export default async function BuyerDashboardPage() {
     include: {
       template: {
         include: {
-          sellerProfile: { select: { username: true, headline: true } },
+          sellerProfile: {
+            select: {
+              username: true,
+              headline: true,
+              user: { select: { avatar: true } },
+            },
+          },
           _count: { select: { files: true, reviews: true } },
           reviews: { select: { stars: true } },
         },
@@ -48,6 +54,7 @@ export default async function BuyerDashboardPage() {
         seller: {
           username: p.template.sellerProfile.username,
           headline: p.template.sellerProfile.headline,
+          avatarUrl: p.template.sellerProfile.user.avatar,
         },
         purchasedAt: p.createdAt,
         pricePaid: p.pricePaid,
@@ -55,11 +62,11 @@ export default async function BuyerDashboardPage() {
     });
 
   return (
-    <main className="mx-auto max-w-6xl px-4 py-12 sm:px-6 lg:py-16">
+    <main className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:py-16">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p className="text-sm text-[var(--color-text-secondary)]">Your library</p>
-          <h1 className="mt-1 font-display text-3xl font-bold tracking-tight text-[var(--color-text-primary)] sm:text-4xl">
+          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--color-text-secondary)]">Your library</p>
+          <h1 className="mt-2 font-display text-3xl font-bold tracking-tight text-[var(--color-text-primary)] sm:text-4xl lg:text-5xl">
             Welcome back, {user.name?.split(" ")[0] ?? user.email.split("@")[0]}
           </h1>
         </div>

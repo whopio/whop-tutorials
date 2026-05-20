@@ -6,7 +6,7 @@ A multi-seller marketplace for digital templates where any signed-in user can be
 
 - **OAuth Authentication** - Whop OAuth 2.1 with PKCE + nonce, iron-session encrypted cookies
 - **Seller Onboarding** - Connected Whop sub-companies via `companies.create({ parent_company_id })`, hosted KYC via `accountLinks.create({ use_case: "account_onboarding" })`, sandbox shortcut that auto-approves KYC for fast dev iteration
-- **Multi-Tool Catalog** - Tool axis (Notion, Figma, Webflow, Framer, Code, Word, Excel, PowerPoint, AI Prompts) and Category axis (Productivity, Project Management, Landing Pages, Dashboards, Branding, Dev Boilerplates, Marketing, Finance)
+- **Multi-Tool Catalog** - Tool axis (Notion, Figma, Webflow, Framer, WordPress, Code, Word, Excel, PowerPoint, AI Prompts) and Category axis (Productivity, Project Management, Landing Pages, Dashboards, Branding, Dev Boilerplates, Marketing, Finance)
 - **Hybrid Delivery** - Each template is either a downloadable file bundle or a share URL revealed post-purchase, chosen by the seller at upload time
 - **UploadThing Two-Route Pattern** - `preview` (public, 8MB images) and `downloadable` (page-gated, 16MB mixed types) with shared seller-ownership middleware
 - **Hosted Checkout with Application Fees** - `products.create` + `checkoutConfigurations.create` with an inline one-time plan, `application_fee_amount` deducts the platform's cut and credits the rest to the seller's connected company

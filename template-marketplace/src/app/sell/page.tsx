@@ -27,7 +27,7 @@ export default async function SellPage() {
 
   if (seller) {
     return (
-      <main className="relative isolate min-h-[calc(100vh-3.5rem-1px)] overflow-hidden">
+      <main className="relative isolate min-h-[calc(100vh-4rem-1px)] overflow-hidden">
         <div className="hero-mesh" aria-hidden>
           <span />
         </div>
@@ -40,7 +40,7 @@ export default async function SellPage() {
           </p>
           <Link
             href="/sell/dashboard"
-            className="mt-10 inline-flex items-center gap-2 rounded-lg bg-[var(--color-accent)] px-6 py-3 text-base font-medium text-white shadow-sm transition hover:bg-[var(--color-accent-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-background)]"
+            className="mt-10 inline-flex items-center gap-2 rounded-full bg-[var(--color-accent)] px-6 py-3 text-base font-medium text-white shadow-sm transition hover:bg-[var(--color-accent-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-background)]"
           >
             Open seller dashboard
             <ArrowRight className="h-4 w-4" />

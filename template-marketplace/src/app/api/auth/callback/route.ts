@@ -5,6 +5,15 @@ import { appUrl, whopOauthBaseUrl } from "@/lib/whop";
 
 const VERIFIER_COOKIE = "stax_pkce_verifier";
 const STATE_COOKIE = "stax_oauth_state";
+const REDIRECT_COOKIE = "stax_oauth_redirect";
+
+// Only accept same-origin paths the login route stored — defense in depth
+// against a stale cookie that somehow holds an absolute URL.
+function safeRedirectTarget(raw: string | undefined): string | null {
+  if (!raw) return null;
+  if (!raw.startsWith("/") || raw.startsWith("//")) return null;
+  return raw;
+}
 
 interface TokenResponse {
   access_token: string;
@@ -92,8 +101,12 @@ export async function GET(request: NextRequest) {
   session.accessToken = tokens.access_token;
   await session.save();
 
-  const response = NextResponse.redirect(`${appUrl}/`);
+  const redirectTo =
+    safeRedirectTarget(request.cookies.get(REDIRECT_COOKIE)?.value) ?? "/";
+
+  const response = NextResponse.redirect(`${appUrl}${redirectTo}`);
   response.cookies.delete(VERIFIER_COOKIE);
   response.cookies.delete(STATE_COOKIE);
+  response.cookies.delete(REDIRECT_COOKIE);
   return response;
 }

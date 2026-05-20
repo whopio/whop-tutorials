@@ -12,6 +12,7 @@ export const TOOLS: ReadonlyArray<{
   { value: "FIGMA", label: "Figma", cssVar: "--color-tool-figma", description: "Figma community files", group: "clone" },
   { value: "WEBFLOW", label: "Webflow", cssVar: "--color-tool-webflow", description: "Webflow site clones", group: "clone" },
   { value: "FRAMER", label: "Framer", cssVar: "--color-tool-framer", description: "Framer remix URLs", group: "clone" },
+  { value: "WORDPRESS", label: "WordPress", cssVar: "--color-tool-wordpress", description: "WordPress themes and templates", group: "file" },
   // File-download tools
   { value: "CODE", label: "Code", cssVar: "--color-tool-code", description: "Project starters and boilerplates", group: "file" },
   { value: "DOCX", label: "Word", cssVar: "--color-tool-docx", description: "Word / Google Docs templates", group: "file" },

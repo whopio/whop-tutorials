@@ -31,7 +31,29 @@ export interface TemplateCardSummary {
   seller: {
     username: string;
     headline: string | null;
+    avatarUrl: string | null;
   };
+}
+
+// Round-robin items across tool groups so consecutive cards have different
+// tool/visual styles. Stable: items within the same tool keep their input
+// order, so paginating across pages stays consistent.
+function interleaveByTool<T extends { tool: string }>(items: T[]): T[] {
+  const groups = new Map<string, T[]>();
+  for (const item of items) {
+    const arr = groups.get(item.tool) ?? [];
+    arr.push(item);
+    groups.set(item.tool, arr);
+  }
+  const queues = Array.from(groups.values());
+  const out: T[] = [];
+  while (queues.some((q) => q.length > 0)) {
+    for (const queue of queues) {
+      const next = queue.shift();
+      if (next) out.push(next);
+    }
+  }
+  return out;
 }
 
 export async function listPublishedTemplates(
@@ -59,14 +81,27 @@ export async function listPublishedTemplates(
       ? [{ purchases: { _count: "desc" as const } }, { createdAt: "desc" as const }]
       : [{ createdAt: "desc" as const }];
 
+  // When the user isn't filtering down to one tool, we interleave results
+  // across tool groups so the grid alternates visual styles instead of
+  // showing five Word docs in a row. Implementation: fetch all matching
+  // rows, group by tool, round-robin them, then paginate in memory. Cheap
+  // for catalogs of this size; revisit if the catalog grows past a few
+  // hundred items.
+  const shouldInterleave = !filters.tool && !filters.sellerProfileId;
+
   const [rows, total] = await Promise.all([
     prisma.template.findMany({
       where,
       orderBy,
-      skip,
-      take: pageSize,
+      ...(shouldInterleave ? {} : { skip, take: pageSize }),
       include: {
-        sellerProfile: { select: { username: true, headline: true } },
+        sellerProfile: {
+          select: {
+            username: true,
+            headline: true,
+            user: { select: { avatar: true } },
+          },
+        },
         _count: { select: { files: true, reviews: true } },
         reviews: { select: { stars: true } },
       },
@@ -74,7 +109,11 @@ export async function listPublishedTemplates(
     prisma.template.count({ where }),
   ]);
 
-  const items: TemplateCardSummary[] = rows.map((t) => {
+  const orderedRows = shouldInterleave
+    ? interleaveByTool(rows).slice(skip, skip + pageSize)
+    : rows;
+
+  const items: TemplateCardSummary[] = orderedRows.map((t) => {
     const ratingSum = t.reviews.reduce((s, r) => s + r.stars, 0);
     const avgRating = t.reviews.length > 0 ? ratingSum / t.reviews.length : null;
     return {
@@ -93,6 +132,7 @@ export async function listPublishedTemplates(
       seller: {
         username: t.sellerProfile.username,
         headline: t.sellerProfile.headline,
+        avatarUrl: t.sellerProfile.user.avatar,
       },
     };
   });
@@ -105,7 +145,13 @@ export async function getTemplateBySlug(slug: string) {
     where: { slug },
     include: {
       sellerProfile: {
-        select: { username: true, headline: true, bio: true, userId: true },
+        select: {
+          username: true,
+          headline: true,
+          bio: true,
+          userId: true,
+          user: { select: { avatar: true } },
+        },
       },
       files: { orderBy: { displayOrder: "asc" } },
       reviews: {

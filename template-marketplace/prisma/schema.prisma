@@ -47,6 +47,7 @@ enum Tool {
   FIGMA
   WEBFLOW
   FRAMER
+  WORDPRESS
   CODE
   DOCX
   XLSX

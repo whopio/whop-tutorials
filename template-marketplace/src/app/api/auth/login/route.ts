@@ -1,9 +1,10 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { randomBytes, createHash } from "crypto";
 import { appUrl, whopOauthBaseUrl } from "@/lib/whop";
 
 const VERIFIER_COOKIE = "stax_pkce_verifier";
 const STATE_COOKIE = "stax_oauth_state";
+const REDIRECT_COOKIE = "stax_oauth_redirect";
 
 function base64url(input: Buffer) {
   return input
@@ -13,7 +14,15 @@ function base64url(input: Buffer) {
     .replace(/=+$/, "");
 }
 
-export async function GET() {
+// Only accept same-origin paths like "/sell" — never absolute URLs or
+// protocol-relative URLs ("//evil.com") that could redirect off-site.
+function safeRedirectTarget(raw: string | null): string | null {
+  if (!raw) return null;
+  if (!raw.startsWith("/") || raw.startsWith("//")) return null;
+  return raw;
+}
+
+export async function GET(request: NextRequest) {
   const verifier = base64url(randomBytes(32));
   const challenge = base64url(
     createHash("sha256").update(verifier).digest(),
@@ -50,6 +59,19 @@ export async function GET() {
     maxAge: 60 * 10,
     path: "/",
   });
+
+  const redirectTo = safeRedirectTarget(
+    new URL(request.url).searchParams.get("redirect_to"),
+  );
+  if (redirectTo) {
+    response.cookies.set(REDIRECT_COOKIE, redirectTo, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      maxAge: 60 * 10,
+      path: "/",
+    });
+  }
 
   return response;
 }

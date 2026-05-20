@@ -123,7 +123,7 @@ export function TemplateForm({
       <div className="grid gap-6 md:grid-cols-2">
         <Field label="Price (USD)" helper="Set to 0 for free templates.">
           <div className="relative">
-            <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-[var(--color-text-secondary)]">
+            <span className="pointer-events-none absolute inset-y-0 left-3 flex items-center text-sm text-[var(--color-text-secondary)]">
               $
             </span>
             <input

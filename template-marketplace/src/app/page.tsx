@@ -5,6 +5,7 @@ import { listPublishedTemplates } from "@/lib/templates";
 import { TemplatesGrid } from "@/components/TemplatesGrid";
 import { Pagination } from "@/components/Pagination";
 import { ToolIcon } from "@/components/ToolIcon";
+import { HomeHeroSearch } from "@/components/HomeHeroSearch";
 import type { Tool } from "@/generated/prisma/client";
 
 const tools: Array<{ name: string; value: Tool; color: string }> = [
@@ -13,6 +14,7 @@ const tools: Array<{ name: string; value: Tool; color: string }> = [
   { name: "Figma", value: "FIGMA", color: "var(--color-tool-figma)" },
   { name: "Webflow", value: "WEBFLOW", color: "var(--color-tool-webflow)" },
   { name: "Framer", value: "FRAMER", color: "var(--color-tool-framer)" },
+  { name: "WordPress", value: "WORDPRESS", color: "var(--color-tool-wordpress)" },
   // File-download tools
   { name: "Code", value: "CODE", color: "var(--color-tool-code)" },
   { name: "Word", value: "DOCX", color: "var(--color-tool-docx)" },
@@ -43,62 +45,71 @@ export default async function HomePage({
           <span />
         </div>
 
-        <div className="relative mx-auto max-w-6xl px-4 pb-20 pt-20 sm:px-6 sm:pb-24 sm:pt-28">
-          <div className="mx-auto max-w-3xl text-center">
+        <div className="relative mx-auto max-w-5xl px-4 pb-20 pt-20 sm:px-6 sm:pb-24 sm:pt-32">
+          <div className="text-center">
             <h1 className="font-display text-5xl font-bold tracking-tight text-[var(--color-text-primary)] sm:text-6xl lg:text-7xl">
               Templates for every tool
             </h1>
             <p className="mx-auto mt-6 max-w-2xl text-lg leading-relaxed text-[var(--color-text-secondary)] sm:text-xl">
-              Notion duplicates, Figma kits, Webflow clones, Framer remixes, code
-              starters, Word and Excel templates, pitch decks, AI prompts. One
-              marketplace, every format, paid out fast via the Whop Payments
-              Network.
+              Notion duplicates, Figma kits, Webflow clones, Framer remixes,
+              WordPress themes, code starters, Word and Excel templates, pitch
+              decks, AI prompts. One marketplace, every format.
             </p>
 
-            <div className="mt-10 flex flex-col items-center justify-center gap-3 sm:flex-row">
+            <div className="mt-10">
+              <HomeHeroSearch />
+            </div>
+
+            <p className="mt-6 text-sm text-[var(--color-text-secondary)]">
+              Or{" "}
               <Link
                 href="/templates"
-                className="group inline-flex items-center gap-2 rounded-lg bg-[var(--color-accent)] px-6 py-3 text-base font-medium text-white shadow-sm transition hover:bg-[var(--color-accent-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-background)]"
+                className="font-medium text-[var(--color-accent)] hover:text-[var(--color-accent-hover)]"
               >
-                Browse all templates
-                <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+                browse all templates
               </Link>
-              {!user && (
-                <Link
-                  href="/sign-in"
-                  prefetch={false}
-                  className="inline-flex items-center gap-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)]/70 px-6 py-3 text-base font-medium text-[var(--color-text-primary)] backdrop-blur transition hover:bg-[var(--color-surface-elevated)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-background)]"
-                >
-                  Sign in
-                </Link>
-              )}
-            </div>
+            </p>
           </div>
         </div>
       </section>
 
-      {/* Tools row, each tile links to the discover page filtered to that tool */}
+      {/* Browse by tool */}
       <section
         id="tools"
-        className="relative border-y border-[var(--color-border)] bg-[var(--color-surface)]/40"
+        className="relative border-y border-[var(--color-border)] bg-[var(--color-surface)]/50"
       >
-        <div className="mx-auto max-w-6xl px-4 py-14 sm:px-6 sm:py-20">
-          <p className="text-center text-xs font-medium uppercase tracking-[0.2em] text-[var(--color-text-secondary)]">
-            Built for the tools you already use
-          </p>
-          <div className="mt-8 grid grid-cols-2 gap-3 sm:grid-cols-3">
+        <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 sm:py-20">
+          <div className="mb-8 flex items-end justify-between">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--color-text-secondary)]">
+                Browse
+              </p>
+              <h2 className="mt-2 font-display text-3xl font-bold tracking-tight text-[var(--color-text-primary)]">
+                Templates by tool
+              </h2>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
             {tools.map((tool) => (
               <Link
                 key={tool.value}
                 href={`/templates?tool=${tool.value}`}
                 prefetch={false}
-                className="group flex items-center justify-center gap-2.5 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-5 transition hover:-translate-y-0.5 hover:border-[color-mix(in_srgb,var(--color-accent)_40%,var(--color-border))] hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-background)]"
+                className="group flex flex-col items-start gap-3 rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5 transition hover:-translate-y-0.5 hover:border-[color-mix(in_srgb,var(--color-accent)_30%,var(--color-border))] hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-accent)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-background)]"
               >
-                <ToolIcon
-                  tool={tool.value}
-                  className="h-5 w-5 shrink-0"
-                  style={{ color: tool.color }}
-                />
+                <span
+                  className="flex h-10 w-10 items-center justify-center rounded-xl"
+                  style={{
+                    backgroundColor: `color-mix(in srgb, ${tool.color} 12%, transparent)`,
+                  }}
+                >
+                  <ToolIcon
+                    tool={tool.value}
+                    className="h-5 w-5"
+                    style={{ color: tool.color }}
+                  />
+                </span>
                 <span
                   className="text-sm font-semibold tracking-tight"
                   style={{ color: tool.color }}
@@ -110,17 +121,18 @@ export default async function HomePage({
           </div>
           <p className="mt-8 text-center text-sm text-[var(--color-text-secondary)]">
             Clone-URL tools (Notion, Figma, Webflow, Framer) ship as share links revealed
-            after purchase. Files (.docx, .xlsx, .pptx, .zip, .txt) ship as instant downloads.
+            after purchase. Everything else (WordPress themes, code, .docx, .xlsx, .pptx, .zip,
+            .txt) ships as instant downloads.
           </p>
         </div>
       </section>
 
       {/* Latest templates */}
       <section className="relative">
-        <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6 sm:py-20">
-          <div className="flex items-end justify-between">
+        <div className="mx-auto max-w-7xl px-4 py-16 sm:px-6 sm:py-20">
+          <div className="mb-8 flex items-end justify-between">
             <div>
-              <p className="text-xs font-medium uppercase tracking-[0.2em] text-[var(--color-text-secondary)]">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--color-text-secondary)]">
                 Latest on Stax
               </p>
               <h2 className="mt-2 font-display text-3xl font-bold tracking-tight text-[var(--color-text-primary)]">
@@ -138,13 +150,11 @@ export default async function HomePage({
             )}
           </div>
 
-          <div className="mt-8">
-            <TemplatesGrid
-              templates={items}
-              emptyTitle="Templates coming soon"
-              emptyDescription="Sellers are publishing the first batch, check back soon, or become a seller and be one of the first."
-            />
-          </div>
+          <TemplatesGrid
+            templates={items}
+            emptyTitle="Templates coming soon"
+            emptyDescription="Sellers are publishing the first batch. Check back soon, or become a seller and be one of the first."
+          />
 
           <div className="mt-10">
             <Pagination
@@ -157,6 +167,81 @@ export default async function HomePage({
           </div>
         </div>
       </section>
+
+      {/* Sell on Stax CTA */}
+      {!user && (
+        <section className="relative">
+          <div className="mx-auto max-w-7xl px-4 pb-20 sm:px-6 sm:pb-28">
+            <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#0F766E] via-[#0EA5A4] to-[#2DD4BF] p-10 text-white shadow-xl sm:p-14">
+              {/* Soft glow accents */}
+              <div
+                aria-hidden
+                className="pointer-events-none absolute -right-24 -top-24 h-72 w-72 rounded-full bg-white/15 blur-3xl"
+              />
+              <div
+                aria-hidden
+                className="pointer-events-none absolute -bottom-32 -left-16 h-72 w-72 rounded-full bg-[#F59E0B]/25 blur-3xl"
+              />
+
+              <div className="relative grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] lg:items-center lg:gap-12">
+                {/* Scattered cover collage, desktop only */}
+                <div
+                  aria-hidden
+                  className="relative block h-72 max-lg:hidden"
+                >
+                  {/* eslint-disable @next/next/no-img-element */}
+                  <img
+                    src="/seed-thumbnails/aperture-portfolio-theme-for-photographers.png"
+                    alt=""
+                    className="absolute left-0 top-2 h-40 w-72 rotate-[-7deg] rounded-2xl object-cover shadow-2xl ring-1 ring-white/15"
+                    loading="lazy"
+                    decoding="async"
+                  />
+                  <img
+                    src="/seed-thumbnails/claude-system-prompt-for-code-review.png"
+                    alt=""
+                    className="absolute left-20 top-20 h-40 w-72 rotate-[4deg] rounded-2xl object-cover shadow-2xl ring-1 ring-white/15"
+                    loading="lazy"
+                    decoding="async"
+                  />
+                  <img
+                    src="/seed-thumbnails/block-first-wordpress-starter-theme.png"
+                    alt=""
+                    className="absolute left-40 top-36 h-40 w-72 rotate-[-3deg] rounded-2xl object-cover shadow-2xl ring-1 ring-white/15"
+                    loading="lazy"
+                    decoding="async"
+                  />
+                  {/* eslint-enable @next/next/no-img-element */}
+                </div>
+
+                {/* Text + button */}
+                <div className="flex flex-col gap-8 sm:flex-row sm:items-end sm:justify-between lg:flex-col lg:items-start lg:gap-6">
+                  <div className="max-w-xl">
+                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-white/70">
+                      For sellers
+                    </p>
+                    <h2 className="mt-3 font-display text-3xl font-bold tracking-tight sm:text-4xl">
+                      Sell your templates
+                    </h2>
+                    <p className="mt-4 text-base leading-relaxed text-white/85">
+                      Connected accounts handle KYC, taxes, and payouts. List a
+                      template, set a price, get paid via the Whop Payments
+                      Network.
+                    </p>
+                  </div>
+                  <a
+                    href="/api/auth/login?redirect_to=%2Fsell"
+                    className="group inline-flex shrink-0 items-center gap-2 self-start rounded-full bg-white px-5 py-3 text-sm font-semibold text-[#0F766E] shadow-sm transition hover:bg-white/95 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-[#0F766E] sm:self-end lg:self-start"
+                  >
+                    Become a seller
+                    <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+                  </a>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+      )}
     </main>
   );
 }

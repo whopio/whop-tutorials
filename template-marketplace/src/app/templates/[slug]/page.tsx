@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, FileText, Link2, Star, ExternalLink } from "lucide-react";
+import { ChevronRight, FileText, Link2, Star, ShieldCheck } from "lucide-react";
 import { isAuthenticated } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getTemplateBySlug } from "@/lib/templates";
@@ -42,59 +42,93 @@ export default async function TemplateDetailPage({
   const isOwner = me?.id === template.sellerProfile.userId;
 
   return (
-    <main className="mx-auto max-w-6xl px-4 py-10 sm:px-6 lg:py-14">
-      <Link
-        href="/templates"
-        className="inline-flex items-center gap-1.5 text-sm text-[var(--color-text-secondary)] transition hover:text-[var(--color-text-primary)]"
+    <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:py-12">
+      {/* Breadcrumb */}
+      <nav
+        aria-label="Breadcrumb"
+        className="flex items-center gap-1 text-xs text-[var(--color-text-secondary)]"
       >
-        <ArrowLeft className="h-4 w-4" />
-        All templates
-      </Link>
+        <Link href="/templates" className="transition hover:text-[var(--color-text-primary)]">
+          All templates
+        </Link>
+        <ChevronRight className="h-3 w-3" aria-hidden />
+        <Link
+          href={`/templates?tool=${template.tool}`}
+          className="transition hover:text-[var(--color-text-primary)]"
+        >
+          {tool.label}
+        </Link>
+        <ChevronRight className="h-3 w-3" aria-hidden />
+        <span className="text-[var(--color-text-primary)]">{template.title}</span>
+      </nav>
 
-      <div className="mt-6 grid gap-10 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
-        <div className="min-w-0 space-y-8">
-          <div className="space-y-3">
-            <span
-              className="inline-flex items-center rounded-md px-2.5 py-1 text-xs font-semibold"
-              style={{
-                color: `var(${tool.cssVar})`,
-                backgroundColor: `color-mix(in srgb, var(${tool.cssVar}) 16%, transparent)`,
-              }}
-            >
-              {tool.label} · {category.label}
-            </span>
-            <h1 className="font-display text-3xl font-bold tracking-tight text-[var(--color-text-primary)] sm:text-4xl">
-              {template.title}
-            </h1>
-            <Link
-              href={`/sellers/${template.sellerProfile.username}`}
-              className="inline-flex items-center gap-1 text-sm text-[var(--color-text-secondary)] transition hover:text-[var(--color-text-primary)]"
-            >
+      {/* Title row */}
+      <div className="mt-5">
+        <h1 className="font-display text-3xl font-bold tracking-tight text-[var(--color-text-primary)] sm:text-4xl lg:text-5xl">
+          {template.title}
+        </h1>
+        <div className="mt-4 flex flex-wrap items-center gap-4 text-sm text-[var(--color-text-secondary)]">
+          <Link
+            href={`/sellers/${template.sellerProfile.username}`}
+            className="inline-flex items-center gap-2 transition hover:text-[var(--color-text-primary)]"
+          >
+            {template.sellerProfile.user.avatar ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={template.sellerProfile.user.avatar}
+                alt=""
+                className="h-7 w-7 rounded-full border border-[var(--color-border)] object-cover"
+                loading="lazy"
+                decoding="async"
+              />
+            ) : (
+              <span
+                className="flex h-7 w-7 items-center justify-center rounded-full bg-[var(--color-accent-subtle)] text-[11px] font-bold uppercase text-[var(--color-accent)]"
+                aria-hidden
+              >
+                {template.sellerProfile.username.charAt(0).toUpperCase()}
+              </span>
+            )}
+            <span>
               by{" "}
               <span className="font-medium text-[var(--color-text-primary)]">
                 @{template.sellerProfile.username}
               </span>
-            </Link>
-            {avgRating !== null && (
-              <div className="flex items-center gap-1.5 text-sm text-[var(--color-text-secondary)]">
-                <Star className="h-4 w-4 fill-[var(--color-rating)] text-[var(--color-rating)]" />
-                <span className="font-medium text-[var(--color-text-primary)]">
-                  {avgRating.toFixed(1)}
-                </span>
-                <span>
-                  ({template.reviews.length} {template.reviews.length === 1 ? "review" : "reviews"})
-                </span>
-              </div>
-            )}
-          </div>
+            </span>
+          </Link>
+          {avgRating !== null && (
+            <span className="inline-flex items-center gap-1.5">
+              <Star className="h-4 w-4 fill-[var(--color-rating)] text-[var(--color-rating)]" />
+              <span className="font-medium text-[var(--color-text-primary)]">
+                {avgRating.toFixed(1)}
+              </span>
+              <span>
+                ({template.reviews.length} {template.reviews.length === 1 ? "review" : "reviews"})
+              </span>
+            </span>
+          )}
+          <span
+            className="inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wider"
+            style={{
+              color: `var(${tool.cssVar})`,
+              backgroundColor: `color-mix(in srgb, var(${tool.cssVar}) 12%, transparent)`,
+            }}
+          >
+            {tool.label} · {category.label}
+          </span>
+        </div>
+      </div>
 
+      <div className="mt-8 grid gap-8 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] lg:gap-10">
+        <div className="min-w-0 space-y-10">
+          {/* Gallery */}
           {previews.length > 0 && (
             <section>
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={previews[0].fileUrl}
                 alt=""
-                className="aspect-[4/3] w-full rounded-2xl border border-[var(--color-border)] object-cover"
+                className="aspect-[16/9] w-full rounded-2xl border border-[var(--color-border)] object-cover"
               />
               {previews.length > 1 && (
                 <div className="mt-3 grid grid-cols-4 gap-3 sm:grid-cols-5">
@@ -112,6 +146,7 @@ export default async function TemplateDetailPage({
             </section>
           )}
 
+          {/* About */}
           <section>
             <h2 className="font-display text-xl font-semibold tracking-tight text-[var(--color-text-primary)]">
               About this template
@@ -121,15 +156,16 @@ export default async function TemplateDetailPage({
             </p>
           </section>
 
+          {/* What's included */}
           <section>
             <h2 className="font-display text-xl font-semibold tracking-tight text-[var(--color-text-primary)]">
               What&rsquo;s included
             </h2>
-            <div className="mt-3 rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
+            <div className="mt-3 overflow-hidden rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)]">
               {template.deliveryType === "FILE_DOWNLOAD" ? (
                 <ul className="divide-y divide-[var(--color-border)]">
                   {downloadFiles.map((f) => (
-                    <li key={f.id} className="flex items-center gap-3 py-2">
+                    <li key={f.id} className="flex items-center gap-3 px-4 py-3">
                       <FileText className="h-4 w-4 flex-shrink-0 text-[var(--color-text-secondary)]" />
                       <span className="min-w-0 flex-1 truncate text-sm font-medium text-[var(--color-text-primary)]">
                         {f.fileName}
@@ -141,7 +177,7 @@ export default async function TemplateDetailPage({
                   ))}
                 </ul>
               ) : (
-                <div className="flex items-center gap-3 py-2">
+                <div className="flex items-center gap-3 px-4 py-3">
                   <Link2 className="h-4 w-4 flex-shrink-0 text-[var(--color-text-secondary)]" />
                   <span className="text-sm text-[var(--color-text-primary)]">
                     {tool.label} share URL
@@ -154,6 +190,7 @@ export default async function TemplateDetailPage({
             </div>
           </section>
 
+          {/* Reviews */}
           <section>
             <div className="flex items-center justify-between gap-3">
               <h2 className="font-display text-xl font-semibold tracking-tight text-[var(--color-text-primary)]">
@@ -162,7 +199,7 @@ export default async function TemplateDetailPage({
               {purchase && !isOwner && (
                 <Link
                   href={`/templates/${template.slug}/review/new`}
-                  className="inline-flex items-center gap-1.5 rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-1.5 text-xs font-semibold text-[var(--color-text-primary)] transition hover:bg-[var(--color-surface-elevated)]"
+                  className="inline-flex items-center gap-1.5 rounded-full border border-[var(--color-border)] bg-[var(--color-surface)] px-3.5 py-1.5 text-xs font-semibold text-[var(--color-text-primary)] transition hover:bg-[var(--color-surface-elevated)]"
                 >
                   <Star className="h-3 w-3" />
                   {template.reviews.some((r) => r.userId === me?.id)
@@ -178,52 +215,67 @@ export default async function TemplateDetailPage({
                 {purchase && !isOwner ? "Be the first." : "Buyers can leave reviews after purchase."}
               </p>
             ) : (
-              <div className="mt-3 space-y-3">
-                {template.reviews.slice(0, 10).map((r) => (
-                  <div
-                    key={r.id}
-                    className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4"
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-1">
-                        {Array.from({ length: 5 }).map((_, idx) => (
-                          <Star
-                            key={idx}
-                            className={`h-3.5 w-3.5 ${
-                              idx < r.stars
-                                ? "fill-[var(--color-rating)] text-[var(--color-rating)]"
-                                : "text-[var(--color-border)]"
-                            }`}
-                          />
-                        ))}
-                      </div>
-                      <span className="text-xs text-[var(--color-text-secondary)]">
-                        {r.user.name ?? "Buyer"}
-                        {r.userId === me?.id && (
-                          <span className="ml-2 rounded bg-[var(--color-accent-subtle)] px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-[var(--color-accent)]">
-                            You
+              <div className="mt-4 space-y-3">
+                {template.reviews.slice(0, 10).map((r) => {
+                  const name = r.user.name ?? "Buyer";
+                  const initial = name.charAt(0).toUpperCase();
+                  return (
+                    <div
+                      key={r.id}
+                      className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-center gap-2.5">
+                          <span
+                            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--color-accent-subtle)] text-xs font-bold uppercase text-[var(--color-accent)]"
+                            aria-hidden
+                          >
+                            {initial}
                           </span>
-                        )}
-                        {" · "}
-                        {r.createdAt.toLocaleDateString(undefined, {
-                          month: "short",
-                          day: "numeric",
-                          year: "numeric",
-                        })}
-                      </span>
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium text-[var(--color-text-primary)]">
+                              {name}
+                              {r.userId === me?.id && (
+                                <span className="ml-2 rounded bg-[var(--color-accent-subtle)] px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-[var(--color-accent)]">
+                                  You
+                                </span>
+                              )}
+                            </p>
+                            <p className="text-xs text-[var(--color-text-secondary)]">
+                              {r.createdAt.toLocaleDateString(undefined, {
+                                month: "short",
+                                day: "numeric",
+                                year: "numeric",
+                              })}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-0.5">
+                          {Array.from({ length: 5 }).map((_, idx) => (
+                            <Star
+                              key={idx}
+                              className={`h-3.5 w-3.5 ${
+                                idx < r.stars
+                                  ? "fill-[var(--color-rating)] text-[var(--color-rating)]"
+                                  : "text-[var(--color-border)]"
+                              }`}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                      {r.title && (
+                        <p className="mt-3 font-semibold text-[var(--color-text-primary)]">
+                          {r.title}
+                        </p>
+                      )}
+                      {r.body && (
+                        <p className="mt-1 text-sm leading-relaxed text-[var(--color-text-secondary)]">
+                          {r.body}
+                        </p>
+                      )}
                     </div>
-                    {r.title && (
-                      <p className="mt-2 font-semibold text-[var(--color-text-primary)]">
-                        {r.title}
-                      </p>
-                    )}
-                    {r.body && (
-                      <p className="mt-1 text-sm text-[var(--color-text-secondary)]">
-                        {r.body}
-                      </p>
-                    )}
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </section>
@@ -231,63 +283,104 @@ export default async function TemplateDetailPage({
 
         {/* Purchase card */}
         <aside className="lg:sticky lg:top-20 lg:self-start">
-          <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6 shadow-sm">
-            <p className="font-display text-3xl font-bold tracking-tight text-[var(--color-text-primary)]">
-              {formatPrice(template.price)}
-            </p>
+          <div className="overflow-hidden rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] shadow-sm">
+            <div className="p-6">
+              <p className="text-xs font-semibold uppercase tracking-[0.15em] text-[var(--color-text-secondary)]">
+                {template.price === 0 ? "Free template" : "One-time purchase"}
+              </p>
+              <p className="mt-2 font-display text-4xl font-bold tracking-tight text-[var(--color-text-primary)]">
+                {formatPrice(template.price)}
+              </p>
 
-            <div className="mt-4 space-y-2">
-              {isOwner ? (
-                <Link
-                  href={`/sell/templates/${template.id}/edit`}
-                  className="block w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-2.5 text-center text-sm font-semibold text-[var(--color-text-primary)] transition hover:bg-[var(--color-surface-elevated)]"
-                >
-                  Edit your template
-                </Link>
-              ) : purchase ? (
-                <Link
-                  href={`/templates/${template.slug}/access`}
-                  className="block w-full rounded-lg bg-[var(--color-success)] px-4 py-2.5 text-center text-sm font-semibold text-white transition hover:opacity-90"
-                >
-                  Open template
-                </Link>
-              ) : !me ? (
-                <Link
-                  href="/sign-in"
-                  prefetch={false}
-                  className="block w-full rounded-lg bg-[var(--color-accent)] px-4 py-2.5 text-center text-sm font-semibold text-white shadow-sm transition hover:bg-[var(--color-accent-hover)]"
-                >
-                  Sign in to {template.price === 0 ? "claim" : "buy"}
-                </Link>
-              ) : template.price === 0 ? (
-                <FreeBuyForm templateId={template.id} />
-              ) : (
-                <a
-                  href={template.whopCheckoutUrl ?? "#"}
-                  className="block w-full rounded-lg bg-[var(--color-accent)] px-4 py-2.5 text-center text-sm font-semibold text-white shadow-sm transition hover:bg-[var(--color-accent-hover)]"
-                >
-                  Buy now
-                </a>
-              )}
+              <div className="mt-5">
+                {isOwner ? (
+                  <Link
+                    href={`/sell/templates/${template.id}/edit`}
+                    className="block w-full rounded-full border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-3 text-center text-sm font-semibold text-[var(--color-text-primary)] transition hover:bg-[var(--color-surface-elevated)]"
+                  >
+                    Edit your template
+                  </Link>
+                ) : purchase ? (
+                  <Link
+                    href={`/templates/${template.slug}/access`}
+                    className="block w-full rounded-full bg-[var(--color-success)] px-4 py-3 text-center text-sm font-semibold text-white transition hover:opacity-90"
+                  >
+                    Open template
+                  </Link>
+                ) : !me ? (
+                  <a
+                    href="/api/auth/login"
+                    className="block w-full rounded-full bg-[var(--color-accent)] px-4 py-3 text-center text-sm font-semibold text-white shadow-sm transition hover:bg-[var(--color-accent-hover)]"
+                  >
+                    Sign in to {template.price === 0 ? "claim" : "buy"}
+                  </a>
+                ) : template.price === 0 ? (
+                  <FreeBuyForm templateId={template.id} />
+                ) : (
+                  <a
+                    href={template.whopCheckoutUrl ?? "#"}
+                    className="block w-full rounded-full bg-[var(--color-accent)] px-4 py-3 text-center text-sm font-semibold text-white shadow-sm transition hover:bg-[var(--color-accent-hover)]"
+                  >
+                    Buy now
+                  </a>
+                )}
+              </div>
+
+              <p className="mt-3 flex items-center justify-center gap-1.5 text-xs text-[var(--color-text-secondary)]">
+                <ShieldCheck className="h-3.5 w-3.5 text-[var(--color-accent)]" />
+                Secure checkout via Whop
+              </p>
             </div>
 
-            <ul className="mt-5 space-y-2 text-xs text-[var(--color-text-secondary)]">
-              {template.deliveryType === "FILE_DOWNLOAD" ? (
-                <li className="flex items-start gap-2">
-                  <FileText className="mt-0.5 h-3 w-3 flex-shrink-0" />
-                  {downloadFiles.length} downloadable {downloadFiles.length === 1 ? "file" : "files"}, instant delivery
-                </li>
-              ) : (
-                <li className="flex items-start gap-2">
-                  <Link2 className="mt-0.5 h-3 w-3 flex-shrink-0" />
-                  {tool.label} share URL revealed after purchase
-                </li>
-              )}
-              <li className="flex items-start gap-2">
-                <ExternalLink className="mt-0.5 h-3 w-3 flex-shrink-0" />
-                Secure checkout via Whop
-              </li>
-            </ul>
+            {/* Metadata table */}
+            <dl className="divide-y divide-[var(--color-border)] border-t border-[var(--color-border)] bg-[var(--color-surface-elevated)]/50 text-sm">
+              <div className="flex items-center justify-between gap-3 px-6 py-3">
+                <dt className="text-xs font-medium uppercase tracking-wider text-[var(--color-text-secondary)]">
+                  Tool
+                </dt>
+                <dd className="font-medium" style={{ color: `var(${tool.cssVar})` }}>
+                  {tool.label}
+                </dd>
+              </div>
+              <div className="flex items-center justify-between gap-3 px-6 py-3">
+                <dt className="text-xs font-medium uppercase tracking-wider text-[var(--color-text-secondary)]">
+                  Category
+                </dt>
+                <dd className="font-medium text-[var(--color-text-primary)]">
+                  {category.label}
+                </dd>
+              </div>
+              <div className="flex items-center justify-between gap-3 px-6 py-3">
+                <dt className="text-xs font-medium uppercase tracking-wider text-[var(--color-text-secondary)]">
+                  Delivery
+                </dt>
+                <dd className="inline-flex items-center gap-1.5 font-medium text-[var(--color-text-primary)]">
+                  {template.deliveryType === "FILE_DOWNLOAD" ? (
+                    <>
+                      <FileText className="h-3.5 w-3.5" aria-hidden />
+                      {downloadFiles.length} {downloadFiles.length === 1 ? "file" : "files"}
+                    </>
+                  ) : (
+                    <>
+                      <Link2 className="h-3.5 w-3.5" aria-hidden />
+                      Share URL
+                    </>
+                  )}
+                </dd>
+              </div>
+              <div className="flex items-center justify-between gap-3 px-6 py-3">
+                <dt className="text-xs font-medium uppercase tracking-wider text-[var(--color-text-secondary)]">
+                  Updated
+                </dt>
+                <dd className="font-medium text-[var(--color-text-primary)]">
+                  {template.updatedAt.toLocaleDateString(undefined, {
+                    month: "short",
+                    day: "numeric",
+                    year: "numeric",
+                  })}
+                </dd>
+              </div>
+            </dl>
           </div>
         </aside>
       </div>
@@ -300,7 +393,7 @@ function FreeBuyForm({ templateId }: { templateId: string }) {
     <form action={`/api/templates/${templateId}/purchase`} method="post">
       <button
         type="submit"
-        className="w-full rounded-lg bg-[var(--color-success)] px-4 py-2.5 text-center text-sm font-semibold text-white transition hover:opacity-90"
+        className="w-full cursor-pointer rounded-full bg-[var(--color-success)] px-4 py-3 text-center text-sm font-semibold text-white transition hover:opacity-90"
       >
         Get for free
       </button>
