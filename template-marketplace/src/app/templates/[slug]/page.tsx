@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ChevronRight, FileText, Link2, Star, ShieldCheck } from "lucide-react";
@@ -73,13 +74,12 @@ export default async function TemplateDetailPage({
             className="inline-flex items-center gap-2 transition hover:text-[var(--color-text-primary)]"
           >
             {template.sellerProfile.user.avatar ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
+              <Image
                 src={template.sellerProfile.user.avatar}
                 alt=""
+                width={28}
+                height={28}
                 className="h-7 w-7 rounded-full border border-[var(--color-border)] object-cover"
-                loading="lazy"
-                decoding="async"
               />
             ) : (
               <span
@@ -124,22 +124,31 @@ export default async function TemplateDetailPage({
           {/* Gallery */}
           {previews.length > 0 && (
             <section>
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={previews[0].fileUrl}
-                alt=""
-                className="aspect-[16/9] w-full rounded-2xl border border-[var(--color-border)] object-cover"
-              />
+              <div className="relative aspect-[16/9] w-full overflow-hidden rounded-2xl border border-[var(--color-border)]">
+                <Image
+                  src={previews[0].fileUrl}
+                  alt=""
+                  fill
+                  sizes="(min-width: 1024px) 800px, 100vw"
+                  priority
+                  className="object-cover"
+                />
+              </div>
               {previews.length > 1 && (
                 <div className="mt-3 grid grid-cols-4 gap-3 sm:grid-cols-5">
                   {previews.slice(1).map((p) => (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
+                    <div
                       key={p.id}
-                      src={p.fileUrl}
-                      alt=""
-                      className="aspect-square w-full rounded-lg border border-[var(--color-border)] object-cover"
-                    />
+                      className="relative aspect-square w-full overflow-hidden rounded-lg border border-[var(--color-border)]"
+                    >
+                      <Image
+                        src={p.fileUrl}
+                        alt=""
+                        fill
+                        sizes="(min-width: 1024px) 160px, (min-width: 640px) 20vw, 25vw"
+                        className="object-cover"
+                      />
+                    </div>
                   ))}
                 </div>
               )}

@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import { Star, FileText, Link2 } from "lucide-react";
 import { toolByValue } from "@/constants/categories";
@@ -20,11 +21,12 @@ export function TemplateCard({ template }: { template: TemplateCardSummary }) {
     >
       <div className="relative aspect-[16/9] overflow-hidden bg-[var(--color-surface-elevated)]">
         {template.thumbnailUrl ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
+          <Image
             src={template.thumbnailUrl}
             alt=""
-            className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.03]"
+            fill
+            sizes="(min-width: 1024px) 400px, (min-width: 640px) 50vw, 100vw"
+            className="object-cover transition duration-500 group-hover:scale-[1.03]"
           />
         ) : (
           <div
@@ -67,13 +69,12 @@ export function TemplateCard({ template }: { template: TemplateCardSummary }) {
 
         <div className="flex items-center gap-2">
           {template.seller.avatarUrl ? (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
+            <Image
               src={template.seller.avatarUrl}
               alt=""
+              width={24}
+              height={24}
               className="h-6 w-6 shrink-0 rounded-full border border-[var(--color-border)] object-cover"
-              loading="lazy"
-              decoding="async"
             />
           ) : (
             <span

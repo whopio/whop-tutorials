@@ -183,60 +183,27 @@ export default async function HomePage({
                 className="pointer-events-none absolute -bottom-32 -left-16 h-72 w-72 rounded-full bg-[#F59E0B]/25 blur-3xl"
               />
 
-              <div className="relative grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] lg:items-center lg:gap-12">
-                {/* Scattered cover collage, desktop only */}
-                <div
-                  aria-hidden
-                  className="relative block h-72 max-lg:hidden"
+              <div className="relative flex flex-col gap-8 sm:flex-row sm:items-end sm:justify-between">
+                <div className="max-w-xl">
+                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-white/70">
+                    For sellers
+                  </p>
+                  <h2 className="mt-3 font-display text-3xl font-bold tracking-tight sm:text-4xl">
+                    Sell your templates
+                  </h2>
+                  <p className="mt-4 text-base leading-relaxed text-white/85">
+                    Connected accounts handle KYC, taxes, and payouts. List a
+                    template, set a price, get paid via the Whop Payments
+                    Network.
+                  </p>
+                </div>
+                <a
+                  href="/api/auth/login?redirect_to=%2Fsell"
+                  className="group inline-flex shrink-0 items-center gap-2 self-start rounded-full bg-white px-5 py-3 text-sm font-semibold text-[#0F766E] shadow-sm transition hover:bg-white/95 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-[#0F766E] sm:self-end"
                 >
-                  {/* eslint-disable @next/next/no-img-element */}
-                  <img
-                    src="/seed-thumbnails/aperture-portfolio-theme-for-photographers.png"
-                    alt=""
-                    className="absolute left-0 top-2 h-40 w-72 rotate-[-7deg] rounded-2xl object-cover shadow-2xl ring-1 ring-white/15"
-                    loading="lazy"
-                    decoding="async"
-                  />
-                  <img
-                    src="/seed-thumbnails/claude-system-prompt-for-code-review.png"
-                    alt=""
-                    className="absolute left-20 top-20 h-40 w-72 rotate-[4deg] rounded-2xl object-cover shadow-2xl ring-1 ring-white/15"
-                    loading="lazy"
-                    decoding="async"
-                  />
-                  <img
-                    src="/seed-thumbnails/block-first-wordpress-starter-theme.png"
-                    alt=""
-                    className="absolute left-40 top-36 h-40 w-72 rotate-[-3deg] rounded-2xl object-cover shadow-2xl ring-1 ring-white/15"
-                    loading="lazy"
-                    decoding="async"
-                  />
-                  {/* eslint-enable @next/next/no-img-element */}
-                </div>
-
-                {/* Text + button */}
-                <div className="flex flex-col gap-8 sm:flex-row sm:items-end sm:justify-between lg:flex-col lg:items-start lg:gap-6">
-                  <div className="max-w-xl">
-                    <p className="text-xs font-semibold uppercase tracking-[0.2em] text-white/70">
-                      For sellers
-                    </p>
-                    <h2 className="mt-3 font-display text-3xl font-bold tracking-tight sm:text-4xl">
-                      Sell your templates
-                    </h2>
-                    <p className="mt-4 text-base leading-relaxed text-white/85">
-                      Connected accounts handle KYC, taxes, and payouts. List a
-                      template, set a price, get paid via the Whop Payments
-                      Network.
-                    </p>
-                  </div>
-                  <a
-                    href="/api/auth/login?redirect_to=%2Fsell"
-                    className="group inline-flex shrink-0 items-center gap-2 self-start rounded-full bg-white px-5 py-3 text-sm font-semibold text-[#0F766E] shadow-sm transition hover:bg-white/95 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-[#0F766E] sm:self-end lg:self-start"
-                  >
-                    Become a seller
-                    <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
-                  </a>
-                </div>
+                  Become a seller
+                  <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
+                </a>
               </div>
             </div>
           </div>

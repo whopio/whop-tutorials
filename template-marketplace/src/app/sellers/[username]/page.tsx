@@ -1,3 +1,4 @@
+import Image from "next/image";
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { TemplatesGrid } from "@/components/TemplatesGrid";
@@ -42,10 +43,12 @@ export default async function SellerProfilePage({
     <main className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:py-16">
       <div className="flex flex-col items-start gap-6 sm:flex-row sm:items-center">
         {seller.user.avatar ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
+          <Image
             src={seller.user.avatar}
             alt=""
+            width={96}
+            height={96}
+            priority
             className="h-24 w-24 rounded-full border border-[var(--color-border)] object-cover"
           />
         ) : (

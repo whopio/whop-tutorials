@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import { Plus, Package, DollarSign, Star, Pencil, Tag } from "lucide-react";
 import { requireSeller } from "@/lib/auth";
@@ -116,10 +117,12 @@ export default async function SellerDashboardPage() {
                     <td className="px-4 py-3">
                       <div className="flex items-center gap-3">
                         {t.thumbnailUrl ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img
+                          <Image
                             src={t.thumbnailUrl}
                             alt=""
+                            width={40}
+                            height={40}
+                            sizes="40px"
                             className="h-10 w-10 rounded object-cover"
                           />
                         ) : (

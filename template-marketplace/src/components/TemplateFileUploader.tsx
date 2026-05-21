@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { File as FileIcon, Image as ImageIcon, Trash2 } from "lucide-react";
 import { useTransition } from "react";
@@ -35,14 +36,14 @@ export function TemplateFileUploader({
               className="flex w-full min-w-0 items-center gap-3 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-3"
             >
               {kind === "preview" ? (
-                <>
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={file.fileUrl}
-                    alt=""
-                    className="h-12 w-12 flex-shrink-0 rounded object-cover"
-                  />
-                </>
+                <Image
+                  src={file.fileUrl}
+                  alt=""
+                  width={48}
+                  height={48}
+                  sizes="48px"
+                  className="h-12 w-12 flex-shrink-0 rounded object-cover"
+                />
               ) : (
                 <div className="grid h-12 w-12 flex-shrink-0 place-items-center rounded bg-[var(--color-surface-elevated)] text-[var(--color-text-secondary)]">
                   {file.mimeType.startsWith("image/") ? (

@@ -1283,7 +1283,22 @@ Server component. Loads the SellerProfile + user (for the avatar) + headline + b
 
 ### `<TemplateCard>` (`src/components/TemplateCard.tsx`)
 
-Client/server-neutral. Takes a `TemplateCardSummary`. Renders the thumbnail image (or a tool-colored placeholder if `thumbnailUrl === null`), a tool badge using `toolByValue(t).cssVar` as inline `backgroundColor`, the title, the seller's username, the avg rating + review count, the price (or "Free"), and a delivery-type micro-pill. Wraps the whole card in a `<Link>` to `/templates/[slug]`.
+Client/server-neutral. Takes a `TemplateCardSummary`. Renders the thumbnail image via `next/image` (with `fill` + a responsive `sizes` value tuned to the 3-col grid; falls back to a tool-colored placeholder gradient if `thumbnailUrl === null`), a tool badge using `toolByValue(t).cssVar` as inline `backgroundColor`, the title, the seller's username, the avg rating + review count, the price (or "Free"), and a delivery-type micro-pill. Wraps the whole card in a `<Link>` to `/templates/[slug]`.
+
+### Image optimization
+
+Every image source — preview gallery, thumbnails, seller avatars, the homepage Sell-CTA — uses `next/image` rather than raw `<img>`. The exception is the SVG brand icons in `<ToolIcon>`; SVG doesn't benefit from rasterizing through the optimizer. `next.config.ts` whitelists UploadThing's hosts so user-uploaded thumbnails route through Vercel's image optimizer:
+
+```ts
+images: {
+  remotePatterns: [
+    { protocol: "https", hostname: "*.ufs.sh" },  // modern per-app subdomain
+    { protocol: "https", hostname: "utfs.io" },   // legacy shared host
+  ],
+}
+```
+
+Above-the-fold hero images use `priority` to skip lazy loading; everything else lazy-loads by default. `fill` is used wherever the parent has `aspect-[16/9]` or `aspect-square`; explicit `width`/`height` is used for fixed-size avatars and chips so the browser can reserve layout space and prevent CLS.
 
 ---
 
