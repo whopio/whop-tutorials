@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { ArrowRight } from "lucide-react";
 import { requireSeller } from "@/lib/auth";
@@ -29,7 +30,25 @@ async function createDraft(formData: FormData) {
   redirect(`/sell/templates/${template.id}/edit`);
 }
 
-export default async function NewTemplatePage() {
+export default function NewTemplatePage() {
+  return (
+    <Suspense fallback={<NewTemplateSkeleton />}>
+      <NewTemplateContent />
+    </Suspense>
+  );
+}
+
+function NewTemplateSkeleton() {
+  return (
+    <main className="mx-auto max-w-2xl px-4 py-16 sm:px-6">
+      <div className="h-5 w-32 animate-pulse rounded bg-[var(--color-surface-elevated)]" />
+      <div className="mt-2 h-10 w-72 animate-pulse rounded-lg bg-[var(--color-surface-elevated)]" />
+      <div className="mt-8 h-12 animate-pulse rounded-lg bg-[var(--color-surface-elevated)]" />
+    </main>
+  );
+}
+
+async function NewTemplateContent() {
   await requireSeller();
 
   return (

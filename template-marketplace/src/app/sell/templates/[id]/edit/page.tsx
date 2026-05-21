@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, ExternalLink } from "lucide-react";
@@ -21,7 +22,29 @@ function statusLabel(status: "DRAFT" | "PUBLISHED" | "ARCHIVED"): string {
   }
 }
 
-export default async function EditTemplatePage({
+export default function EditTemplatePage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  return (
+    <Suspense fallback={<EditTemplateSkeleton />}>
+      <EditTemplateContent params={params} />
+    </Suspense>
+  );
+}
+
+function EditTemplateSkeleton() {
+  return (
+    <main className="mx-auto max-w-4xl px-4 py-12 sm:px-6 lg:py-16">
+      <div className="h-4 w-40 animate-pulse rounded bg-[var(--color-surface-elevated)]" />
+      <div className="mt-4 h-10 w-80 animate-pulse rounded-lg bg-[var(--color-surface-elevated)]" />
+      <div className="mt-8 h-96 animate-pulse rounded-2xl bg-[var(--color-surface-elevated)]" />
+    </main>
+  );
+}
+
+async function EditTemplateContent({
   params,
 }: {
   params: Promise<{ id: string }>;

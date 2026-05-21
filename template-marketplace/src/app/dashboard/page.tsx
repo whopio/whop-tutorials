@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import Link from "next/link";
 import { ArrowRight, Package } from "lucide-react";
 import { requireAuth } from "@/lib/auth";
@@ -10,7 +11,41 @@ function formatPrice(cents: number): string {
   return `$${(cents / 100).toFixed(cents % 100 === 0 ? 0 : 2)}`;
 }
 
-export default async function BuyerDashboardPage() {
+export default function BuyerDashboardPage() {
+  // Dashboard is entirely session-specific — no static prerender to gain.
+  // The Suspense boundary is there because Cache Components requires every
+  // uncached read (cookies, DB lookups keyed on userId) to live inside one.
+  // Buyers see the page chrome immediately and the purchase grid streams in.
+  return (
+    <Suspense fallback={<DashboardSkeleton />}>
+      <DashboardContent />
+    </Suspense>
+  );
+}
+
+function DashboardSkeleton() {
+  return (
+    <main className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:py-16">
+      <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--color-text-secondary)]">
+        Your library
+      </p>
+      <div className="mt-2 h-10 w-72 animate-pulse rounded-lg bg-[var(--color-surface-elevated)] sm:h-12 lg:h-14" />
+      <h2 className="mt-12 font-display text-lg font-semibold tracking-tight text-[var(--color-text-primary)]">
+        Purchased templates
+      </h2>
+      <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <div
+            key={i}
+            className="aspect-[16/9] animate-pulse rounded-2xl bg-[var(--color-surface-elevated)]"
+          />
+        ))}
+      </div>
+    </main>
+  );
+}
+
+async function DashboardContent() {
   const user = await requireAuth();
 
   const purchases = await prisma.purchase.findMany({

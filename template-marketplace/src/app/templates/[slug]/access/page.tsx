@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import {
@@ -20,7 +21,32 @@ function formatBytes(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-export default async function TemplateAccessPage({
+export default function TemplateAccessPage({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}) {
+  // Entirely purchase-gated; no static prerender. Suspense satisfies the
+  // Cache Components constraint and gives the buyer a placeholder while
+  // the purchase lookup resolves.
+  return (
+    <Suspense fallback={<AccessSkeleton />}>
+      <AccessContent params={params} />
+    </Suspense>
+  );
+}
+
+function AccessSkeleton() {
+  return (
+    <main className="mx-auto max-w-3xl px-4 py-12 sm:px-6 lg:py-16">
+      <div className="h-4 w-40 animate-pulse rounded bg-[var(--color-surface-elevated)]" />
+      <div className="mt-6 h-10 w-2/3 animate-pulse rounded-lg bg-[var(--color-surface-elevated)]" />
+      <div className="mt-8 h-40 animate-pulse rounded-2xl bg-[var(--color-surface-elevated)]" />
+    </main>
+  );
+}
+
+async function AccessContent({
   params,
 }: {
   params: Promise<{ slug: string }>;

@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
+import { updateTag } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/session";
 
 async function loadOwnedTemplate(id: string, userId: string) {
   return prisma.template.findFirst({
     where: { id, sellerProfile: { userId } },
-    select: { id: true, status: true },
+    select: { id: true, status: true, slug: true },
   });
 }
 
@@ -35,6 +36,9 @@ export async function POST(
     where: { id },
     data: { status: "ARCHIVED" },
   });
+  // Archive hides the template from catalog + seller profile listings.
+  updateTag("templates");
+  updateTag(`template:${owned.slug}`);
   return NextResponse.json({ ok: true });
 }
 
@@ -61,5 +65,7 @@ export async function DELETE(
     where: { id },
     data: { status: "DRAFT" },
   });
+  updateTag("templates");
+  updateTag(`template:${owned.slug}`);
   return NextResponse.json({ ok: true });
 }

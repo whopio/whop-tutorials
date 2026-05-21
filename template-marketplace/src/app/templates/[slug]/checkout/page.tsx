@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { ChevronLeft, ShieldCheck } from "lucide-react";
@@ -11,7 +12,29 @@ function formatPrice(cents: number): string {
   return `$${(cents / 100).toFixed(cents % 100 === 0 ? 0 : 2)}`;
 }
 
-export default async function CheckoutPage({
+export default function CheckoutPage({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}) {
+  return (
+    <Suspense fallback={<CheckoutSkeleton />}>
+      <CheckoutContent params={params} />
+    </Suspense>
+  );
+}
+
+function CheckoutSkeleton() {
+  return (
+    <main className="mx-auto max-w-3xl px-4 py-12 sm:px-6 lg:py-16">
+      <div className="h-4 w-40 animate-pulse rounded bg-[var(--color-surface-elevated)]" />
+      <div className="mt-5 h-10 w-2/3 animate-pulse rounded-lg bg-[var(--color-surface-elevated)]" />
+      <div className="mt-8 h-96 animate-pulse rounded-2xl bg-[var(--color-surface-elevated)]" />
+    </main>
+  );
+}
+
+async function CheckoutContent({
   params,
 }: {
   params: Promise<{ slug: string }>;

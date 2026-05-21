@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { ArrowRight, ShieldCheck } from "lucide-react";
 import { Logo } from "@/components/Logo";
@@ -8,7 +9,22 @@ const errorMessages: Record<string, string> = {
   userinfo: "We signed you in but couldn't fetch your profile. Try again.",
 };
 
-export default async function SignInPage({
+export default function SignInPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ error?: string; detail?: string }>;
+}) {
+  // searchParams is dynamic in Next 16; Cache Components requires reading
+  // it inside Suspense. We render nothing visible during the resolve since
+  // the happy path is an immediate redirect to /api/auth/login.
+  return (
+    <Suspense fallback={null}>
+      <SignInContent searchParams={searchParams} />
+    </Suspense>
+  );
+}
+
+async function SignInContent({
   searchParams,
 }: {
   searchParams: Promise<{ error?: string; detail?: string }>;

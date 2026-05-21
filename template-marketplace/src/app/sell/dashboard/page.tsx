@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { Plus, Package, DollarSign, Star, Pencil, Tag } from "lucide-react";
@@ -11,7 +12,31 @@ function formatPrice(cents: number): string {
   return `$${(cents / 100).toFixed(2)}`;
 }
 
-export default async function SellerDashboardPage() {
+export default function SellerDashboardPage() {
+  return (
+    <Suspense fallback={<SellerDashboardSkeleton />}>
+      <SellerDashboardContent />
+    </Suspense>
+  );
+}
+
+function SellerDashboardSkeleton() {
+  return (
+    <main className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:py-16">
+      <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[var(--color-text-secondary)]">
+        Seller dashboard
+      </p>
+      <div className="mt-2 h-10 w-64 animate-pulse rounded-lg bg-[var(--color-surface-elevated)] sm:h-12 lg:h-14" />
+      <div className="mt-8 grid gap-4 sm:grid-cols-3">
+        {Array.from({ length: 3 }).map((_, i) => (
+          <div key={i} className="h-28 animate-pulse rounded-2xl bg-[var(--color-surface-elevated)]" />
+        ))}
+      </div>
+    </main>
+  );
+}
+
+async function SellerDashboardContent() {
   const { seller } = await requireSeller();
 
   const templates = await prisma.template.findMany({

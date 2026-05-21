@@ -532,6 +532,8 @@ Both follow the same pattern: slugify the input, try the bare slug, append a ran
 
 Centralizes the filter + pagination + rating-aggregation query so the catalog page, the seller profile page, and the seller dashboard can share it. Returns `{ items: TemplateCardSummary[], total, page, pageSize }`. The `avgRating` is computed in JS from the included reviews rather than via a separate aggregate query — fine for the tutorial's scale; swap for a denormalized column if your marketplace grows past tens of thousands of templates.
 
+Both `listPublishedTemplates` and `getTemplateBySlug` are wrapped in the `'use cache'` directive (see § 9 "Cache Components" below). Cache keys are derived automatically from the function arguments, so paginating, filtering by tool, or searching all get their own cache entries. Tags: the list helper uses `cacheTag('templates')`; the detail helper double-tags with `cacheTag('templates', `template:${slug}`)` so a mutation can bust either the whole catalog or just one row.
+
 ### `src/lib/utils.ts` — `cn` helper
 
 ```ts
@@ -1299,6 +1301,32 @@ images: {
 ```
 
 Above-the-fold hero images use `priority` to skip lazy loading; everything else lazy-loads by default. `fill` is used wherever the parent has `aspect-[16/9]` or `aspect-square`; explicit `width`/`height` is used for fixed-size avatars and chips so the browser can reserve layout space and prevent CLS.
+
+### Cache Components
+
+`next.config.ts` enables Cache Components, Next 16's successor to PPR:
+
+```ts
+const nextConfig: NextConfig = {
+  cacheComponents: true,
+  images: { /* ... */ },
+};
+```
+
+With this flag on, every page is split into three layers automatically: **static** (prerendered at build time), **cached** (any `'use cache'` function), and **dynamic** (anything that reads session, cookies, headers, `searchParams`, or uncached DB data — must live inside `<Suspense>`). The build output marks each route `◐ (Partial Prerender)`: the chrome paints from the CDN immediately, and the per-request bits stream in.
+
+Concretely:
+
+- **Cached helpers**: `listPublishedTemplates` and `getTemplateBySlug` in `src/lib/templates.ts` carry the `'use cache'` directive, `cacheTag('templates')` plus per-slug variants on the detail helper, and `cacheLife('minutes')` as a floor. Cache keys come from the function arguments automatically, so different filters and pages get separate entries.
+
+- **Mutation routes call `updateTag()`** to invalidate the cache immediately on the next render:
+  - publish/PATCH/DELETE on `/api/sell/templates/[id]/*` and `archive/*` → `updateTag('templates')` + `updateTag(`template:${slug}`)`
+  - `/api/templates/[id]/reviews` POST/DELETE → same pair (the avg rating on the catalog card needs to refresh too)
+  - Note: in Next 16 `revalidateTag(tag, profile)` requires two arguments. For "user just mutated, refresh next render in this context" the right primitive is `updateTag(tag)`.
+
+- **Suspense boundaries**: the `Header` splits its session-aware right nav into a `<Suspense>` so the static brand row and navs paint immediately. The homepage splits into `HeroSection` + `BrowseByToolSection` (both static) plus a `Suspense`-wrapped `LatestTemplatesSection` (cached helper) and a `Suspense`-wrapped `SellCtaIfGuest` (session check). Session-gated pages (`/dashboard`, `/sell/*`, `/templates/[slug]/{access,checkout,review/new}`, `/sign-in`, `/templates/[slug]`) wrap their bodies in `<Suspense>` with sized skeleton fallbacks.
+
+- **`new Date()` gotcha**: any non-deterministic read inside JSX (like `new Date().getFullYear()` in the footer copyright line) trips Cache Components' prerender check. Hoist these to module-level constants — `const COPYRIGHT_YEAR = new Date().getFullYear()` computes once at build time and updates on each deploy.
 
 ---
 

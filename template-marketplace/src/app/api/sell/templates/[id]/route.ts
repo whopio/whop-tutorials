@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { updateTag } from "next/cache";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/session";
@@ -54,6 +55,11 @@ export async function PATCH(
     where: { id },
     data: parsed.data,
   });
+  // Edit could change title, price, tool, category, delivery, share URL —
+  // every one of those is shown on the catalog card or the detail page, so
+  // bust both the global list and the per-template caches.
+  updateTag("templates");
+  updateTag(`template:${updated.slug}`);
   return NextResponse.json({ ok: true, template: updated });
 }
 
@@ -86,5 +92,7 @@ export async function DELETE(
   }
 
   await prisma.template.delete({ where: { id } });
+  updateTag("templates");
+  updateTag(`template:${owned.slug}`);
   return NextResponse.json({ ok: true });
 }

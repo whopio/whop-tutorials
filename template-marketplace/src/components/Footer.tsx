@@ -1,6 +1,12 @@
 import Link from "next/link";
 import { Logo } from "./Logo";
 
+// Module-level constant so Cache Components can prerender the footer.
+// `new Date()` inside JSX would be treated as a per-request runtime read
+// and break PPR; computing once at build time is fine — the year updates
+// on each deploy, which is way more often than once a year.
+const COPYRIGHT_YEAR = new Date().getFullYear();
+
 export function Footer() {
   return (
     <footer className="mt-24 border-t border-[var(--color-border)] bg-[var(--color-surface)]/40">
@@ -85,7 +91,7 @@ export function Footer() {
         </div>
 
         <div className="mt-12 flex flex-col gap-3 border-t border-[var(--color-border)] pt-6 text-xs text-[var(--color-text-secondary)] sm:flex-row sm:items-center sm:justify-between">
-          <span>© {new Date().getFullYear()} Stax</span>
+          <span>© {COPYRIGHT_YEAR} Stax</span>
           <span>
             Powered by{" "}
             <a

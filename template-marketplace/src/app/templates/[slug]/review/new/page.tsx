@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
@@ -5,7 +6,29 @@ import { requireAuth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { ReviewForm } from "@/components/ReviewForm";
 
-export default async function NewReviewPage({
+export default function NewReviewPage({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}) {
+  return (
+    <Suspense fallback={<ReviewSkeleton />}>
+      <NewReviewContent params={params} />
+    </Suspense>
+  );
+}
+
+function ReviewSkeleton() {
+  return (
+    <main className="mx-auto max-w-2xl px-4 py-12 sm:px-6 lg:py-16">
+      <div className="h-4 w-40 animate-pulse rounded bg-[var(--color-surface-elevated)]" />
+      <div className="mt-6 h-10 w-2/3 animate-pulse rounded-lg bg-[var(--color-surface-elevated)]" />
+      <div className="mt-8 h-64 animate-pulse rounded-2xl bg-[var(--color-surface-elevated)]" />
+    </main>
+  );
+}
+
+async function NewReviewContent({
   params,
 }: {
   params: Promise<{ slug: string }>;

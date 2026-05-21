@@ -1,3 +1,4 @@
+import { cacheLife, cacheTag } from "next/cache";
 import { prisma } from "./prisma";
 import type { Tool, Category } from "@/generated/prisma/client";
 
@@ -59,6 +60,15 @@ function interleaveByTool<T extends { tool: string }>(items: T[]): T[] {
 export async function listPublishedTemplates(
   filters: TemplateListFilters = {},
 ): Promise<{ items: TemplateCardSummary[]; total: number; page: number; pageSize: number }> {
+  "use cache";
+  // The `templates` tag is busted by every publish, edit, archive, delete,
+  // and review write, so the catalog reflects the most recent change.
+  // `cacheLife("minutes")` is the floor — the tag invalidation is what
+  // actually keeps the data fresh; the lifetime just bounds how long stale
+  // data can hang around if no mutation fires.
+  cacheTag("templates");
+  cacheLife("minutes");
+
   const page = Math.max(1, filters.page ?? 1);
   const pageSize = filters.pageSize ?? PAGE_SIZE;
   const skip = (page - 1) * pageSize;
@@ -141,6 +151,13 @@ export async function listPublishedTemplates(
 }
 
 export async function getTemplateBySlug(slug: string) {
+  "use cache";
+  // Tagged with both the global `templates` and a per-template tag so we
+  // can either bust everything (publish/delete) or just one row (edit, new
+  // review on this template).
+  cacheTag("templates", `template:${slug}`);
+  cacheLife("minutes");
+
   return prisma.template.findUnique({
     where: { slug },
     include: {

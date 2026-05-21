@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import Link from "next/link";
 import { X } from "lucide-react";
 import { TOOLS, CATEGORIES } from "@/constants/categories";
@@ -19,7 +20,36 @@ function parseCategory(input: string | undefined): Category | undefined {
   return CATEGORY_VALUES.includes(input as Category) ? (input as Category) : undefined;
 }
 
-export default async function TemplatesPage({
+export default function TemplatesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ tool?: string; category?: string; page?: string; q?: string }>;
+}) {
+  return (
+    <Suspense fallback={<TemplatesPageSkeleton />}>
+      <TemplatesPageContent searchParams={searchParams} />
+    </Suspense>
+  );
+}
+
+function TemplatesPageSkeleton() {
+  return (
+    <main className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:py-16">
+      <div className="h-4 w-32 animate-pulse rounded bg-[var(--color-surface-elevated)]" />
+      <div className="mt-2 h-10 w-72 animate-pulse rounded-lg bg-[var(--color-surface-elevated)] sm:h-12 lg:h-14" />
+      <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        {Array.from({ length: 8 }).map((_, i) => (
+          <div
+            key={i}
+            className="aspect-[16/9] animate-pulse rounded-2xl bg-[var(--color-surface-elevated)]"
+          />
+        ))}
+      </div>
+    </main>
+  );
+}
+
+async function TemplatesPageContent({
   searchParams,
 }: {
   searchParams: Promise<{ tool?: string; category?: string; page?: string; q?: string }>;

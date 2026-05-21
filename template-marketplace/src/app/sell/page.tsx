@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import Link from "next/link";
 import { ArrowRight, ShieldCheck, Tag, Wallet } from "lucide-react";
 import { requireAuth, getSellerProfile } from "@/lib/auth";
@@ -21,7 +22,33 @@ const benefits = [
   },
 ];
 
-export default async function SellPage() {
+export default function SellPage() {
+  // Page is session-gated (requireAuth) and checks seller status, so the
+  // body is wrapped in Suspense. The buyer sees the hero shell while the
+  // session lookup resolves, then either the seller-welcome panel or the
+  // become-a-seller pitch streams in.
+  return (
+    <Suspense fallback={<SellPageSkeleton />}>
+      <SellPageContent />
+    </Suspense>
+  );
+}
+
+function SellPageSkeleton() {
+  return (
+    <main className="relative isolate overflow-hidden">
+      <div className="hero-mesh" aria-hidden>
+        <span />
+      </div>
+      <div className="relative mx-auto max-w-5xl px-4 py-20 sm:px-6 sm:py-28">
+        <div className="h-12 w-2/3 animate-pulse rounded-lg bg-[var(--color-surface-elevated)] sm:h-16" />
+        <div className="mt-5 h-6 w-3/4 animate-pulse rounded-lg bg-[var(--color-surface-elevated)]" />
+      </div>
+    </main>
+  );
+}
+
+async function SellPageContent() {
   const user = await requireAuth();
   const seller = await getSellerProfile(user.id);
 

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { updateTag } from "next/cache";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/session";
@@ -35,7 +36,7 @@ export async function POST(
   // Sellers can't review their own template
   const template = await prisma.template.findUnique({
     where: { id: templateId },
-    select: { id: true, sellerProfile: { select: { userId: true } } },
+    select: { id: true, slug: true, sellerProfile: { select: { userId: true } } },
   });
   if (!template) {
     return NextResponse.json({ error: "Template not found" }, { status: 404 });
@@ -72,6 +73,11 @@ export async function POST(
     },
   });
 
+  // Avg rating + review count are shown on the catalog card and the detail
+  // page, so a new or edited review needs to bust both.
+  updateTag("templates");
+  updateTag(`template:${template.slug}`);
+
   return NextResponse.json({ ok: true, review });
 }
 
@@ -87,12 +93,14 @@ export async function DELETE(
 
   const review = await prisma.review.findUnique({
     where: { userId_templateId: { userId: session.userId, templateId } },
-    select: { id: true },
+    select: { id: true, template: { select: { slug: true } } },
   });
   if (!review) {
     return NextResponse.json({ error: "Review not found" }, { status: 404 });
   }
 
   await prisma.review.delete({ where: { id: review.id } });
+  updateTag("templates");
+  updateTag(`template:${review.template.slug}`);
   return NextResponse.json({ ok: true });
 }

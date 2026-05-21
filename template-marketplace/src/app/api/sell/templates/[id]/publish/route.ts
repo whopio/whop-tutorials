@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { updateTag } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/session";
 import { appUrl, whopCompany } from "@/lib/whop";
@@ -50,6 +51,8 @@ export async function POST(
       where: { id },
       data: { status: "PUBLISHED" },
     });
+    updateTag("templates");
+    updateTag(`template:${updated.slug}`);
     return NextResponse.json({ ok: true, template: updated });
   }
 
@@ -92,6 +95,11 @@ export async function POST(
         whopCheckoutUrl: checkoutConfig.purchase_url,
       },
     });
+
+    // A newly-published template needs to show up in the catalog and on the
+    // detail page right away — bust both list and per-template caches.
+    updateTag("templates");
+    updateTag(`template:${updated.slug}`);
 
     return NextResponse.json({ ok: true, template: updated });
   } catch (err: unknown) {

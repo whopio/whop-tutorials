@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -18,7 +19,32 @@ function formatBytes(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-export default async function TemplateDetailPage({
+export default function TemplateDetailPage({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}) {
+  return (
+    <Suspense fallback={<TemplateDetailSkeleton />}>
+      <TemplateDetailContent params={params} />
+    </Suspense>
+  );
+}
+
+function TemplateDetailSkeleton() {
+  return (
+    <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:py-12">
+      <div className="h-4 w-64 animate-pulse rounded bg-[var(--color-surface-elevated)]" />
+      <div className="mt-5 h-10 w-3/4 animate-pulse rounded-lg bg-[var(--color-surface-elevated)] sm:h-12 lg:h-14" />
+      <div className="mt-8 grid gap-8 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] lg:gap-10">
+        <div className="aspect-[16/9] w-full animate-pulse rounded-2xl bg-[var(--color-surface-elevated)]" />
+        <div className="h-72 animate-pulse rounded-2xl bg-[var(--color-surface-elevated)]" />
+      </div>
+    </main>
+  );
+}
+
+async function TemplateDetailContent({
   params,
 }: {
   params: Promise<{ slug: string }>;
