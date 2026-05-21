@@ -309,7 +309,11 @@ export default async function TemplateDetailPage({
                   </Link>
                 ) : !me ? (
                   <a
-                    href="/api/auth/login"
+                    href={
+                      template.price === 0
+                        ? "/api/auth/login"
+                        : `/api/auth/login?redirect_to=${encodeURIComponent(`/templates/${template.slug}/checkout`)}`
+                    }
                     className="block w-full rounded-full bg-[var(--color-accent)] px-4 py-3 text-center text-sm font-semibold text-white shadow-sm transition hover:bg-[var(--color-accent-hover)]"
                   >
                     Sign in to {template.price === 0 ? "claim" : "buy"}
@@ -317,12 +321,13 @@ export default async function TemplateDetailPage({
                 ) : template.price === 0 ? (
                   <FreeBuyForm templateId={template.id} />
                 ) : (
-                  <a
-                    href={template.whopCheckoutUrl ?? "#"}
+                  <Link
+                    href={`/templates/${template.slug}/checkout`}
+                    prefetch={false}
                     className="block w-full rounded-full bg-[var(--color-accent)] px-4 py-3 text-center text-sm font-semibold text-white shadow-sm transition hover:bg-[var(--color-accent-hover)]"
                   >
                     Buy now
-                  </a>
+                  </Link>
                 )}
               </div>
 

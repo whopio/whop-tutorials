@@ -1,6 +1,6 @@
 # Stax (Template Marketplace)
 
-A multi-seller marketplace for digital templates where any signed-in user can become a seller through Whop's connected-account flow, upload templates with preview images plus either downloadable files or a share/duplicate URL, and publish for one-time purchase. Buyers browse the Tool x Category catalog, purchase via Whop's hosted checkout, leave star reviews on what they bought, and redeem seller-issued promo codes at checkout. The platform takes a configurable percentage fee (default 5%) via `application_fee_amount` on every paid sale. Built with Next.js 16, Prisma 7, UploadThing, and the Whop SDK.
+A multi-seller marketplace for digital templates where any signed-in user can become a seller through Whop's connected-account flow, upload templates with preview images plus either downloadable files or a share/duplicate URL, and publish for one-time purchase. Buyers browse the Tool x Category catalog, pay via Whop's embedded checkout (the iframe renders inside the marketplace — no redirect to whop.com), leave star reviews on what they bought, and redeem seller-issued promo codes at checkout. The platform takes a configurable percentage fee (default 5%) via `application_fee_amount` on every paid sale. Built with Next.js 16, Prisma 7, UploadThing, and the Whop SDK.
 
 ## Features
 
@@ -9,7 +9,7 @@ A multi-seller marketplace for digital templates where any signed-in user can be
 - **Multi-Tool Catalog** - Tool axis (Notion, Figma, Webflow, Framer, WordPress, Code, Word, Excel, PowerPoint, AI Prompts) and Category axis (Productivity, Project Management, Landing Pages, Dashboards, Branding, Dev Boilerplates, Marketing, Finance)
 - **Hybrid Delivery** - Each template is either a downloadable file bundle or a share URL revealed post-purchase, chosen by the seller at upload time
 - **UploadThing Two-Route Pattern** - `preview` (public, 8MB images) and `downloadable` (page-gated, 16MB mixed types) with shared seller-ownership middleware
-- **Hosted Checkout with Application Fees** - `products.create` + `checkoutConfigurations.create` with an inline one-time plan, `application_fee_amount` deducts the platform's cut and credits the rest to the seller's connected company
+- **Embedded Checkout with Application Fees** - `products.create` + `checkoutConfigurations.create` with an inline one-time plan, `application_fee_amount` deducts the platform's cut and credits the rest to the seller's connected company. Buyers pay inside the app via `@whop/checkout/react`'s `<WhopCheckoutEmbed>` iframe — no redirect to whop.com.
 - **Free Templates Bypass Whop** - `price === 0` skips all SDK calls and writes Purchase rows directly
 - **Webhook-Driven Reconciliation** - Company-level webhook on the parent company with "Connected account events" enabled, signature-verified `payment.succeeded` upserts the Purchase, dedupes by `event.id`
 - **Purchase-Gated Access Pages** - File downloads or revealed share URL, gated by a Purchase row keyed on `(userId, templateId)`
@@ -169,7 +169,7 @@ All prices are integer cents.
 5. **Buyer accesses** - `/templates/[slug]/access` is gated by a Purchase row keyed on `(session.userId, templateId)`. Renders file downloads or the revealed share URL.
 6. **Seller withdraws** - dashboard "Withdraw earnings" button hits `/api/sell/payouts`, which mints a fresh `accountLinks.create({ use_case: "payouts_portal" })` URL. Seller manages their Whop balance via Whop's hosted portal.
 7. **Free templates** skip steps 2-4. POST to `/api/templates/[id]/purchase` creates the Purchase directly.
-8. **Promo codes** flow through Whop. Seller creates a code via `whop.promoCodes.create({ company_id, product_id, code, promo_type, amount_off })`. Buyer enters the code at Whop's hosted checkout. Whop applies the discount; the application fee stays fixed, so the discount comes out of the seller's revenue, not the platform's.
+8. **Promo codes** flow through Whop. Seller creates a code via `whop.promoCodes.create({ company_id, product_id, code, promo_type, amount_off })`. Buyer enters the code on Whop's embedded checkout iframe. Whop applies the discount; the application fee stays fixed, so the discount comes out of the seller's revenue, not the platform's.
 
 Edge cases:
 
@@ -212,7 +212,7 @@ For the full sandbox-to-production switch (rotating App + Company API keys, recr
 
 ## Disclaimer
 
-This project is for **educational purposes only** and is not intended for production use as-is. It demonstrates the core marketplace pattern on top of Whop (connected accounts + application fees + hosted checkout + webhooks + promo codes) but omits security hardening, rate-limiting, observability, and scalability measures a real platform would need.
+This project is for **educational purposes only** and is not intended for production use as-is. It demonstrates the core marketplace pattern on top of Whop (connected accounts + application fees + embedded checkout + webhooks + promo codes) but omits security hardening, rate-limiting, observability, and scalability measures a real platform would need.
 
 ## License
 

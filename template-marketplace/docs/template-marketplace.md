@@ -6,7 +6,7 @@ Condensed reference for building Stax, a multi-seller marketplace for digital te
 
 ## 1. Overview
 
-**Product:** Stax, a multi-seller marketplace where any signed-in user can become a seller through Whop's connected-account flow, upload digital templates with preview images and either downloadable files or a share/duplicate URL, publish for one-time purchase, and earn a payout via Whop's hosted portal. Buyers browse the Tool × Category catalog, purchase via Whop's hosted checkout, leave star reviews on what they bought, and redeem seller-issued promo codes at checkout.
+**Product:** Stax, a multi-seller marketplace where any signed-in user can become a seller through Whop's connected-account flow, upload digital templates with preview images and either downloadable files or a share/duplicate URL, publish for one-time purchase, and earn a payout via Whop's hosted portal. Buyers browse the Tool × Category catalog, pay via Whop's embedded checkout (the iframe renders inside Stax — buyers never leave the site), leave star reviews on what they bought, and redeem seller-issued promo codes at checkout.
 
 **Business model:** Direct charges with application fees via Whop for Platforms.
 
@@ -22,7 +22,7 @@ Condensed reference for building Stax, a multi-seller marketplace for digital te
 | Framework | Next.js 16 (App Router), React 19, Turbopack |
 | Styling | Tailwind CSS v4 (CSS-first via `@theme`), `lucide-react` |
 | Auth | Whop OAuth 2.1 (PKCE + nonce) + iron-session 8 (encrypted cookie, no DB sessions) |
-| Payments | Whop for Platforms: `companies.create`, `products.create`, `checkoutConfigurations.create` with `application_fee_amount` on an inline one-time plan |
+| Payments | Whop for Platforms: `companies.create`, `products.create`, `checkoutConfigurations.create` with `application_fee_amount` on an inline one-time plan; embedded checkout via `@whop/checkout/react` |
 | Promo codes | Whop Promo Codes API — `promoCodes.list / create / delete`, no local model |
 | Payouts | Whop hosted payout portal via `accountLinks.create({ use_case: "payouts_portal" })` |
 | Database | PostgreSQL via Neon (Vercel Marketplace integration, cloud-only) |
@@ -37,6 +37,7 @@ Condensed reference for building Stax, a multi-seller marketplace for digital te
 - `/sign-in` — Whop OAuth start (just a CTA, the real flow lives in `/api/auth/login`)
 - `/templates` — Catalog with Tool × Category filters, full-text search, custom pagination
 - `/templates/[slug]` — Template detail with preview gallery, delivery indicator, price + Buy/Get-free button, reviews list, ratings summary
+- `/templates/[slug]/checkout` — Embedded Whop checkout (`@whop/checkout/react`'s `<WhopCheckoutEmbed>` iframe) for paid templates; auth-gated and bounces existing buyers to `/access`
 - `/templates/[slug]/access` — Purchase-gated page: file download list or revealed share URL
 - `/templates/[slug]/review/new` — Purchase-gated review form (1–5 stars + optional title/body)
 - `/sellers/[username]` — Public seller profile (headline, bio, published templates)
@@ -73,7 +74,7 @@ Condensed reference for building Stax, a multi-seller marketplace for digital te
 2. A signed-in user clicks "Become a seller" on `/sell`. The server calls `whopCompany.companies.create({ parent_company_id: WHOP_COMPANY_ID })`. In sandbox the SellerProfile is saved with `kycComplete: true` immediately; in production the server creates the row in pending KYC state and redirects the seller to `whopCompany.accountLinks.create({ use_case: "account_onboarding" }).url`. The `/sell/onboard/complete` return URL flips `kycComplete` and lands the seller on `/sell/dashboard`.
 3. The seller creates a draft template (title, description, price, tool, category, delivery type). The DB row is saved as `status: DRAFT`. They upload preview images on the `preview` UploadThing route (8MB image, public) and either downloadable files on the `downloadable` route (16MB mixed types, page-gated) or a share URL.
 4. The seller clicks Publish. The publish route validates that the template has a title, description, at least one preview image, and either at least one downloadable file or a share URL. Free templates (price = 0) skip Whop and flip straight to PUBLISHED. Paid templates trigger `whopCompany.products.create({ company_id: seller.whopCompanyId })` then `whopCompany.checkoutConfigurations.create({ plan: { initial_price, application_fee_amount, plan_type: "one_time" }, redirect_url: /templates/[slug]/access })`. The resulting `purchase_url` is saved on the Template as `whopCheckoutUrl`.
-5. A buyer hits `/templates/[slug]`, clicks Buy, and is redirected to the seller's `whopCheckoutUrl`. Whop processes the payment, deducts the application fee, credits the seller's connected company, and redirects the buyer to `/templates/[slug]/access`.
+5. A buyer hits `/templates/[slug]`, clicks Buy, and is sent to `/templates/[slug]/checkout`. That page renders `<WhopCheckoutEmbed planId={template.whopPlanId}>` from `@whop/checkout/react`, which iframes Whop's checkout UI directly inside Stax — the buyer never leaves the site. Whop processes the payment, deducts the application fee, credits the seller's connected company. On success the embed's `onComplete` callback client-routes to `/templates/[slug]/access`; external payment methods (Apple Pay, Google Pay, PayPal) redirect to the `returnUrl` the embed was given, which is the same access URL.
 6. Whop fires `payment.succeeded` to the company-level webhook on the platform parent company. The handler verifies the signature, dedupes by event ID via a `WebhookEvent` insert, finds the Template by `whopPlanId`, upserts the buyer's User (matching `payment.user.id` to `whopUserId`), and upserts the Purchase row by `(userId, templateId)`. The redirect from step 5 and the webhook race; whichever path completes first wins thanks to the upsert.
 7. The `/templates/[slug]/access` page does a Purchase lookup keyed on `(session.userId, templateId)`. If present, it renders the list of downloadable files or the revealed share URL.
 8. The buyer can leave a 1–5 star review at `/templates/[slug]/review/new`. The API route purchase-gates the write, blocks sellers from reviewing their own work, and upserts on `(userId, templateId)` so one buyer = one review per template. Aggregate ratings are computed per-request via the buyer's template detail page (no denormalized cache).
@@ -95,7 +96,7 @@ cd stax
 Install everything upfront so `package.json` stays stable as the project grows.
 
 ```bash
-npm install @whop/sdk @prisma/client @prisma/adapter-pg pg iron-session zod \
+npm install @whop/sdk @whop/checkout @prisma/client @prisma/adapter-pg pg iron-session zod \
   lucide-react clsx tailwind-merge dotenv \
   uploadthing @uploadthing/react
 npm install -D prisma @types/pg @vercel/config
@@ -1272,7 +1273,7 @@ Server component. Calls `getTemplateBySlug(slug)` (returns the template + seller
 
 - The preview gallery (first image as hero, the rest as a thumbnail strip).
 - Title, seller link, tool badge, category, delivery indicator ("File download" or "Share URL"), price (or "Free").
-- Buy button: paid → `<a href={template.whopCheckoutUrl}>` with the seller's hosted checkout. Free → a small form POSTing to `/api/templates/[id]/purchase` (which redirects to `/access`). If the signed-in user already has a Purchase, this is replaced with "View your access".
+- Buy button: paid → `<Link href={`/templates/${slug}/checkout`}>` (the next page renders Whop's embedded checkout iframe). Free → a small form POSTing to `/api/templates/[id]/purchase` (which redirects to `/access`). If the signed-in user already has a Purchase, this is replaced with "View your access". Guests trying to buy a paid template get a "Sign in to buy" anchor that points at `/api/auth/login?redirect_to=/templates/[slug]/checkout` so they land on the embed after OAuth.
 - Reviews summary (avg rating + count) and the most recent reviews.
 - A "Leave a review" CTA visible only to buyers who haven't reviewed yet.
 
@@ -1286,9 +1287,107 @@ Client/server-neutral. Takes a `TemplateCardSummary`. Renders the thumbnail imag
 
 ---
 
-## 10. Checkout, webhook, and free-template purchase
+## 10. Embedded checkout, webhook, and free-template purchase
 
-The redirect from Whop and the webhook race; whichever path writes the Purchase first wins thanks to the upsert. The `WebhookEvent` table dedupes deliveries (Whop retries on non-200) so we never process the same event twice.
+Whop runs the actual checkout — card vault, Apple Pay, fraud, taxes — but it renders inside an iframe on **our** page, so the buyer never bounces to whop.com. The redirect-back path (for external payment methods) and the `payment.succeeded` webhook race; whichever path writes the Purchase first wins thanks to the upsert. The `WebhookEvent` table dedupes deliveries (Whop retries on non-200) so we never process the same event twice.
+
+### `<CheckoutEmbed>` client component (`src/components/CheckoutEmbed.tsx`)
+
+Wraps `@whop/checkout/react`'s `<WhopCheckoutEmbed>` with the props the rest of Stax cares about. Server reads `WHOP_SANDBOX` and forwards a boolean (no `NEXT_PUBLIC_*` env var needed). We pass both an `onComplete` callback (which `useRouter().push`es to the access page after in-frame card payments) and a `returnUrl` (required for external payment methods — Apple Pay, Google Pay, PayPal — where the embed can't catch the callback because the top frame is the one that gets redirected).
+
+```tsx
+"use client";
+
+import { WhopCheckoutEmbed } from "@whop/checkout/react";
+import { useRouter } from "next/navigation";
+
+interface CheckoutEmbedProps {
+  planId: string;
+  slug: string;
+  isSandbox: boolean;
+  appUrl: string;
+}
+
+export function CheckoutEmbed({ planId, slug, isSandbox, appUrl }: CheckoutEmbedProps) {
+  const router = useRouter();
+  const accessPath = `/templates/${slug}/access`;
+
+  return (
+    <WhopCheckoutEmbed
+      planId={planId}
+      environment={isSandbox ? "sandbox" : "production"}
+      returnUrl={`${appUrl}${accessPath}`}
+      onComplete={() => router.push(accessPath)}
+      fallback={
+        <div className="grid min-h-[420px] place-items-center text-sm text-[var(--color-text-secondary)]">
+          Loading checkout…
+        </div>
+      }
+    />
+  );
+}
+```
+
+### `/templates/[slug]/checkout` server page
+
+Auth-gates, ownership-gates, and existing-purchase-gates before rendering the embed. The plan that was created during publish (with `application_fee_amount` baked into it) is what the embed transacts against; nothing extra to do server-side at click time.
+
+```tsx
+import { notFound, redirect } from "next/navigation";
+import { isAuthenticated } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
+import { getTemplateBySlug } from "@/lib/templates";
+import { appUrl } from "@/lib/whop";
+import { CheckoutEmbed } from "@/components/CheckoutEmbed";
+
+export default async function CheckoutPage({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}) {
+  const { slug } = await params;
+  const template = await getTemplateBySlug(slug);
+  if (!template || template.status !== "PUBLISHED") notFound();
+
+  // Free templates skip Whop entirely — bounce to the detail page so the
+  // free purchase route owns that path.
+  if (template.price === 0 || !template.whopPlanId) {
+    redirect(`/templates/${slug}`);
+  }
+
+  const me = await isAuthenticated();
+  if (!me) {
+    const next = encodeURIComponent(`/templates/${slug}/checkout`);
+    redirect(`/api/auth/login?redirect_to=${next}`);
+  }
+  if (me.id === template.sellerProfile.userId) {
+    redirect(`/templates/${slug}`);
+  }
+
+  const purchase = await prisma.purchase.findUnique({
+    where: { userId_templateId: { userId: me.id, templateId: template.id } },
+  });
+  if (purchase) {
+    redirect(`/templates/${slug}/access`);
+  }
+
+  const isSandbox = process.env.WHOP_SANDBOX?.trim() === "true";
+
+  return (
+    <main className="mx-auto max-w-3xl px-4 py-12 sm:px-6 lg:py-16">
+      {/* Header + back link + title + price ... */}
+      <CheckoutEmbed
+        planId={template.whopPlanId}
+        slug={template.slug}
+        isSandbox={isSandbox}
+        appUrl={appUrl}
+      />
+    </main>
+  );
+}
+```
+
+> `template.whopCheckoutUrl` is still stored in the DB (we set it in the publish route) and remains useful as a public share link or a fallback "view checkout on whop.com" anchor in the seller dashboard. The buyer flow no longer uses it.
 
 ### `src/app/api/webhooks/whop/route.ts`
 
@@ -1928,22 +2027,26 @@ The Stax tutorial stays in sandbox throughout development. The production switch
 
 11. **Plan titles are capped at 30 chars.** The product title (`products.create({ title })`) is shown on the public product page and can be the full template title. The plan title (`plan.title`) is what appears on the checkout summary line — truncate to 30 chars to avoid a 422 from Whop.
 
-12. **`checkoutConfigurations.create` supports `redirect_url`** at the top level (sibling to `plan` and `mode`). Set it to the access page so buyers don't land on the default `whop.com/joined/…` flow.
+12. **`checkoutConfigurations.create` supports `redirect_url`** at the top level (sibling to `plan` and `mode`). Set it to the access page so buyers don't land on the default `whop.com/joined/…` flow. With the embedded checkout, this `redirect_url` is a fallback — the embed's own `returnUrl` prop and `onComplete` callback handle the happy path.
 
-13. **100%-off promo codes break paid plans.** The application fee can't exceed the total. Free distribution should use the free-template path (price = 0, direct purchase route), not a 100% percentage code on a paid plan. The promo-codes POST validates and rejects this explicitly.
+13. **`<WhopCheckoutEmbed>` needs both `onComplete` and `returnUrl`.** The two callbacks cover different payment paths: card payments stay in-frame and fire `onComplete` (use `useRouter().push` to move on); external methods (Apple Pay, Google Pay, PayPal) redirect the top frame to `returnUrl`. Setting only one of them breaks the other path silently. `returnUrl` must be an absolute URL.
 
-14. **Promo code DELETE requires explicit ownership verification.** `whopCompany.promoCodes.delete(codeId)` succeeds against any promo code on the platform because the Company API Key has org-wide permissions. Verifying "this seller owns the template at `[id]`" is not enough — the route also has to verify the `codeId` actually belongs to that template's product (list codes for the company filtered by `product_id`, search for `codeId`, 404 if missing). Skipping this check lets one seller archive another seller's codes.
+14. **`environment="sandbox"` on the embed must match the plan's environment.** Sandbox plans don't transact through the production embed and vice versa. Read `WHOP_SANDBOX` on the server, forward a boolean prop to the client component — don't introduce a `NEXT_PUBLIC_WHOP_SANDBOX` env var just for this.
 
-15. **`whop.companies.create({ parent_company_id })` is how the connected-account sub-company is created.** The resulting `company.id` is what every subsequent call (`accountLinks.create`, `products.create`, `checkoutConfigurations.create`, `promoCodes.*`) keys off — store it as `SellerProfile.whopCompanyId`.
+15. **100%-off promo codes break paid plans.** The application fee can't exceed the total. Free distribution should use the free-template path (price = 0, direct purchase route), not a 100% percentage code on a paid plan. The promo-codes POST validates and rejects this explicitly.
 
-16. **`whop.accountLinks.create` requires HTTPS** for `return_url` and `refresh_url`. Vercel preview deploys work; localhost doesn't. The `use_case` is `"account_onboarding"` for KYC and `"payouts_portal"` for the withdraw flow.
+16. **Promo code DELETE requires explicit ownership verification.** `whopCompany.promoCodes.delete(codeId)` succeeds against any promo code on the platform because the Company API Key has org-wide permissions. Verifying "this seller owns the template at `[id]`" is not enough — the route also has to verify the `codeId` actually belongs to that template's product (list codes for the company filtered by `product_id`, search for `codeId`, 404 if missing). Skipping this check lets one seller archive another seller's codes.
 
-17. **`<Link>` RSC prefetch on a route handler that issues a cross-origin redirect triggers CORS errors.** The sign-in CTA must be a plain `<a href>`, not `<Link>`. Add `prefetch={false}` to any other links that point at redirect-issuing routes.
+17. **`whop.companies.create({ parent_company_id })` is how the connected-account sub-company is created.** The resulting `company.id` is what every subsequent call (`accountLinks.create`, `products.create`, `checkoutConfigurations.create`, `promoCodes.*`) keys off — store it as `SellerProfile.whopCompanyId`.
 
-18. **Vercel UI silently keeps leading/trailing whitespace on paste.** A leading tab in `NEXT_PUBLIC_APP_URL` shows up as `%09` in the OAuth redirect URI and breaks the exact-match check on Whop's authorize endpoint. Same goes for the webhook secret — a trailing newline 401s every signature verification. Stax trims every Whop credential and the app URL inside `lib/whop.ts` as defense in depth.
+18. **`whop.accountLinks.create` requires HTTPS** for `return_url` and `refresh_url`. Vercel preview deploys work; localhost doesn't. The `use_case` is `"account_onboarding"` for KYC and `"payouts_portal"` for the withdraw flow.
 
-19. **Prisma 7 schema cannot include `url` in the datasource block.** Use `prisma.config.ts` to inject the URL at runtime, and leave the datasource as just `{ provider = "postgresql" }`. The `prisma db push` CLI flag `--skip-generate` was also removed in Prisma 7; drop it from the build command.
+19. **`<Link>` RSC prefetch on a route handler that issues a cross-origin redirect triggers CORS errors.** The sign-in CTA must be a plain `<a href>`, not `<Link>`. Add `prefetch={false}` to any other links that point at redirect-issuing routes.
 
-20. **Vercel marks `DATABASE_URL_UNPOOLED` Sensitive by default.** `vercel env pull` writes it as `""` in `.env.local`. Stax's `prisma.config.ts` falls back to `DATABASE_URL` (pooled) or a placeholder so local `prisma generate` keeps working; real DB operations on Vercel use the injected value at build time.
+20. **Vercel UI silently keeps leading/trailing whitespace on paste.** A leading tab in `NEXT_PUBLIC_APP_URL` shows up as `%09` in the OAuth redirect URI and breaks the exact-match check on Whop's authorize endpoint. Same goes for the webhook secret — a trailing newline 401s every signature verification. Stax trims every Whop credential and the app URL inside `lib/whop.ts` as defense in depth.
 
-21. **`Purchase.whopPaymentId` is nullable.** The free-template direct path writes Purchase rows without a Whop payment, and the webhook upsert fills it in for paid purchases. Don't make it `@unique` — multiple free purchases by different users on the same template all have a null `whopPaymentId`, and a unique constraint would block them.
+21. **Prisma 7 schema cannot include `url` in the datasource block.** Use `prisma.config.ts` to inject the URL at runtime, and leave the datasource as just `{ provider = "postgresql" }`. The `prisma db push` CLI flag `--skip-generate` was also removed in Prisma 7; drop it from the build command.
+
+22. **Vercel marks `DATABASE_URL_UNPOOLED` Sensitive by default.** `vercel env pull` writes it as `""` in `.env.local`. Stax's `prisma.config.ts` falls back to `DATABASE_URL` (pooled) or a placeholder so local `prisma generate` keeps working; real DB operations on Vercel use the injected value at build time.
+
+23. **`Purchase.whopPaymentId` is nullable.** The free-template direct path writes Purchase rows without a Whop payment, and the webhook upsert fills it in for paid purchases. Don't make it `@unique` — multiple free purchases by different users on the same template all have a null `whopPaymentId`, and a unique constraint would block them.
