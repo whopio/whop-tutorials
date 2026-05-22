@@ -36,9 +36,9 @@ Condensed reference for building Stax, a multi-seller marketplace for digital te
 - `/` — Landing page: hero, search, trending templates, tool-bucket cards, seller CTA
 - `/sign-in` — Whop OAuth start (just a CTA, the real flow lives in `/api/auth/login`)
 - `/templates` — Catalog with Tool × Category filters, full-text search, custom pagination
-- `/templates/[slug]` — Template detail with preview gallery, delivery indicator, price + Buy/Get-free button, reviews list, ratings summary
-- `/templates/[slug]/checkout` — Embedded Whop checkout (`@whop/checkout/react`'s `<WhopCheckoutEmbed>` iframe) for paid templates; auth-gated and bounces existing buyers to `/access`
-- `/templates/[slug]/access` — Purchase-gated page: file download list or revealed share URL
+- `/templates/[slug]` — Template detail with preview gallery, delivery indicator, price + Buy/Get-free button. The Buy button opens a portal-based modal containing Whop's `<WhopCheckoutEmbed>` — no sign-in required. Reviews list and ratings summary
+- `/templates/[slug]/access` — Account-gated download page for signed-in buyers (uses their Stax session)
+- `/access/[receiptId]` — Public receipt-keyed download page. Reachable from the in-modal success state, the receipt email Whop sends, or anywhere else the URL gets shared. Identity comes from possession of the receipt ID; the underlying Purchase row is created by the `payment.succeeded` webhook
 - `/templates/[slug]/review/new` — Purchase-gated review form (1–5 stars + optional title/body)
 - `/sellers/[username]` — Public seller profile (headline, bio, published templates)
 - `/sell` — Become a seller landing (Whop connected-account onboarding CTA)
@@ -74,9 +74,9 @@ Condensed reference for building Stax, a multi-seller marketplace for digital te
 2. A signed-in user clicks "Become a seller" on `/sell`. The server calls `whopCompany.companies.create({ parent_company_id: WHOP_COMPANY_ID })`. In sandbox the SellerProfile is saved with `kycComplete: true` immediately; in production the server creates the row in pending KYC state and redirects the seller to `whopCompany.accountLinks.create({ use_case: "account_onboarding" }).url`. The `/sell/onboard/complete` return URL flips `kycComplete` and lands the seller on `/sell/dashboard`.
 3. The seller creates a draft template (title, description, price, tool, category, delivery type). The DB row is saved as `status: DRAFT`. They upload preview images on the `preview` UploadThing route (8MB image, public) and either downloadable files on the `downloadable` route (16MB mixed types, page-gated) or a share URL.
 4. The seller clicks Publish. The publish route validates that the template has a title, description, at least one preview image, and either at least one downloadable file or a share URL. Free templates (price = 0) skip Whop and flip straight to PUBLISHED. Paid templates trigger `whopCompany.products.create({ company_id: seller.whopCompanyId })` then `whopCompany.checkoutConfigurations.create({ plan: { initial_price, application_fee_amount, plan_type: "one_time" }, redirect_url: /templates/[slug]/access })`. The resulting `purchase_url` is saved on the Template as `whopCheckoutUrl`.
-5. A buyer hits `/templates/[slug]`, clicks Buy, and is sent to `/templates/[slug]/checkout`. That page renders `<WhopCheckoutEmbed planId={template.whopPlanId}>` from `@whop/checkout/react`, which iframes Whop's checkout UI directly inside Stax — the buyer never leaves the site. Whop processes the payment, deducts the application fee, credits the seller's connected company. On success the embed's `onComplete` callback client-routes to `/templates/[slug]/access`; external payment methods (Apple Pay, Google Pay, PayPal) redirect to the `returnUrl` the embed was given, which is the same access URL.
-6. Whop fires `payment.succeeded` to the company-level webhook on the platform parent company. The handler verifies the signature, dedupes by event ID via a `WebhookEvent` insert, finds the Template by `whopPlanId`, upserts the buyer's User (matching `payment.user.id` to `whopUserId`), and upserts the Purchase row by `(userId, templateId)`. The redirect from step 5 and the webhook race; whichever path completes first wins thanks to the upsert.
-7. The `/templates/[slug]/access` page does a Purchase lookup keyed on `(session.userId, templateId)`. If present, it renders the list of downloadable files or the revealed share URL.
+5. A buyer hits `/templates/[slug]` and clicks Buy. **No sign-in required** — the click opens a portal-based modal that renders `<WhopCheckoutEmbed planId={template.whopPlanId}>` from `@whop/checkout/react` directly. Whop handles buyer identity (creates a guest Whop account on the fly if needed and emails the receipt), processes the payment, deducts the application fee, credits the seller's connected company. The embed fires `onComplete(planId, receiptId)` in-frame on success; the modal swaps to a confirmation panel with a deep link to `/access/[receiptId]`.
+6. Whop fires `payment.succeeded` to the company-level webhook on the platform parent company. The handler verifies the signature, dedupes by event ID via a `WebhookEvent` insert, finds the Template by `whopPlanId`, upserts the buyer's User (matching `payment.user.id` to `whopUserId` — creating the row for guest buyers who never signed in), and upserts the Purchase row by `(userId, templateId)` with `whopPaymentId = payment.id`.
+7. The buyer lands on `/access/[receiptId]`. That page looks up the Purchase by `whopPaymentId`. If the webhook has already fired it renders the file downloads / share URL straight away; if there's a race it renders a small "finalizing your purchase" component that `router.refresh()`es every 2 seconds until the Purchase appears. Signed-in buyers keep the older `/templates/[slug]/access` route, which gates on the session-bound Purchase row instead.
 8. The buyer can leave a 1–5 star review at `/templates/[slug]/review/new`. The API route purchase-gates the write, blocks sellers from reviewing their own work, and upserts on `(userId, templateId)` so one buyer = one review per template. Aggregate ratings are computed per-request via the buyer's template detail page (no denormalized cache).
 9. The seller dashboard surfaces earnings (computed by summing `Purchase.pricePaid` minus the platform fee), the template management table, the promo codes panel (every call goes straight to `whopCompany.promoCodes`), and a "Withdraw earnings" button that hits `/api/sell/payouts` to mint a fresh `payouts_portal` Whop-hosted URL.
 
@@ -1275,7 +1275,7 @@ Server component. Calls `getTemplateBySlug(slug)` (returns the template + seller
 
 - The preview gallery (first image as hero, the rest as a thumbnail strip).
 - Title, seller link, tool badge, category, delivery indicator ("File download" or "Share URL"), price (or "Free").
-- Buy button: paid → `<Link href={`/templates/${slug}/checkout`}>` (the next page renders Whop's embedded checkout iframe). Free → a small form POSTing to `/api/templates/[id]/purchase` (which redirects to `/access`). If the signed-in user already has a Purchase, this is replaced with "View your access". Guests trying to buy a paid template get a "Sign in to buy" anchor that points at `/api/auth/login?redirect_to=/templates/[slug]/checkout` so they land on the embed after OAuth.
+- Buy button: paid → `<CheckoutModal planId={…} buttonLabel="Get for $X" />`, a client component that opens a portal-based modal with Whop's embedded checkout inside it. No auth gate. Free → a small form POSTing to `/api/templates/[id]/purchase` (which redirects to `/access`); free templates *do* still require sign-in because there's no Whop checkout to anchor identity to. If the signed-in user already has a Purchase, this is replaced with "View your access". Sellers see "Edit your template" instead of either CTA.
 - Reviews summary (avg rating + count) and the most recent reviews.
 - A "Leave a review" CTA visible only to buyers who haven't reviewed yet.
 
@@ -1324,113 +1324,179 @@ Concretely:
   - `/api/templates/[id]/reviews` POST/DELETE → same pair (the avg rating on the catalog card needs to refresh too)
   - Note: in Next 16 `revalidateTag(tag, profile)` requires two arguments. For "user just mutated, refresh next render in this context" the right primitive is `updateTag(tag)`.
 
-- **Suspense boundaries**: the `Header` splits its session-aware right nav into a `<Suspense>` so the static brand row and navs paint immediately. The homepage splits into `HeroSection` + `BrowseByToolSection` (both static) plus a `Suspense`-wrapped `LatestTemplatesSection` (cached helper) and a `Suspense`-wrapped `SellCtaIfGuest` (session check). Session-gated pages (`/dashboard`, `/sell/*`, `/templates/[slug]/{access,checkout,review/new}`, `/sign-in`, `/templates/[slug]`) wrap their bodies in `<Suspense>` with sized skeleton fallbacks.
+- **Suspense boundaries**: the `Header` splits its session-aware right nav into a `<Suspense>` so the static brand row and navs paint immediately. The homepage splits into `HeroSection` + `BrowseByToolSection` (both static) plus a `Suspense`-wrapped `LatestTemplatesSection` (cached helper) and a `Suspense`-wrapped `SellCtaIfGuest` (session check). Session-gated pages (`/dashboard`, `/sell/*`, `/templates/[slug]/{access,review/new}`, `/access/[receiptId]`, `/sign-in`, `/templates/[slug]`) wrap their bodies in `<Suspense>` with sized skeleton fallbacks.
 
 - **`new Date()` gotcha**: any non-deterministic read inside JSX (like `new Date().getFullYear()` in the footer copyright line) trips Cache Components' prerender check. Hoist these to module-level constants — `const COPYRIGHT_YEAR = new Date().getFullYear()` computes once at build time and updates on each deploy.
 
 ---
 
-## 10. Embedded checkout, webhook, and free-template purchase
+## 10. Embedded checkout (no auth gate), webhook, and free-template purchase
 
-Whop runs the actual checkout — card vault, Apple Pay, fraud, taxes — but it renders inside an iframe on **our** page, so the buyer never bounces to whop.com. The redirect-back path (for external payment methods) and the `payment.succeeded` webhook race; whichever path writes the Purchase first wins thanks to the upsert. The `WebhookEvent` table dedupes deliveries (Whop retries on non-200) so we never process the same event twice.
+Whop runs the actual checkout — card vault, Apple Pay, fraud, taxes — but the embed renders directly on **our** page, inside a modal that opens from the Buy button. No sign-in step, no redirects: the buyer clicks Buy, fills the card form right there, and the modal swaps to a "Thanks for your purchase" panel the moment `onComplete` fires. The `payment.succeeded` webhook is the source of truth for the `Purchase` row; the in-modal success state can race it by a couple seconds, which is what the receipt page's polling component handles.
 
-### `<CheckoutEmbed>` client component (`src/components/CheckoutEmbed.tsx`)
+### `<CheckoutModal>` client component (`src/components/CheckoutModal.tsx`)
 
-Wraps `@whop/checkout/react`'s `<WhopCheckoutEmbed>` with the props the rest of Stax cares about. Server reads `WHOP_SANDBOX` and forwards a boolean (no `NEXT_PUBLIC_*` env var needed). We pass both an `onComplete` callback (which `useRouter().push`es to the access page after in-frame card payments) and a `returnUrl` (required for external payment methods — Apple Pay, Google Pay, PayPal — where the embed can't catch the callback because the top frame is the one that gets redirected).
+Self-contained: renders the Buy trigger button on the page, manages the open/closed/success state, and portals the modal body onto `document.body`. Server reads `WHOP_SANDBOX` and forwards a boolean (no `NEXT_PUBLIC_*` env var needed). The embed's `onComplete(planId, receiptId)` is what closes the loop client-side; the modal can't be ESC- or backdrop-closed once the success panel is showing, so the buyer always sees the deep link to their downloads.
 
 ```tsx
 "use client";
 
+import { useCallback, useEffect, useState } from "react";
+import { createPortal } from "react-dom";
+import Link from "next/link";
 import { WhopCheckoutEmbed } from "@whop/checkout/react";
-import { useRouter } from "next/navigation";
+import { CheckCircle2, ShieldCheck, X } from "lucide-react";
 
-interface CheckoutEmbedProps {
+interface CheckoutModalProps {
   planId: string;
   slug: string;
   isSandbox: boolean;
   appUrl: string;
+  buttonLabel: string;
 }
 
-export function CheckoutEmbed({ planId, slug, isSandbox, appUrl }: CheckoutEmbedProps) {
-  const router = useRouter();
-  const accessPath = `/templates/${slug}/access`;
+export function CheckoutModal({ planId, slug, isSandbox, appUrl, buttonLabel }: CheckoutModalProps) {
+  const [open, setOpen] = useState(false);
+  const [receiptId, setReceiptId] = useState<string | null>(null);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => setMounted(true), []);
+
+  useEffect(() => {
+    if (!open) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = prev; };
+  }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape" && !receiptId) setOpen(false);
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open, receiptId]);
+
+  const handleComplete = useCallback((_planId: string, receipt_id?: string) => {
+    if (receipt_id) setReceiptId(receipt_id);
+  }, []);
 
   return (
-    <WhopCheckoutEmbed
-      planId={planId}
-      environment={isSandbox ? "sandbox" : "production"}
-      returnUrl={`${appUrl}${accessPath}`}
-      onComplete={() => router.push(accessPath)}
-      fallback={
-        <div className="grid min-h-[420px] place-items-center text-sm text-[var(--color-text-secondary)]">
-          Loading checkout…
-        </div>
-      }
-    />
+    <>
+      <button type="button" onClick={() => setOpen(true)} className="…trigger button…">
+        {buttonLabel}
+      </button>
+      {mounted && open ? createPortal(
+        <div onClick={receiptId ? undefined : () => setOpen(false)} className="fixed inset-0 z-50 grid place-items-center bg-black/60 backdrop-blur-sm">
+          <div role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()} className="…modal card…">
+            {/* header with title + close button (hidden in success state) */}
+            {receiptId ? (
+              <SuccessPanel receiptId={receiptId} />
+            ) : (
+              <WhopCheckoutEmbed
+                planId={planId}
+                environment={isSandbox ? "sandbox" : "production"}
+                returnUrl={`${appUrl}/templates/${slug}`}
+                onComplete={handleComplete}
+                fallback={<div>Loading checkout…</div>}
+              />
+            )}
+          </div>
+        </div>,
+        document.body,
+      ) : null}
+    </>
+  );
+}
+
+function SuccessPanel({ receiptId }: { receiptId: string }) {
+  return (
+    <div className="px-6 py-8 text-center">
+      <CheckCircle2 className="h-6 w-6 text-[var(--color-success)]" />
+      <h3>Thanks for your purchase</h3>
+      <Link href={`/access/${receiptId}`} prefetch={false}>Open your downloads</Link>
+    </div>
   );
 }
 ```
 
-### `/templates/[slug]/checkout` server page
+The trigger button + the modal portal live in the same component, so the template detail page just drops `<CheckoutModal planId={template.whopPlanId} buttonLabel={`Get for $${price}`} … />` into the purchase card. The detail page itself stays a server component.
 
-Auth-gates, ownership-gates, and existing-purchase-gates before rendering the embed. The plan that was created during publish (with `application_fee_amount` baked into it) is what the embed transacts against; nothing extra to do server-side at click time.
+### `/access/[receiptId]` server page
+
+Public, no `requireAuth()`. Looks up the Purchase by `whopPaymentId` (Whop calls it a "receipt" in the embed callback; on the API side it's a payment ID). If the row exists, render the same download UI as `/templates/[slug]/access`. If the webhook hasn't landed yet, render a small client polling component:
 
 ```tsx
-import { notFound, redirect } from "next/navigation";
-import { isAuthenticated } from "@/lib/auth";
+import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { getTemplateBySlug } from "@/lib/templates";
-import { appUrl } from "@/lib/whop";
-import { CheckoutEmbed } from "@/components/CheckoutEmbed";
+import { ProcessingAccess } from "./ProcessingAccess";
 
-export default async function CheckoutPage({
+export default async function ReceiptAccessPage({
   params,
 }: {
-  params: Promise<{ slug: string }>;
+  params: Promise<{ receiptId: string }>;
 }) {
-  const { slug } = await params;
-  const template = await getTemplateBySlug(slug);
-  if (!template || template.status !== "PUBLISHED") notFound();
+  const { receiptId } = await params;
+  // Reject obvious garbage early; real Whop payment IDs match this shape.
+  if (!/^[A-Za-z0-9_]{6,64}$/.test(receiptId)) notFound();
 
-  // Free templates skip Whop entirely — bounce to the detail page so the
-  // free purchase route owns that path.
-  if (template.price === 0 || !template.whopPlanId) {
-    redirect(`/templates/${slug}`);
-  }
-
-  const me = await isAuthenticated();
-  if (!me) {
-    const next = encodeURIComponent(`/templates/${slug}/checkout`);
-    redirect(`/api/auth/login?redirect_to=${next}`);
-  }
-  if (me.id === template.sellerProfile.userId) {
-    redirect(`/templates/${slug}`);
-  }
-
-  const purchase = await prisma.purchase.findUnique({
-    where: { userId_templateId: { userId: me.id, templateId: template.id } },
+  const purchase = await prisma.purchase.findFirst({
+    where: { whopPaymentId: receiptId },
+    include: {
+      template: {
+        include: {
+          sellerProfile: { select: { username: true } },
+          files: { orderBy: { displayOrder: "asc" } },
+        },
+      },
+    },
   });
-  if (purchase) {
-    redirect(`/templates/${slug}/access`);
-  }
 
-  const isSandbox = process.env.WHOP_SANDBOX?.trim() === "true";
+  if (!purchase) return <ProcessingAccess />;
 
-  return (
-    <main className="mx-auto max-w-3xl px-4 py-12 sm:px-6 lg:py-16">
-      {/* Header + back link + title + price ... */}
-      <CheckoutEmbed
-        planId={template.whopPlanId}
-        slug={template.slug}
-        isSandbox={isSandbox}
-        appUrl={appUrl}
-      />
-    </main>
-  );
+  // Render download UI: file list for FILE_DOWNLOAD, share URL for SHARE_URL,
+  // plus a "sign in to claim this purchase to your library" prompt for guests.
 }
 ```
 
+The polling component is tiny — it just `router.refresh()`es every 2 seconds (the page is a server component, so each refresh re-runs the Purchase lookup) and degrades to a "still working on it, check your email" panel after ~30 seconds:
+
+```tsx
+"use client";
+
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+
+const POLL_MS = 2000;
+const MAX_POLLS = 15;
+
+export function ProcessingAccess() {
+  const router = useRouter();
+  const [attempts, setAttempts] = useState(0);
+  const [stalled, setStalled] = useState(false);
+
+  useEffect(() => {
+    if (stalled) return;
+    const id = setTimeout(() => {
+      if (attempts + 1 >= MAX_POLLS) { setStalled(true); return; }
+      setAttempts((n) => n + 1);
+      router.refresh();
+    }, POLL_MS);
+    return () => clearTimeout(id);
+  }, [attempts, stalled, router]);
+
+  return stalled ? <StalledPanel onRetry={…} /> : <FinalizingPanel />;
+}
+```
+
+Security model: the `receiptId` is the bearer token. Possession of the URL grants the download — same shape as Stripe receipt URLs, Gumroad post-purchase pages, or any "anyone with the link" model. Whop's payment IDs are unguessable, the URL is delivered exclusively to the buyer (in-modal redirect or in their receipt email), and the upstream `payment.succeeded` signature check is what proved this payment really happened.
+
 > `template.whopCheckoutUrl` is still stored in the DB (we set it in the publish route) and remains useful as a public share link or a fallback "view checkout on whop.com" anchor in the seller dashboard. The buyer flow no longer uses it.
+
+### Webhook handler — the load-bearing piece for anonymous checkouts
+
+Two things matter here. First, idempotency: dedupe on the Whop event ID via a `WebhookEvent` table (Whop retries non-200 responses, sometimes hours apart). Second, **upsert the User by `whopUserId`, don't `findUnique`**. A guest buyer who paid without ever signing in to Stax doesn't have a User row yet; the webhook creates it on the fly using the buyer's Whop identity. If that buyer later OAuths into Stax, the callback matches by `whopUserId` and the existing User row (plus their Purchase) belongs to them automatically — no migration step, no orphan rows.
 
 ### `src/app/api/webhooks/whop/route.ts`
 
@@ -1600,14 +1666,19 @@ export async function POST(
 
 ## 11. Access page and reviews
 
-### `/templates/[slug]/access`
+### Two access paths
 
-Server component. Calls `requireAuth()`, loads the template + files, then checks for a Purchase keyed on `(session.userId, templateId)`. If missing, redirects back to `/templates/[slug]`. If present, renders the appropriate UI:
+Stax has two routes that render essentially the same download UI but gate on different things:
+
+- **`/templates/[slug]/access`** — for signed-in buyers. Calls `requireAuth()`, loads the template + files, checks for a Purchase keyed on `(session.userId, templateId)`. If missing, redirects back to `/templates/[slug]`. This is the route the buyer dashboard links to and the route a returning logged-in user hits.
+- **`/access/[receiptId]`** — for anyone with the receipt URL (see § 10). Public, no auth. Looks up the Purchase by `whopPaymentId`. Same download UI underneath, plus a small "sign in to claim this purchase to your library" prompt at the bottom for guests.
+
+Either route renders:
 
 - `deliveryType === "FILE_DOWNLOAD"` → a list of download links, each `<a href={file.fileUrl} download={file.fileName}>` rendered with file size + mimetype + an icon.
 - `deliveryType === "SHARE_URL"` → a single "Open template" CTA `<a href={template.shareUrl}>` plus a copy-to-clipboard button. Optionally a `template.content` block with any seller-provided post-purchase instructions.
 
-The page also shows a "Leave a review" CTA if the buyer hasn't already reviewed.
+The slug-based access page also shows a "Leave a review" CTA if the buyer hasn't already reviewed. The receipt-based page doesn't — reviews are gated on both purchase ownership *and* a Stax account.
 
 ### Review API
 
@@ -2072,7 +2143,7 @@ The Stax tutorial stays in sandbox throughout development. The production switch
 
 12. **`checkoutConfigurations.create` supports `redirect_url`** at the top level (sibling to `plan` and `mode`). Set it to the access page so buyers don't land on the default `whop.com/joined/…` flow. With the embedded checkout, this `redirect_url` is a fallback — the embed's own `returnUrl` prop and `onComplete` callback handle the happy path.
 
-13. **`<WhopCheckoutEmbed>` needs both `onComplete` and `returnUrl`.** The two callbacks cover different payment paths: card payments stay in-frame and fire `onComplete` (use `useRouter().push` to move on); external methods (Apple Pay, Google Pay, PayPal) redirect the top frame to `returnUrl`. Setting only one of them breaks the other path silently. `returnUrl` must be an absolute URL.
+13. **`<WhopCheckoutEmbed>` needs both `onComplete` and `returnUrl`.** The two callbacks cover different payment paths: card payments stay in-frame and fire `onComplete(planId, receiptId)` (the second arg is the payment ID — that's what you use to build the receipt URL); external methods (Apple Pay, Google Pay, PayPal) redirect the top frame to `returnUrl`. Setting only one of them breaks the other path silently. `returnUrl` must be an absolute URL.
 
 14. **`environment="sandbox"` on the embed must match the plan's environment.** Sandbox plans don't transact through the production embed and vice versa. Read `WHOP_SANDBOX` on the server, forward a boolean prop to the client component — don't introduce a `NEXT_PUBLIC_WHOP_SANDBOX` env var just for this.
 
