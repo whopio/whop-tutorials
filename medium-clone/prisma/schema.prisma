@@ -1,0 +1,310 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─── Users ─────────────────────────────────────
+
+model User {
+  id          String   @id @default(cuid())
+  whopUserId  String   @unique
+  email       String   @unique
+  name        String?
+  username    String   @unique
+  avatar      String?
+  bio         String?
+  headline    String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  writerProfile  WriterProfile?
+  plusMembership PlusMembership?
+  operator       Operator?
+
+  stories            Story[]
+  likes              Like[]
+  bookmarks          Bookmark[]
+  followers          Follow[]         @relation("Followed")
+  following          Follow[]         @relation("Follower")
+  tipsGiven          Tip[]            @relation("Tipper")
+  tipsReceived       Tip[]            @relation("Writer")
+  storyReads         StoryRead[]
+  partnerPayouts     PartnerPayout[]
+  notifications      Notification[]
+  promoCodesCreated  PromoCode[]
+  operatorsInvited   Operator[]       @relation("OperatorAddedBy")
+  topicFollows       TopicFollow[]
+}
+
+model Operator {
+  id              String   @id @default(cuid())
+  email           String   @unique
+  userId          String?  @unique
+  addedByUserId   String?
+  createdAt       DateTime @default(now())
+
+  user    User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+  addedBy User? @relation("OperatorAddedBy", fields: [addedByUserId], references: [id], onDelete: SetNull)
+}
+
+model WriterProfile {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  whopCompanyId   String   @unique
+  kycComplete     Boolean  @default(false)
+  tippingEnabled  Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ─── Stories ───────────────────────────────────
+
+enum StoryStatus {
+  DRAFT
+  PUBLISHED
+  UNLISTED
+}
+
+enum StoryVisibility {
+  FREE
+  PLUS
+}
+
+model Story {
+  id                  String           @id @default(cuid())
+  authorUserId        String
+  title               String
+  subtitle            String?
+  slug                String
+  contentJson         Json
+  excerpt             String           @default("")
+  coverImageUrl       String?
+  coverImageKey       String?
+  status              StoryStatus      @default(DRAFT)
+  visibility          StoryVisibility  @default(FREE)
+  paywallNodePos      Int?
+  readingTimeMinutes  Int              @default(1)
+  likesTotal          Int              @default(0)
+  publishedAt         DateTime?
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
+
+  author     User         @relation(fields: [authorUserId], references: [id], onDelete: Cascade)
+  topics     StoryTopic[]
+  likes      Like[]
+  bookmarks  Bookmark[]
+  tips       Tip[]
+  storyReads StoryRead[]
+
+  @@unique([authorUserId, slug])
+  @@index([status, publishedAt(sort: Desc)])
+  @@index([visibility, publishedAt(sort: Desc)])
+}
+
+model Topic {
+  id          String         @id @default(cuid())
+  slug        String         @unique
+  name        String
+  description String?
+  stories     StoryTopic[]
+  followers   TopicFollow[]
+}
+
+model StoryTopic {
+  storyId String
+  topicId String
+
+  story Story @relation(fields: [storyId], references: [id], onDelete: Cascade)
+  topic Topic @relation(fields: [topicId], references: [id], onDelete: Cascade)
+
+  @@id([storyId, topicId])
+}
+
+model TopicFollow {
+  userId    String
+  topicId   String
+  createdAt DateTime @default(now())
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  topic Topic @relation(fields: [topicId], references: [id], onDelete: Cascade)
+
+  @@id([userId, topicId])
+}
+
+// ─── Engagement ────────────────────────────────
+
+model Like {
+  id        String   @id @default(cuid())
+  userId    String
+  storyId   String
+  createdAt DateTime @default(now())
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  story Story @relation(fields: [storyId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, storyId])
+}
+
+model Bookmark {
+  id        String   @id @default(cuid())
+  userId    String
+  storyId   String
+  createdAt DateTime @default(now())
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  story Story @relation(fields: [storyId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, storyId])
+}
+
+model Follow {
+  id              String   @id @default(cuid())
+  followerUserId  String
+  followedUserId  String
+  createdAt       DateTime @default(now())
+
+  follower User @relation("Follower", fields: [followerUserId], references: [id], onDelete: Cascade)
+  followed User @relation("Followed", fields: [followedUserId], references: [id], onDelete: Cascade)
+
+  @@unique([followerUserId, followedUserId])
+}
+
+// ─── Payments ──────────────────────────────────
+
+enum PlusStatus {
+  ACTIVE
+  PAUSED
+  CANCELED
+  EXPIRED
+}
+
+model PlusMembership {
+  id                  String      @id @default(cuid())
+  userId              String      @unique
+  whopMembershipId    String      @unique
+  status              PlusStatus  @default(ACTIVE)
+  currentPeriodEnd    DateTime
+  cancelAtPeriodEnd   Boolean     @default(false)
+  priceCents          Int
+  whopPlanId          String
+  createdAt           DateTime    @default(now())
+  updatedAt           DateTime    @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+enum TipStatus {
+  SUCCEEDED
+  REFUNDED
+}
+
+model Tip {
+  id                   String    @id @default(cuid())
+  tipperUserId         String
+  writerUserId         String
+  storyId              String
+  amountCents          Int
+  applicationFeeCents  Int
+  whopPaymentId        String    @unique
+  status               TipStatus @default(SUCCEEDED)
+  createdAt            DateTime  @default(now())
+
+  tipper User  @relation("Tipper", fields: [tipperUserId], references: [id], onDelete: Cascade)
+  writer User  @relation("Writer", fields: [writerUserId], references: [id], onDelete: Cascade)
+  story  Story @relation(fields: [storyId], references: [id], onDelete: Cascade)
+
+  @@index([writerUserId, createdAt])
+  @@index([storyId])
+}
+
+// ─── Partner Program ───────────────────────────
+
+model StoryRead {
+  id            String   @id @default(cuid())
+  userId        String
+  storyId       String
+  readAt        DateTime @default(now())
+  monthBucket   String
+  dwellSeconds  Int?
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  story Story @relation(fields: [storyId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, storyId, monthBucket])
+  @@index([monthBucket, storyId])
+}
+
+enum PayoutStatus {
+  PENDING
+  SENT
+  FAILED
+}
+
+model PartnerPayout {
+  id                 String       @id @default(cuid())
+  writerUserId       String
+  monthBucket        String
+  totalReads         Int
+  revenueShareCents  Int
+  whopTransferId     String?
+  status             PayoutStatus @default(PENDING)
+  failureReason      String?
+  createdAt          DateTime     @default(now())
+  sentAt             DateTime?
+
+  writer User @relation(fields: [writerUserId], references: [id], onDelete: Cascade)
+
+  @@unique([writerUserId, monthBucket])
+}
+
+model PromoCode {
+  id                 String    @id @default(cuid())
+  code               String    @unique
+  whopPromoCodeId    String    @unique
+  discountPercent    Int
+  validUntil         DateTime?
+  maxUses            Int?
+  usageCount         Int       @default(0)
+  createdByUserId    String
+  archivedAt         DateTime?
+  createdAt          DateTime  @default(now())
+
+  createdBy User @relation(fields: [createdByUserId], references: [id], onDelete: Cascade)
+}
+
+// ─── Notifications ─────────────────────────────
+
+enum NotificationType {
+  LIKE
+  FOLLOWED
+  TIP_RECEIVED
+  PAYOUT_SENT
+  PLUS_RENEWED
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  userId    String
+  type      NotificationType
+  entityId  String
+  read      Boolean          @default(false)
+  createdAt DateTime         @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, read, createdAt(sort: Desc)])
+}
+
+// ─── Webhooks ──────────────────────────────────
+
+model WebhookEvent {
+  id          String   @id
+  eventType   String
+  processedAt DateTime @default(now())
+}
