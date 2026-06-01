@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Storyline hero stack — tuner</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --title-size: 28px;
+    --title-leading: 1.15;
+    --excerpt-size: 18px;
+    --excerpt-leading: 1.30;
+    --meta-size: 14px;
+    --excerpt-lines: 5;
+    --card-padding: 26px;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: #f5f4f0;
+    min-height: 100vh;
+    font-family: 'Inter', system-ui, sans-serif;
+    color: #14120c;
+  }
+  .panel {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: white;
+    border-bottom: 1px solid #e6e3dc;
+    padding: 16px 24px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 22px 28px;
+    align-items: center;
+    box-shadow: 0 2px 14px rgba(0,0,0,0.04);
+  }
+  .ctrl {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 12px;
+  }
+  .ctrl label {
+    text-transform: uppercase;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    color: #555;
+  }
+  .ctrl input[type="range"] { width: 180px; }
+  .ctrl .row { display: flex; gap: 8px; align-items: center; }
+  .ctrl .val {
+    display: inline-block;
+    min-width: 36px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    color: #14120c;
+  }
+  .download-btn {
+    margin-left: auto;
+    background: #1a8917;
+    color: white;
+    border: 0;
+    padding: 12px 22px;
+    border-radius: 999px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .download-btn:hover { background: #156d12; }
+  .download-btn:disabled { opacity: 0.5; cursor: wait; }
+  .reset-btn {
+    background: transparent;
+    color: #555;
+    border: 1px solid #d3d0c8;
+    padding: 10px 16px;
+    border-radius: 999px;
+    font-size: 13px;
+    cursor: pointer;
+  }
+  .reset-btn:hover { background: #f5f4f0; }
+
+  /* Live preview area — visually scaled-down so the 1024² canvas fits */
+  .stage {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 40px 0 80px;
+  }
+  .preview-wrap {
+    width: 512px;
+    height: 512px;
+    position: relative;
+    background:
+      conic-gradient(#eceadf 25%, #f4f2e9 0 50%, #eceadf 0 75%, #f4f2e9 0) 0 0/32px 32px;
+    border-radius: 12px;
+    overflow: hidden;
+  }
+  .preview-wrap .canvas {
+    transform: scale(0.5);
+    transform-origin: top left;
+  }
+
+  /* === Capture target — DO NOT add background to this === */
+  .canvas {
+    width: 1024px;
+    height: 1024px;
+    position: relative;
+    background: transparent;
+  }
+  .fan { position: absolute; inset: 0; }
+  .card {
+    position: absolute;
+    width: 440px;
+    aspect-ratio: 0.72;
+    background: white;
+    border-radius: 14px;
+    box-shadow:
+      0 36px 100px rgba(20, 18, 12, 0.18),
+      0 12px 28px rgba(20, 18, 12, 0.10);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    left: 50%;
+    top: 50%;
+    margin-left: -220px;
+    margin-top: -305px;
+  }
+  .card-img {
+    height: 44%;
+    overflow: hidden;
+    background: #e6dfd0;
+  }
+  .card-img img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+  .card-body {
+    flex: 1;
+    padding: var(--card-padding) calc(var(--card-padding) + 4px) calc(var(--card-padding) - 4px);
+    display: flex;
+    flex-direction: column;
+  }
+  .card-title {
+    font-family: 'Fraunces', Georgia, serif;
+    font-weight: 700;
+    font-size: var(--title-size);
+    line-height: var(--title-leading);
+    color: #14120c;
+    text-transform: uppercase;
+    letter-spacing: 0.005em;
+    font-variation-settings: "opsz" 9, "wght" 700;
+    margin: 0 0 14px;
+  }
+  .card-excerpt {
+    font-family: 'Fraunces', Georgia, serif;
+    font-weight: 400;
+    font-size: var(--excerpt-size);
+    line-height: var(--excerpt-leading);
+    color: #2a2620;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    font-variation-settings: "opsz" 14, "wght" 400;
+    margin: 0;
+    display: -webkit-box;
+    -webkit-line-clamp: var(--excerpt-lines);
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .card-meta {
+    margin-top: auto;
+    padding-top: 18px;
+    font-family: 'Inter', system-ui, sans-serif;
+    font-weight: 600;
+    font-size: var(--meta-size);
+    color: #8a877d;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+  .fan .card:nth-child(1) { transform: translate(-180px, 40px) rotate(-12deg); z-index: 1; }
+  .fan .card:nth-child(2) { transform: translate(0, -30px) rotate(0deg); z-index: 2; }
+  .fan .card:nth-child(3) { transform: translate(180px, 40px) rotate(12deg); z-index: 3; }
+</style>
+</head>
+<body>
+<div class="panel">
+  <div class="ctrl">
+    <label for="title-size">Title size</label>
+    <div class="row">
+      <input type="range" id="title-size" min="16" max="42" value="28">
+      <span class="val" id="title-size-val">28px</span>
+    </div>
+  </div>
+  <div class="ctrl">
+    <label for="excerpt-size">Excerpt size</label>
+    <div class="row">
+      <input type="range" id="excerpt-size" min="10" max="28" value="18">
+      <span class="val" id="excerpt-size-val">18px</span>
+    </div>
+  </div>
+  <div class="ctrl">
+    <label for="excerpt-lines">Excerpt lines</label>
+    <div class="row">
+      <input type="range" id="excerpt-lines" min="2" max="8" value="5">
+      <span class="val" id="excerpt-lines-val">5</span>
+    </div>
+  </div>
+  <div class="ctrl">
+    <label for="meta-size">Meta size</label>
+    <div class="row">
+      <input type="range" id="meta-size" min="9" max="22" value="14">
+      <span class="val" id="meta-size-val">14px</span>
+    </div>
+  </div>
+  <button class="reset-btn" id="reset">Reset</button>
+  <button class="download-btn" id="download">Download PNG</button>
+</div>
+
+<div class="stage">
+  <div class="preview-wrap">
+    <div class="canvas" id="canvas">
+      <div class="fan">
+        <!-- Back left card -->
+        <div class="card">
+          <div class="card-img">
+            <img src="/public/seed/on-call-shouldnt-be-a-punishment.webp" alt="" crossorigin="anonymous">
+          </div>
+          <div class="card-body">
+            <h3 class="card-title">On-call shouldn't be a punishment</h3>
+            <p class="card-excerpt">On-call is the workplace tradition with the worst public-relations problem in engineering. Half the team treats it like a tax …</p>
+            <div class="card-meta">Tom Whitfield • May 09</div>
+          </div>
+        </div>
+        <!-- Center card -->
+        <div class="card">
+          <div class="card-img">
+            <img src="/public/seed/component-library-i-wish-id-built.webp" alt="" crossorigin="anonymous">
+          </div>
+          <div class="card-body">
+            <h3 class="card-title">The component library I wish I'd built in 2019</h3>
+            <p class="card-excerpt">Every component library I've worked on has a layer of sediment you can read like rings on a tree. There's the initial era of optimism …</p>
+            <div class="card-meta">Maya Chen • May 17</div>
+          </div>
+        </div>
+        <!-- Back right card -->
+        <div class="card">
+          <div class="card-img">
+            <img src="/public/seed/decision-journal-seven-years.webp" alt="" crossorigin="anonymous">
+          </div>
+          <div class="card-body">
+            <h3 class="card-title">The decision journal I've kept for seven years</h3>
+            <p class="card-excerpt">Seven years ago I started keeping a decision journal. Not a regular journal — a journal of the specific moments I made a decision that mattered …</p>
+            <div class="card-meta">James Okafor • May 22</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+  import { toPng } from 'https://esm.sh/html-to-image@1.11.13';
+
+  const root = document.documentElement;
+  const canvas = document.getElementById('canvas');
+
+  const controls = {
+    'title-size':   { prop: '--title-size',   unit: 'px' },
+    'excerpt-size': { prop: '--excerpt-size', unit: 'px' },
+    'excerpt-lines':{ prop: '--excerpt-lines',unit: ''   },
+    'meta-size':    { prop: '--meta-size',    unit: 'px' },
+  };
+  const defaults = {
+    'title-size': 28,
+    'excerpt-size': 18,
+    'excerpt-lines': 5,
+    'meta-size': 14,
+  };
+
+  function apply(id, value) {
+    const { prop, unit } = controls[id];
+    root.style.setProperty(prop, value + unit);
+    document.getElementById(id + '-val').textContent = value + unit;
+  }
+  function wire(id) {
+    const el = document.getElementById(id);
+    el.addEventListener('input', () => apply(id, el.value));
+    apply(id, el.value);
+  }
+  Object.keys(controls).forEach(wire);
+
+  document.getElementById('reset').addEventListener('click', () => {
+    for (const [id, v] of Object.entries(defaults)) {
+      const el = document.getElementById(id);
+      el.value = v;
+      apply(id, v);
+    }
+  });
+
+  document.getElementById('download').addEventListener('click', async (e) => {
+    const btn = e.currentTarget;
+    btn.disabled = true;
+    btn.textContent = 'Rendering…';
+    try {
+      // Wait one frame so any pending style updates flush
+      await new Promise(r => requestAnimationFrame(r));
+      await document.fonts.ready;
+
+      // pixelRatio: 2 → 2048×2048 PNG output (2K-class).
+      const dataUrl = await toPng(canvas, {
+        width: 1024,
+        height: 1024,
+        pixelRatio: 2,
+        backgroundColor: undefined, // transparent
+        cacheBust: true,
+        skipFonts: false,
+      });
+
+      const a = document.createElement('a');
+      a.href = dataUrl;
+      a.download = 'hero-stack.png';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    } catch (err) {
+      alert('Render failed: ' + err.message);
+      console.error(err);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Download PNG';
+    }
+  });
+</script>
+</body>
+</html>

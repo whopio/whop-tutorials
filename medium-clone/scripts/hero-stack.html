@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Storyline hero stack</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: transparent;
+    width: 1024px;
+    height: 1024px;
+    overflow: hidden;
+  }
+  body {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .canvas {
+    width: 1024px;
+    height: 1024px;
+    position: relative;
+  }
+  .fan {
+    position: absolute;
+    inset: 0;
+  }
+  .card {
+    position: absolute;
+    width: 440px;
+    aspect-ratio: 0.72;
+    background: white;
+    border-radius: 14px;
+    box-shadow:
+      0 36px 100px rgba(20, 18, 12, 0.18),
+      0 12px 28px rgba(20, 18, 12, 0.10);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    /* Center, then transform applies fan offset */
+    left: 50%;
+    top: 50%;
+    margin-left: -220px;
+    margin-top: -305px; /* 440 / 0.72 / 2 */
+  }
+  .card-img {
+    height: 44%;
+    position: relative;
+    overflow: hidden;
+    background: #e6dfd0;
+  }
+  .card-img img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+  .card-body {
+    flex: 1;
+    padding: 22px 26px 20px;
+    display: flex;
+    flex-direction: column;
+  }
+  .card-title {
+    font-family: 'Fraunces', Georgia, serif;
+    font-weight: 700;
+    font-size: 22px;
+    line-height: 1.16;
+    color: #14120c;
+    text-transform: uppercase;
+    letter-spacing: 0.005em;
+    font-variation-settings: "opsz" 9, "wght" 700;
+    margin: 0 0 12px;
+  }
+  .card-excerpt {
+    font-family: 'Fraunces', Georgia, serif;
+    font-weight: 400;
+    font-size: 14px;
+    line-height: 1.30;
+    color: #2a2620;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    font-variation-settings: "opsz" 14, "wght" 400;
+    margin: 0;
+    display: -webkit-box;
+    -webkit-line-clamp: 5;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .card-meta {
+    margin-top: auto;
+    padding-top: 16px;
+    font-family: 'Inter', system-ui, sans-serif;
+    font-weight: 600;
+    font-size: 13px;
+    color: #8a877d;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+  /* Fanned arrangement */
+  .fan .card:nth-child(1) {
+    transform: translate(-180px, 40px) rotate(-12deg);
+    z-index: 1;
+  }
+  .fan .card:nth-child(2) {
+    transform: translate(0, -30px) rotate(0deg);
+    z-index: 2;
+  }
+  .fan .card:nth-child(3) {
+    transform: translate(180px, 40px) rotate(12deg);
+    z-index: 3;
+  }
+</style>
+</head>
+<body>
+<div class="canvas">
+  <div class="fan">
+    <!-- Back left card (rotated -12°) -->
+    <div class="card">
+      <div class="card-img">
+        <img src="/public/seed/on-call-shouldnt-be-a-punishment.webp" alt="">
+      </div>
+      <div class="card-body">
+        <h3 class="card-title">On-call shouldn't be a punishment</h3>
+        <p class="card-excerpt">On-call is the workplace tradition with the worst public-relations problem in engineering. Half the team treats it like a tax …</p>
+        <div class="card-meta">Tom Whitfield • May 09</div>
+      </div>
+    </div>
+    <!-- Center card (front) -->
+    <div class="card">
+      <div class="card-img">
+        <img src="/public/seed/component-library-i-wish-id-built.webp" alt="">
+      </div>
+      <div class="card-body">
+        <h3 class="card-title">The component library I wish I'd built in 2019</h3>
+        <p class="card-excerpt">Every component library I've worked on has a layer of sediment you can read like rings on a tree. There's the initial era of optimism …</p>
+        <div class="card-meta">Maya Chen • May 17</div>
+      </div>
+    </div>
+    <!-- Back right card (rotated +12°) -->
+    <div class="card">
+      <div class="card-img">
+        <img src="/public/seed/decision-journal-seven-years.webp" alt="">
+      </div>
+      <div class="card-body">
+        <h3 class="card-title">The decision journal I've kept for seven years</h3>
+        <p class="card-excerpt">Seven years ago I started keeping a decision journal. Not a regular journal — a journal of the specific moments I made a decision that mattered …</p>
+        <div class="card-meta">James Okafor • May 22</div>
+      </div>
+    </div>
+  </div>
+</div>
+</body>
+</html>
