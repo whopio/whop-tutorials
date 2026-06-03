@@ -120,7 +120,7 @@ export function NotificationBell({ userId }: NotificationBellProps) {
                   }`}
                 >
                   <div
-                    className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${
+                    className={`shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${
                       notif.read
                         ? "bg-gray-800 text-gray-500"
                         : "bg-brand-600/20 text-brand-400"
@@ -146,7 +146,7 @@ export function NotificationBell({ userId }: NotificationBellProps) {
                     </p>
                   </div>
                   {!notif.read && (
-                    <div className="flex-shrink-0 w-2 h-2 bg-brand-500 rounded-full mt-2" />
+                    <div className="shrink-0 w-2 h-2 bg-brand-500 rounded-full mt-2" />
                   )}
                 </button>
                 );

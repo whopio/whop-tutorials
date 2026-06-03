@@ -88,7 +88,7 @@ export function ProductDetail({
                 <button
                   key={i}
                   onClick={() => setCurrentImage(i)}
-                  className={`relative w-16 h-16 rounded-lg overflow-hidden flex-shrink-0 border-2 transition-colors ${
+                  className={`relative w-16 h-16 rounded-lg overflow-hidden shrink-0 border-2 transition-colors ${
                     currentImage === i
                       ? "border-brand-600"
                       : "border-transparent"

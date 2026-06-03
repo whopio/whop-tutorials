@@ -76,14 +76,14 @@ Your company API key needs these permissions (Settings > API Keys):
 ### Install packages
 
 ```bash
-npm install @whop/embedded-components-react-js@0.0.13-beta.4 @whop/embedded-components-vanilla-js@0.0.13-beta.4
+npm install @whop/embedded-components-react-js@1.0.0 @whop/embedded-components-vanilla-js@1.0.0
 ```
 
-> Chat components are in the `0.0.13-beta` release. Stable `0.0.12` only has payouts components.
+> Chat components are in the `1.0.0` stable release.
 
 ### Chat service — `src/services/chat.ts`
 
-Three functions calling Whop API directly (these endpoints aren't in `@whop/sdk@0.0.27`). ([Create access token](https://docs.whop.com/api-reference/access-tokens/create-access-token) | [Create DM channel](https://docs.whop.com/api-reference/dm-channels/create-dm-channel) | [Chat authentication](https://docs.whop.com/developer/guides/chat/authentication))
+Three functions calling Whop API directly (we use `fetch` so the access-token call authenticates as the signed-in user's OAuth token, not the company API key). ([Create access token](https://docs.whop.com/api-reference/access-tokens/create-access-token) | [Create DM channel](https://docs.whop.com/api-reference/dm-channels/create-dm-channel) | [Chat authentication](https://docs.whop.com/developer/guides/chat/authentication))
 
 ```typescript
 import { env } from "@/lib/env";
@@ -264,10 +264,10 @@ export function TradeChat({ channelId }: TradeChatProps) {
 
 **Security:**
 - Webhook signature verification active (via `whopsdk.webhooks.unwrap()`)
-- Rate limiting on all API routes
+- Rate limiting (in-memory, per serverless instance — use a shared store like Upstash or Vercel KV in production)
 - Zod validation on all API route inputs
-- CORS and CSRF configured
-- Input sanitized for storage and render
+- CSRF mitigated via SameSite session cookies (add CORS rules if you expose the API cross-origin)
+- All API input validated with Zod before storage
 
 **Whop dashboard:**
 - OAuth redirect URI updated to production URL

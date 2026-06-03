@@ -170,7 +170,7 @@ export default function TradeDetailPage() {
         <div className="card p-6 space-y-6">
           {/* Header */}
           <div className="flex items-start gap-4">
-            <div className="w-20 h-20 rounded-lg overflow-hidden bg-gray-800 flex-shrink-0">
+            <div className="w-20 h-20 rounded-lg overflow-hidden bg-gray-800 shrink-0">
               {product.images[0] ? (
                 <Image
                   src={product.images[0]}

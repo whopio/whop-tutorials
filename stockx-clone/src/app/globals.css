@@ -1,6 +1,20 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+
+@theme {
+  --color-brand-50: #eefff4;
+  --color-brand-100: #d7ffe7;
+  --color-brand-200: #b2ffd0;
+  --color-brand-300: #76ffab;
+  --color-brand-400: #33f57f;
+  --color-brand-500: #08de5a;
+  --color-brand-600: #00b948;
+  --color-brand-700: #04913c;
+  --color-brand-800: #0a7133;
+  --color-brand-900: #0a5d2c;
+  --color-brand-950: #003416;
+
+  --font-sans: "Inter", system-ui, sans-serif;
+}
 
 @layer base {
   html {

@@ -34,8 +34,8 @@ export default function DashboardPage() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {Array.from({ length: 4 }).map((_, i) => (
             <div key={i} className="card p-6 animate-pulse">
-              <div className="h-4 bg-gray-800 rounded w-24 mb-3" />
-              <div className="h-8 bg-gray-800 rounded w-32" />
+              <div className="h-4 bg-gray-800 rounded-sm w-24 mb-3" />
+              <div className="h-8 bg-gray-800 rounded-sm w-32" />
             </div>
           ))}
         </div>
@@ -444,7 +444,7 @@ function StatusBadge({ status }: { status: string }) {
 
   return (
     <span
-      className={`inline-block px-2 py-1 rounded text-xs font-medium ${
+      className={`inline-block px-2 py-1 rounded-sm text-xs font-medium ${
         colors[status] || "bg-gray-800 text-gray-400"
       }`}
     >

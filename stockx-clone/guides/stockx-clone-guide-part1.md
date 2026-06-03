@@ -96,11 +96,11 @@ const envSchema = z.object({
   WHOP_CLIENT_SECRET: z.string().trim().min(1),
   WHOP_WEBHOOK_SECRET: z.string().trim().min(1),
   WHOP_COMPANY_ID: z.string().trim().min(1),
-  WHOP_API_BASE: z.string().trim().url().default("https://api.whop.com"),
-  DATABASE_URL: z.string().trim().url(),
-  NEXT_PUBLIC_SUPABASE_URL: z.string().trim().url(),
+  WHOP_API_BASE: z.string().trim().pipe(z.url()).default("https://api.whop.com"),
+  DATABASE_URL: z.string().trim().pipe(z.url()),
+  NEXT_PUBLIC_SUPABASE_URL: z.string().trim().pipe(z.url()),
   NEXT_PUBLIC_SUPABASE_ANON_KEY: z.string().trim().min(1),
-  NEXT_PUBLIC_APP_URL: z.string().trim().url(),
+  NEXT_PUBLIC_APP_URL: z.string().trim().pipe(z.url()),
   SESSION_SECRET: z.string().trim().min(32),
   SUPABASE_SERVICE_ROLE_KEY: z.string().trim().min(1),
   PLATFORM_FEE_PERCENT: z.coerce.number().default(9.5),
@@ -154,11 +154,11 @@ export const whopsdk = new Proxy({} as Whop, {
 });
 ```
 
-> `baseURL` is built from `WHOP_API_BASE` — the same env var controlling sandbox vs production for OAuth. SDK package: `@whop/sdk@^0.0.27`.
+> `baseURL` is built from `WHOP_API_BASE` — the same env var controlling sandbox vs production for OAuth. SDK package: `@whop/sdk@^0.0.39`.
 
 ## Data model (Prisma schema)
 
-Schema at `prisma/schema.prisma`. Install: `npm install @prisma/client && npm install -D prisma && npx prisma init`. Push: `npx prisma db push`.
+Schema at `prisma/schema.prisma`. Install: `npm install @prisma/client@^6 && npm install -D prisma@^6 && npx prisma init`. Push: `npx prisma db push`.
 
 **Models:**
 - **User** — `whopId` (unique), email, username, role (USER/SELLER/ADMIN), `whopAccessToken`, `whopRefreshToken`, `connectedAccountId` (for sellers)
@@ -423,8 +423,8 @@ export async function requireAuth(): Promise<User> {
 ## Dependencies for Part 1
 
 ```bash
-npm install zod iron-session @prisma/client @whop/sdk
-npm install -D prisma
+npm install zod@^4.4.3 iron-session @prisma/client@^6 @whop/sdk@0.0.39
+npm install -D prisma@^6
 ```
 
 **Next**: Part 2 covers the matching engine, payments, escrow, webhooks, and product pages.

@@ -18,7 +18,7 @@ const createBidSchema = z.object({
       (val) => Number(val.toFixed(2)) === val,
       "Price must have at most 2 decimal places"
     ),
-  expiresAt: z.string().datetime().optional(),
+  expiresAt: z.iso.datetime().optional(),
 });
 
 export async function POST(request: NextRequest) {

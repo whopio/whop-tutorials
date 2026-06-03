@@ -57,7 +57,16 @@ export async function GET(
     const whopPayment = payment as {
       status?: string;
       substatus?: string;
+      metadata?: Record<string, unknown>;
     };
+
+    // Verify this payment actually belongs to this trade. The payment_id
+    // arrives on a browser redirect we don't control, so we cross-check it
+    // against the tradeId we stored in the checkout configuration metadata.
+    if (whopPayment.metadata?.tradeId !== tradeId) {
+      return NextResponse.redirect(`${dashboardUrl}?payment=error&tradeId=${tradeId}`);
+    }
+
     const isPaid =
       whopPayment.status === "paid" ||
       whopPayment.substatus === "succeeded";

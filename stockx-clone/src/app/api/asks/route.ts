@@ -18,7 +18,7 @@ const createAskSchema = z.object({
       (val) => Number(val.toFixed(2)) === val,
       "Price must have at most 2 decimal places"
     ),
-  expiresAt: z.string().datetime().optional(),
+  expiresAt: z.iso.datetime().optional(),
 });
 
 export async function POST(request: NextRequest) {
@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
 
     if (!parsed.success) {
       return NextResponse.json(
-        { error: "Validation failed", details: parsed.error.flatten() },
+        { error: "Validation failed", details: z.flattenError(parsed.error) },
         { status: 400 }
       );
     }
