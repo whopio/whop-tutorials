@@ -43,11 +43,10 @@ export const WHOP_OAUTH = {
     "openid",
     "profile",
     "email",
+    // Channel chat only needs these two. We deliberately omit the broad dms:*
+    // scopes so a leaked access token can't read or manage a user's DMs.
     "chat:message:create",
     "chat:read",
-    "dms:read",
-    "dms:message:manage",
-    "dms:channel:manage",
   ],
   redirectUri: `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/callback`,
 };

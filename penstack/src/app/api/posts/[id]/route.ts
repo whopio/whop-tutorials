@@ -48,7 +48,7 @@ const updatePostSchema = z.object({
   visibility: z.enum(["FREE", "PAID", "PREVIEW"]).optional(),
   paywallIndex: z.number().int().min(0).optional(),
   published: z.boolean().optional(),
-  coverImageUrl: z.string().url().nullable().optional(),
+  coverImageUrl: z.url().nullable().optional(),
 });
 
 export async function PATCH(

@@ -31,8 +31,8 @@ const createWriterSchema = z.object({
     "EDUCATION",
     "OTHER",
   ]),
-  avatarUrl: z.string().url().optional(),
-  bannerUrl: z.string().url().optional(),
+  avatarUrl: z.url().optional(),
+  bannerUrl: z.url().optional(),
 });
 
 export async function POST(request: NextRequest) {

@@ -208,7 +208,7 @@ Then push the updated schema using the command:
 npx prisma db push
 ```
 ### Uploadthing for file uploads
-We're going to use Uploadthing for avatars, banners, and cover images instead of Supabase Storage. Uploadthing lets us use type-safe file routes with built-in React upload components, which means less custom code.
+We're going to use Uploadthing for avatars, banners, and cover images instead of running our own file storage. Uploadthing lets us use type-safe file routes with built-in React upload components, which means less custom code.
 Go to `src/lib` and create a file called `uploadthing.ts` with the content:
 ```ts
 import { createUploadthing, type FileRouter } from "uploadthing/next";
@@ -317,8 +317,8 @@ const createWriterSchema = z.object({
     "EDUCATION",
     "OTHER",
   ]),
-  avatarUrl: z.string().url().optional(),
-  bannerUrl: z.string().url().optional(),
+  avatarUrl: z.url().optional(),
+  bannerUrl: z.url().optional(),
 });
 
 export async function POST(request: NextRequest) {
@@ -434,7 +434,7 @@ The build is done, so let's verify our writer onboarding flow:
 1. Sign in through Whop OAuth
 2. Navigate to `/settings`. The onboarding wizard appears since you don't have a writer profile
 3. Complete the four steps and submit
-4. Confirm the Writer record was created in Supabase with the correct `userId` reference
+4. Confirm the Writer record was created in Neon with the correct `userId` reference
 5. Visit `/{your-handle}` -- the publication page should be there
 You now have authentication, a complete data model, file uploads, and writer onboarding. In Part 3, we'll build the rich text editor that writers use to create posts.
 ## Part 3: The rich text editor
@@ -614,7 +614,7 @@ const createPostSchema = z.object({
   visibility: z.enum(["FREE", "PAID", "PREVIEW"]),
   paywallIndex: z.number().int().min(0).optional(),
   published: z.boolean(),
-  coverImageUrl: z.string().url().optional(),
+  coverImageUrl: z.url().optional(),
 });
 
 export async function POST(request: NextRequest) {
@@ -963,7 +963,9 @@ function renderNode(node: unknown): string {
     case "paragraph":
       return `<p>${renderChildren(n)}</p>`;
     case "heading": {
-      const level = (n.attrs as Record<string, unknown>)?.level ?? 2;
+      // Clamp to a valid heading level (1-6) so a crafted attr can't inject markup.
+      const rawLevel = Number((n.attrs as Record<string, unknown>)?.level) || 2;
+      const level = Math.min(6, Math.max(1, Math.trunc(rawLevel)));
       return `<h${level}>${renderChildren(n)}</h${level}>`;
     }
     case "bulletList":
@@ -978,9 +980,9 @@ function renderNode(node: unknown): string {
       return `<pre><code>${renderChildren(n)}</code></pre>`;
     case "image": {
       const attrs = n.attrs as Record<string, unknown>;
-      const src = attrs?.src ?? "";
+      const src = safeUrl(String(attrs?.src ?? ""));
       const alt = attrs?.alt ?? "";
-      return `<img src="${escapeHtml(String(src))}" alt="${escapeHtml(String(alt))}" />`;
+      return `<img src="${escapeHtml(src)}" alt="${escapeHtml(String(alt))}" />`;
     }
     case "horizontalRule":
       return `<hr />`;
@@ -1010,8 +1012,10 @@ function renderNode(node: unknown): string {
               text = `<code>${text}</code>`;
               break;
             case "link": {
-              const href = (mark.attrs as Record<string, unknown>)?.href ?? "";
-              text = `<a href="${escapeHtml(String(href))}" target="_blank" rel="noopener noreferrer">${text}</a>`;
+              const href = safeUrl(
+                String((mark.attrs as Record<string, unknown>)?.href ?? "")
+              );
+              text = `<a href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer">${text}</a>`;
               break;
             }
           }
@@ -1036,6 +1040,15 @@ function escapeHtml(text: string): string {
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
+}
+
+// Allow only safe URL schemes for writer-authored links and images.
+// Blocks javascript:, data:, vbscript:, etc. so content can't execute script
+// in a reader's browser. Permits absolute http(s), mailto, and relative URLs.
+function safeUrl(url: string): string {
+  const trimmed = url.trim();
+  if (/^(https?:\/\/|mailto:|\/|#)/i.test(trimmed)) return trimmed;
+  return "";
 }
 ```
 ### The paywall gate

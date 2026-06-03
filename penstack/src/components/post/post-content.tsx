@@ -61,7 +61,9 @@ function renderNode(node: unknown): string {
     case "paragraph":
       return `<p>${renderChildren(n)}</p>`;
     case "heading": {
-      const level = (n.attrs as Record<string, unknown>)?.level ?? 2;
+      // Clamp to a valid heading level (1-6) so a crafted attr can't inject markup.
+      const rawLevel = Number((n.attrs as Record<string, unknown>)?.level) || 2;
+      const level = Math.min(6, Math.max(1, Math.trunc(rawLevel)));
       return `<h${level}>${renderChildren(n)}</h${level}>`;
     }
     case "bulletList":
@@ -76,9 +78,9 @@ function renderNode(node: unknown): string {
       return `<pre><code>${renderChildren(n)}</code></pre>`;
     case "image": {
       const attrs = n.attrs as Record<string, unknown>;
-      const src = attrs?.src ?? "";
+      const src = safeUrl(String(attrs?.src ?? ""));
       const alt = attrs?.alt ?? "";
-      return `<img src="${escapeHtml(String(src))}" alt="${escapeHtml(String(alt))}" />`;
+      return `<img src="${escapeHtml(src)}" alt="${escapeHtml(String(alt))}" />`;
     }
     case "horizontalRule":
       return `<hr />`;
@@ -108,8 +110,10 @@ function renderNode(node: unknown): string {
               text = `<code>${text}</code>`;
               break;
             case "link": {
-              const href = (mark.attrs as Record<string, unknown>)?.href ?? "";
-              text = `<a href="${escapeHtml(String(href))}" target="_blank" rel="noopener noreferrer">${text}</a>`;
+              const href = safeUrl(
+                String((mark.attrs as Record<string, unknown>)?.href ?? "")
+              );
+              text = `<a href="${escapeHtml(href)}" target="_blank" rel="noopener noreferrer">${text}</a>`;
               break;
             }
           }
@@ -134,4 +138,13 @@ function escapeHtml(text: string): string {
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
+}
+
+// Allow only safe URL schemes for writer-authored links and images.
+// Blocks javascript:, data:, vbscript:, etc. so content can't execute script
+// in a reader's browser. Permits absolute http(s), mailto, and relative URLs.
+function safeUrl(url: string): string {
+  const trimmed = url.trim();
+  if (/^(https?:\/\/|mailto:|\/|#)/i.test(trimmed)) return trimmed;
+  return "";
 }

@@ -44,8 +44,8 @@ export async function GET(
 const updateWriterSchema = z.object({
   name: z.string().min(1).max(100).optional(),
   bio: z.string().max(500).optional(),
-  avatarUrl: z.string().url().nullable().optional(),
-  bannerUrl: z.string().url().nullable().optional(),
+  avatarUrl: z.url().nullable().optional(),
+  bannerUrl: z.url().nullable().optional(),
   category: z
     .enum([
       "TECHNOLOGY",

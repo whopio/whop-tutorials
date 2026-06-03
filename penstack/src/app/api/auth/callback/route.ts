@@ -63,12 +63,7 @@ export async function GET(request: NextRequest) {
     const error = await tokenResponse.text();
     console.error("Token exchange failed:", error);
     return NextResponse.json(
-      {
-        error: "Failed to exchange authorization code",
-        detail: error,
-        tokenUrl: WHOP_OAUTH.tokenUrl,
-        redirectUri: WHOP_OAUTH.redirectUri,
-      },
+      { error: "Failed to exchange authorization code" },
       { status: 502 }
     );
   }
