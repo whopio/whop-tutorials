@@ -24,7 +24,7 @@ Before we dive deep into the code of the project, let's take a general look at w
 - **Analytics dashboard** for writers where they can see subscriber counts, post performance, and revenue
 Tech stack (dropdown)
 ```
-- **Next.js 15 (App Router)** - Server Components + API routes + Vercel deploy in one
+- **Next.js 16 (App Router)** - Server Components + API routes + Vercel deploy in one
 - **Whop OAuth 2.1 + PKCE** - sign-in, tokens, identity
 - **Whop Payments Network (Direct Charges)** - connected accounts, recurring billing, KYC built-in
 - **Neon (PostgreSQL via Vercel)** - cloud-only, Vercel auto-populates connection strings
