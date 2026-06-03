@@ -19,7 +19,7 @@ Keep in mind that the 10% fee is defined in the `src/constants/config.ts` file:
 export const PLATFORM_FEE_PERCENT = 10;
 ```
 ### Connected accounts and KYC
-Before our writers can start posting paid articles and receive payments, they must verify their identity. We do this by prompting the writers to click the "Enable Paid Subscriptions" button which creates a Whop account for them and redirect the writer to a Whop hosted KYC page. This way we don't have to deal with storing and delivering any KYC information.
+Before our writers can start posting paid articles and receive payments, they must verify their identity. We do this by prompting the writers to click the "Enable Paid Subscriptions" button which creates a Whop account for them and redirect the writer to a Whop hosted KYC page. This way we don't have to deal with storing and delivering any KYC information. When the writer finishes verification, Whop sends a `verification.succeeded` webhook (handled in the webhook route below) that flips their `kycCompleted` flag and unblocks checkout.
 To do this, let's go to `src/app/api/writers/[id]/kyc` and create a file called `route.ts` with the content:
 ```ts
 import { NextRequest, NextResponse } from "next/server";
@@ -80,13 +80,14 @@ export async function POST(
     });
   }
 
-  const setupCheckout = await whop.checkoutConfigurations.create({
+  const accountLink = await whop.accountLinks.create({
     company_id: companyId,
-    mode: "setup",
-    redirect_url: `${process.env.NEXT_PUBLIC_APP_URL}/settings`,
+    refresh_url: `${process.env.NEXT_PUBLIC_APP_URL}/settings`,
+    return_url: `${process.env.NEXT_PUBLIC_APP_URL}/settings`,
+    use_case: "account_onboarding",
   });
 
-  return NextResponse.json({ url: setupCheckout.purchase_url });
+  return NextResponse.json({ url: accountLink.url });
 }
 ```
 ### Pricing and inline plan creation
@@ -208,7 +209,7 @@ _whop = new Whop({
 });
 ```
 
-Create the webhook on the company's Developer page (not the app's Webhooks tab).
+Create the webhook on the company's Developer page (not the app's Webhooks tab). Enable **connected account events** too (and grant the `webhook_receive:verifications` and `payout:account:read` permissions) so you also receive `verification.succeeded` for your writers' connected accounts. That event is what sets a writer's `kycCompleted` to `true` once they finish Whop's hosted onboarding.
 ### The webhook handler
 The webhook handler is where payment state materializes in your database. If it's broken, payments succeed on Whop's side but your app never knows, subscribers pay but can't access content.
 The handler must meet three requirements: **signature verification** (reject tampered payloads), **idempotency** (process each event exactly once), and **correct event routing** (map each event type to the right database update).
@@ -223,12 +224,18 @@ export async function POST(request: NextRequest) {
   const rawBody = await request.text();
   const headers = Object.fromEntries(request.headers);
 
-  let webhookData: { type: string; data: Record<string, unknown>; id?: string };
+  let webhookData: {
+    type: string;
+    data: Record<string, unknown>;
+    id?: string;
+    company_id?: string | null;
+  };
   try {
     webhookData = (await whop.webhooks.unwrap(rawBody, { headers })) as unknown as {
       type: string;
       data: Record<string, unknown>;
       id?: string;
+      company_id?: string | null;
     };
   } catch (err) {
     console.error("Webhook unwrap error:", err);
@@ -262,6 +269,9 @@ export async function POST(request: NextRequest) {
         break;
       case "membership.deactivated":
         await handleMembershipDeactivated(data);
+        break;
+      case "verification.succeeded":
+        await handleVerificationSucceeded(webhookData.company_id);
         break;
       default:
         break;
@@ -396,6 +406,17 @@ async function handleMembershipDeactivated(data: Record<string, unknown>) {
       status: "CANCELLED",
       cancelledAt: new Date(),
     },
+  });
+}
+
+async function handleVerificationSucceeded(companyId: string | null | undefined) {
+  if (!companyId) return;
+
+  // verification.succeeded carries the connected account's company_id at the top
+  // level. Flip kycCompleted so the writer can accept payments.
+  await prisma.writer.updateMany({
+    where: { whopCompanyId: companyId },
+    data: { kycCompleted: true },
   });
 }
 ```
@@ -629,19 +650,14 @@ Then, go to `src/components/chat` and create a file called `writer-chat.tsx` wit
 ```tsx
 "use client";
 
-import { useEffect, useState, type CSSProperties, type FC, type ReactNode } from "react";
-import { Elements } from "@whop/embedded-components-react-js";
+import { useEffect, useMemo, useState } from "react";
+import {
+  ChatElement,
+  ChatSession,
+  Elements,
+} from "@whop/embedded-components-react-js";
 import { loadWhopElements } from "@whop/embedded-components-vanilla-js";
-
-let ChatElement: FC<{ options: { channelId: string }; style?: CSSProperties }> | undefined;
-let ChatSession: FC<{ token: () => Promise<string>; children: ReactNode }> | undefined;
-
-try {
-  const mod = require("@whop/embedded-components-react-js");
-  ChatElement = mod.ChatElement;
-  ChatSession = mod.ChatSession;
-} catch {
-}
+import type { ChatElementOptions } from "@whop/embedded-components-vanilla-js/types";
 
 interface WriterChatProps {
   channelId: string;
@@ -655,14 +671,21 @@ async function getToken(): Promise<string> {
 }
 
 export function WriterChat({ channelId, className }: WriterChatProps) {
-  const [elements, setElements] =
-    useState<Awaited<ReturnType<typeof loadWhopElements>>>(null);
+  // Load the elements runtime on the client only (avoids SSR window access).
+  const [elements, setElements] = useState<ReturnType<
+    typeof loadWhopElements
+  > | null>(null);
 
   useEffect(() => {
-    loadWhopElements().then(setElements);
+    setElements(loadWhopElements());
   }, []);
 
-  if (!elements || !ChatElement || !ChatSession) {
+  const chatOptions: ChatElementOptions = useMemo(
+    () => ({ channelId }),
+    [channelId]
+  );
+
+  if (!elements) {
     return (
       <div className={className}>
         <div className="flex h-[500px] items-center justify-center rounded-xl border border-gray-200 bg-gray-50 text-gray-500">
@@ -677,8 +700,13 @@ export function WriterChat({ channelId, className }: WriterChatProps) {
       <ChatSession token={getToken}>
         <div className={className}>
           <ChatElement
-            options={{ channelId }}
-            style={{ height: "500px", width: "100%", borderRadius: "12px", overflow: "hidden" }}
+            options={chatOptions}
+            style={{
+              height: "500px",
+              width: "100%",
+              borderRadius: "12px",
+              overflow: "hidden",
+            }}
           />
         </div>
       </ChatSession>
@@ -687,24 +715,7 @@ export function WriterChat({ channelId, className }: WriterChatProps) {
 }
 ```
 
-For TypeScript to accept these imports, we need a type augmentation.
-
-Go to `src/types` and create a file called `whop-chat.d.ts` with the content:
-
-```ts
-import type { CSSProperties, FC, ReactNode } from "react";
-
-declare module "@whop/embedded-components-react-js" {
-  export interface ChatElementOptions {
-    channelId: string;
-    deeplinkToPostId?: string;
-    onEvent?: (event: { type: string; detail: Record<string, unknown> }) => void;
-  }
-
-  export const ChatElement: FC<{ options: ChatElementOptions; style?: CSSProperties }>;
-  export const ChatSession: FC<{ token: () => Promise<string>; children: ReactNode }>;
-}
-```
+The chat element's types ship with the `@whop/embedded-components-vanilla-js` package (imported above as `ChatElementOptions`), so no extra type declarations are needed.
 
 The `channelId` comes from the writer's `whopChatChannelId` field. The `chatPublic` boolean controls access: when false, only subscribers see the chat section on the writer's profile page.
 ### The writer analytics dashboard
@@ -749,6 +760,8 @@ When `hasCheckout` is true, it calls `/api/checkout` (real Whop checkout). When 
 ### Rate limiting reference
 
 Nearly every API route uses the in-memory rate limiter we built in Part 1. The webhook endpoint is excluded since Whop controls call frequency.
+
+Keep in mind this limiter lives in a single server's memory. On Vercel, and any serverless or multi-instance host, each instance keeps its own counters and cold starts reset them, so it throttles accidental bursts but is not a hard security control. For real rate limiting across instances, back it with a shared store like Upstash Redis.
 ```
 <table>
 <tr><th>Route</th><th>Key pattern</th><th>Max requests</th><th>Window</th></tr>
@@ -767,7 +780,7 @@ Nearly every API route uses the in-memory rate limiter we built in Part 1. The w
 </table>
 ```
 ### Security and performance
-Our session cookies are set to `SameSite: Lax`. This prevents malicious websites from sending requests to our site on behalf of users who have logged into our project. Additionally, because Tiptap stores shares as JSON rather than HTML and we use the `escapeHtml` function, malicious users cannot use scripts as share content.
+Our session cookies are set to `SameSite: Lax`. This prevents malicious websites from sending requests to our site on behalf of users who have logged into our project. Additionally, the renderer escapes every text node with `escapeHtml`, clamps heading levels, and passes every link and image URL through a `safeUrl` allowlist (only `http`, `https`, `mailto`, and relative paths), so writer-authored content cannot inject scripts through markup or `javascript:` URLs.
 All routes that write or read user data use `requireAuth()`. The only exceptions are the public feed (`/api/posts`), public profiles (`/api/writers/[id]`), and the webhook endpoint (which verifies Whop's signature instead).
 For the sake of performance, we use the Next.js' `Image` component for all uploaded images to get automatic format conversion, resizing, and lazy loading. The Tiptap editor is also dynamically imported so users never download the editor code:
 
@@ -796,7 +809,7 @@ Once the sandbox variable is gone, the `src/lib/whop.ts` SDK client automaticall
 #### Demo (optional)
 
 1. Create a second Vercel project from the same repository
-2. Configure a separate Supabase database (never share the production database)
+2. Configure a separate Neon database (never share the production database)
 3. Push schema and run seed: `npx prisma db push && npm run db:seed`
 4. Seeded writers use the demo subscribe fallback; real writers who complete KYC get sandbox checkout
 

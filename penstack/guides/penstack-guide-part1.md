@@ -9,7 +9,7 @@
 
 ---
 
-Building a platform like Substack is easier than you think thanks to the Whop Payment Network, its other infrastructure solutions (like user authentication and embedded chats), Supabase, and Vercel - which are the services we're going to use in this tutorial.
+Building a platform like Substack is easier than you think thanks to the Whop Payment Network, its other infrastructure solutions (like user authentication and embedded chats), Neon, and Vercel - which are the services we're going to use in this tutorial.
 In the steps below, you'll build Penstack. A full publishing platform where writers create publications, write articles with a rich text editor (complete with a paywall break), monetize through paid subscriptions, and engage their readers through embedded chat.
 You can preview the finished product [demo here](https://penstack-fresh.vercel.app/) and find the full codebase [in this GitHub repository](https://github.com/whopio/whop-tutorials/tree/main/penstack).
 ## Project overview
@@ -27,7 +27,7 @@ Tech stack (dropdown)
 - **Next.js 15 (App Router)** - Server Components + API routes + Vercel deploy in one
 - **Whop OAuth 2.1 + PKCE** - sign-in, tokens, identity
 - **Whop Payments Network (Direct Charges)** - connected accounts, recurring billing, KYC built-in
-- **Supabase (PostgreSQL via Vercel)** - cloud-only, Vercel auto-populates connection strings
+- **Neon (PostgreSQL via Vercel)** - cloud-only, Vercel auto-populates connection strings
 - **Prisma** - type-safe queries, declarative schema, migrations
 - **Zod** - runtime validation at system boundaries
 - **Tiptap** - extensible ProseMirror wrapper with custom paywall break node
@@ -65,7 +65,7 @@ Before starting, you should have:
 - Working familiarity with Next.js and React (we use the App Router and Server Components)
 - A Whop developer account (free to create at whop.com)
 - A Vercel account (free tier)
-- A Supabase account (free tier)
+- A Neon account (free tier)
 ## Part 1: Scaffold, deploy, and authenticate
 In this tutorial, we will start by laying the foundations in Vercel and then begin development, rather than transferring to Vercel after classic local development. This way, we will have the OAuth redirect URL early on and can catch any issues immediately (because Vercel will not be able to build).
 ### Create the project
@@ -83,8 +83,8 @@ New Next.js projects will build without requiring any configuration, so you shou
 ```
 NEXT_PUBLIC_APP_URL=https://your-app.vercel.app
 ```
-### Supabase through the Vercel integration
-Now, you should add Supabase through the Vercel Integrations marketplace instead of creating a project directly in the Supabase dashboard. Vercel automatically populates `DATABASE_URL` and `DIRECT_URL` as environment variables with connection pooling pre-configured through Supavisor.
+### Neon Postgres through the Vercel integration
+Now, you should add Neon through the Vercel Marketplace instead of creating a project directly in the Neon dashboard. Vercel provisions a Neon Postgres database and adds its connection strings to your environment variables, including a pooled connection for the app and a direct (unpooled) connection for migrations.
 Then, pull the variables to your local development using the command below:
 ```bash
 vercel env pull .env.local
@@ -103,14 +103,14 @@ const envSchema = z.object({
   WHOP_CLIENT_ID: z.string().min(1),
   WHOP_CLIENT_SECRET: z.string().min(1),
 
-  DATABASE_URL: z.string().url(),
-  DIRECT_URL: z.string().url(),
+  DATABASE_URL: z.url(),
+  DIRECT_URL: z.url(),
 
   UPLOADTHING_TOKEN: z.string().min(1),
 
   SESSION_SECRET: z.string().min(32),
 
-  NEXT_PUBLIC_APP_URL: z.string().url(),
+  NEXT_PUBLIC_APP_URL: z.url(),
 
   NEXT_PUBLIC_DEMO_MODE: z.string().optional(),
 
@@ -170,8 +170,13 @@ model User {
 ```
 Now, let's update the `prisma.config.ts` file in your project root with the content below:
 ```ts
-import "dotenv/config";
+import { config } from "dotenv";
 import { defineConfig } from "prisma/config";
+
+// Prisma 7 no longer auto-loads env files. We keep env vars in .env.local
+// (the Vercel convention), so load that (falling back to .env) before
+// defineConfig reads DIRECT_URL below.
+config({ path: [".env.local", ".env"] });
 
 export default defineConfig({
   schema: "prisma/schema.prisma",
@@ -183,14 +188,14 @@ export default defineConfig({
   },
 });
 ```
-The `url` here is what the Prisma CLI uses for `prisma db push` and migrations. It must point at Supabase's **session mode pooler** (port 5432). The **transaction mode pooler** (port 6543) strips session-level state that schema operations depend on.
+The `url` here is what the Prisma CLI uses for `prisma db push` and migrations. It must point at Neon's **direct (unpooled) connection** (the host without `-pooler`). The **pooled connection** runs through PgBouncer in transaction mode, which strips session-level state that schema operations depend on.
 
-For your `.env.local`, you need two Supabase connection strings:
+For your `.env.local`, you need two Neon connection strings:
 
-- `DATABASE_URL` - the **transaction mode** pooler (port 6543), used by your app for queries
-- `DIRECT_URL` - the **session mode** pooler (port 5432), used by the Prisma CLI for schema operations
+- `DATABASE_URL` - the **pooled** connection (host contains `-pooler`), used by your app for queries
+- `DIRECT_URL` - the **direct** connection (host without `-pooler`), used by the Prisma CLI for schema operations
 
-Both come from Supabase's connection pooler. Do **not** use the direct database connection (`db.xxx.supabase.co`) for `DIRECT_URL`.
+Both come from your Neon project's connection details, and both must end with `?sslmode=require`. If you added Neon through Vercel, the direct string may be named `DATABASE_URL_UNPOOLED` — set `DIRECT_URL` to that value.
 
 Now, let's push the schema using the command:
 
@@ -301,11 +306,10 @@ export const WHOP_OAUTH = {
     "openid",
     "profile",
     "email",
+    // Channel chat only needs these two. We deliberately omit the broad dms:*
+    // scopes so a leaked access token can't read or manage a user's DMs.
     "chat:message:create",
     "chat:read",
-    "dms:read",
-    "dms:message:manage",
-    "dms:channel:manage",
   ],
   redirectUri: `${process.env.NEXT_PUBLIC_APP_URL}/api/auth/callback`,
 };
@@ -510,12 +514,7 @@ export async function GET(request: NextRequest) {
     const error = await tokenResponse.text();
     console.error("Token exchange failed:", error);
     return NextResponse.json(
-      {
-        error: "Failed to exchange authorization code",
-        detail: error,
-        tokenUrl: WHOP_OAUTH.tokenUrl,
-        redirectUri: WHOP_OAUTH.redirectUri,
-      },
+      { error: "Failed to exchange authorization code" },
       { status: 502 }
     );
   }
