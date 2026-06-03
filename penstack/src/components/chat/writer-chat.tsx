@@ -1,22 +1,13 @@
 "use client";
 
-import { useEffect, useState, type CSSProperties, type FC, type ReactNode } from "react";
-import { Elements } from "@whop/embedded-components-react-js";
+import { useEffect, useMemo, useState } from "react";
+import {
+  ChatElement,
+  ChatSession,
+  Elements,
+} from "@whop/embedded-components-react-js";
 import { loadWhopElements } from "@whop/embedded-components-vanilla-js";
-
-// ChatElement and ChatSession may not be exported in the current package version.
-// Dynamically access them to avoid build-time failures.
-let ChatElement: FC<{ options: { channelId: string }; style?: CSSProperties }> | undefined;
-let ChatSession: FC<{ token: () => Promise<string>; children: ReactNode }> | undefined;
-
-try {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const mod = require("@whop/embedded-components-react-js");
-  ChatElement = mod.ChatElement;
-  ChatSession = mod.ChatSession;
-} catch {
-  // Not available yet
-}
+import type { ChatElementOptions } from "@whop/embedded-components-vanilla-js/types";
 
 interface WriterChatProps {
   channelId: string;
@@ -30,14 +21,21 @@ async function getToken(): Promise<string> {
 }
 
 export function WriterChat({ channelId, className }: WriterChatProps) {
-  const [elements, setElements] =
-    useState<Awaited<ReturnType<typeof loadWhopElements>>>(null);
+  // Load the elements runtime on the client only (avoids SSR window access).
+  const [elements, setElements] = useState<ReturnType<
+    typeof loadWhopElements
+  > | null>(null);
 
   useEffect(() => {
-    loadWhopElements().then(setElements);
+    setElements(loadWhopElements());
   }, []);
 
-  if (!elements || !ChatElement || !ChatSession) {
+  const chatOptions: ChatElementOptions = useMemo(
+    () => ({ channelId }),
+    [channelId]
+  );
+
+  if (!elements) {
     return (
       <div className={className}>
         <div className="flex h-[500px] items-center justify-center rounded-xl border border-gray-200 bg-gray-50 text-gray-500">
@@ -52,7 +50,7 @@ export function WriterChat({ channelId, className }: WriterChatProps) {
       <ChatSession token={getToken}>
         <div className={className}>
           <ChatElement
-            options={{ channelId }}
+            options={chatOptions}
             style={{
               height: "500px",
               width: "100%",

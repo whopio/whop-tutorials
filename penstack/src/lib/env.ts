@@ -10,8 +10,8 @@ const envSchema = z.object({
   WHOP_CLIENT_SECRET: z.string().min(1),
 
   // Database
-  DATABASE_URL: z.string().url(),
-  DIRECT_URL: z.string().url(),
+  DATABASE_URL: z.url(),
+  DIRECT_URL: z.url(),
 
   // Uploadthing
   UPLOADTHING_TOKEN: z.string().min(1),
@@ -20,7 +20,7 @@ const envSchema = z.object({
   SESSION_SECRET: z.string().min(32),
 
   // App
-  NEXT_PUBLIC_APP_URL: z.string().url(),
+  NEXT_PUBLIC_APP_URL: z.url(),
 
   // Demo (optional)
   NEXT_PUBLIC_DEMO_MODE: z.string().optional(),

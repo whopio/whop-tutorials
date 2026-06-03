@@ -54,7 +54,7 @@ const createPostSchema = z.object({
   visibility: z.enum(["FREE", "PAID", "PREVIEW"]),
   paywallIndex: z.number().int().min(0).optional(),
   published: z.boolean(),
-  coverImageUrl: z.string().url().optional(),
+  coverImageUrl: z.url().optional(),
 });
 
 export async function POST(request: NextRequest) {

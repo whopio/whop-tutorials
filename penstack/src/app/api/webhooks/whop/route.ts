@@ -7,12 +7,18 @@ export async function POST(request: NextRequest) {
   const headers = Object.fromEntries(request.headers);
 
   // Verify signature and parse payload using Whop SDK
-  let webhookData: { type: string; data: Record<string, unknown>; id?: string };
+  let webhookData: {
+    type: string;
+    data: Record<string, unknown>;
+    id?: string;
+    company_id?: string | null;
+  };
   try {
     webhookData = (await whop.webhooks.unwrap(rawBody, { headers })) as unknown as {
       type: string;
       data: Record<string, unknown>;
       id?: string;
+      company_id?: string | null;
     };
   } catch (err) {
     console.error("Webhook unwrap error:", err);
@@ -47,6 +53,9 @@ export async function POST(request: NextRequest) {
         break;
       case "membership.deactivated":
         await handleMembershipDeactivated(data);
+        break;
+      case "verification.succeeded":
+        await handleVerificationSucceeded(webhookData.company_id);
         break;
       default:
         // Unknown event type — ignore
@@ -186,5 +195,16 @@ async function handleMembershipDeactivated(data: Record<string, unknown>) {
       status: "CANCELLED",
       cancelledAt: new Date(),
     },
+  });
+}
+
+async function handleVerificationSucceeded(companyId: string | null | undefined) {
+  if (!companyId) return;
+
+  // verification.succeeded carries the connected account's company_id at the top
+  // level. Flip kycCompleted so the writer can accept payments.
+  await prisma.writer.updateMany({
+    where: { whopCompanyId: companyId },
+    data: { kycCompleted: true },
   });
 }

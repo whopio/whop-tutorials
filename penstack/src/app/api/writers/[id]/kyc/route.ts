@@ -68,14 +68,14 @@ export async function POST(
       });
     }
 
-    // Create a setup checkout configuration — Whop's hosted onboarding handles KYC
-    const setupCheckout = await whop.checkoutConfigurations.create({
+    const accountLink = await whop.accountLinks.create({
       company_id: companyId,
-      mode: "setup",
-      redirect_url: `${process.env.NEXT_PUBLIC_APP_URL}/settings`,
+      refresh_url: `${process.env.NEXT_PUBLIC_APP_URL}/settings`,
+      return_url: `${process.env.NEXT_PUBLIC_APP_URL}/settings`,
+      use_case: "account_onboarding",
     });
 
-    return NextResponse.json({ url: setupCheckout.purchase_url });
+    return NextResponse.json({ url: accountLink.url });
   } catch (err) {
     console.error("KYC Whop SDK error:", err);
     const message = err instanceof Error ? err.message : "Whop API error";

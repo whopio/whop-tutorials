@@ -23,7 +23,7 @@ A full-stack newsletter and publishing platform where writers monetize content t
 | [React 19](https://react.dev/) | UI library |
 | [TypeScript](https://www.typescriptlang.org/) | Type safety |
 | [Prisma 7](https://www.prisma.io/) | Database ORM (with driver adapter) |
-| [PostgreSQL](https://www.postgresql.org/) | Database (via Supabase) |
+| [PostgreSQL](https://www.postgresql.org/) | Database (via Neon) |
 | [Whop SDK](https://dev.whop.com/) | Payments, subscriptions, OAuth, KYC |
 | [Tiptap](https://tiptap.dev/) | Rich text editor |
 | [UploadThing](https://uploadthing.com/) | File uploads |
@@ -36,7 +36,7 @@ A full-stack newsletter and publishing platform where writers monetize content t
 ### Prerequisites
 
 - Node.js 18+
-- PostgreSQL database (Supabase recommended)
+- PostgreSQL database (Neon recommended)
 - [Whop Developer Account](https://sandbox.whop.com/)
 - [UploadThing Account](https://uploadthing.com/)
 
