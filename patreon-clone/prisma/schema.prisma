@@ -28,7 +28,7 @@ model Creator {
   user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   
   whopCompanyId   String?  @unique
-  whopProductId   String?  @unique   // ← This is the only new field
+  whopProductId   String?  @unique
   whopOnboarded   Boolean  @default(false)
   
   username        String   @unique

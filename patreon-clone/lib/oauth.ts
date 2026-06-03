@@ -59,6 +59,7 @@ export async function exchangeCodeForTokens(params: {
       code: params.code,
       redirect_uri: params.redirectUri,
       client_id: params.clientId,
+      client_secret: process.env.WHOP_CLIENT_SECRET || '',
       code_verifier: params.codeVerifier,
     }),
   })
