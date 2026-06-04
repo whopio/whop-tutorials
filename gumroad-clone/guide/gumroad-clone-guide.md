@@ -57,7 +57,7 @@ npx create-next-app@latest shelfie --ts --tailwind --eslint --app --src-dir --tu
 ```
 
 ```bash
-npm install @whop/sdk @prisma/client @prisma/adapter-pg pg iron-session zod lucide-react next-themes clsx tailwind-merge dotenv uploadthing @uploadthing/react
+npm install @whop/sdk@0.0.35 @prisma/client @prisma/adapter-pg pg iron-session zod lucide-react@0.577.0 next-themes clsx tailwind-merge dotenv uploadthing @uploadthing/react
 npm install -D prisma @types/pg@8.11.11
 ```
 
@@ -694,7 +694,7 @@ export async function POST(
 
 ### Webhook Handler (`src/app/api/webhooks/whop/route.ts`)
 
-Verifies webhook signature via `getWhop().webhooks.unwrap()`. Falls back to raw JSON parsing if signature verification fails. Checks idempotency via `WebhookEvent` table. Creates `Purchase` record via upsert.
+Verifies the webhook signature via `getWhop().webhooks.unwrap()` and rejects the request with a 401 if verification fails. Checks idempotency via `WebhookEvent` table. Creates `Purchase` record via upsert.
 
 ```ts
 import { NextRequest, NextResponse } from "next/server";
@@ -717,11 +717,7 @@ export async function POST(request: NextRequest) {
     webhookData = whop.webhooks.unwrap(bodyText, { headers: headerObj }) as unknown as WhopEvent;
   } catch (err) {
     console.error("Webhook verification failed:", err);
-    try {
-      webhookData = JSON.parse(bodyText) as WhopEvent;
-    } catch {
-      return NextResponse.json({ error: "Invalid webhook" }, { status: 400 });
-    }
+    return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
   }
 
   const eventId = webhookData.id;

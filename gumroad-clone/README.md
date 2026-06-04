@@ -37,7 +37,7 @@ A multi-seller digital product marketplace where users become sellers, upload fi
 
 ### Prerequisites
 
-- Node.js 18+
+- Node.js 20+
 - PostgreSQL database (Neon recommended)
 - [Whop Developer Account](https://sandbox.whop.com/)
 - [UploadThing Account](https://uploadthing.com/)
@@ -171,7 +171,7 @@ npm run build
 npm start
 ```
 
-Requires Node.js 18+ runtime, PostgreSQL database, and all environment variables configured.
+Requires Node.js 20+ runtime, PostgreSQL database, and all environment variables configured.
 
 ## Disclaimer
 
