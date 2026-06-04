@@ -3,7 +3,7 @@ import type { NextRequest } from "next/server";
 
 const publicPaths = ["/sign-in", "/api/auth/", "/api/webhooks/", "/chat"];
 
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   if (publicPaths.some((p) => pathname.startsWith(p))) {
