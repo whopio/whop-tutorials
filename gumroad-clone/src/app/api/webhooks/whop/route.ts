@@ -22,12 +22,7 @@ export async function POST(request: NextRequest) {
     }) as unknown as WhopEvent;
   } catch (err) {
     console.error("Webhook verification failed:", err);
-    // Fallback: try parsing raw JSON if signature verification fails
-    try {
-      webhookData = JSON.parse(bodyText) as WhopEvent;
-    } catch {
-      return NextResponse.json({ error: "Invalid webhook" }, { status: 400 });
-    }
+    return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
   }
 
   // Idempotency check
