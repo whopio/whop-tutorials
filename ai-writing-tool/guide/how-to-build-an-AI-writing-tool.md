@@ -13,6 +13,8 @@ Condensed reference for building Pencraft, an AI writing studio on Whop. Use thi
 - **Free** — 3 templates, 5 generations per day
 - **Pro** — all 8 templates, unlimited generations ($20/mo)
 
+**Live demo:** https://pencraft-gilt.vercel.app · **Repo:** https://github.com/whopio/whop-tutorials/tree/main/ai-writing-tool
+
 **Tech stack**
 
 | Category | Technology |

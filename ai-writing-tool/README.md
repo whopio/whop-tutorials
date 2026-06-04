@@ -48,7 +48,7 @@ An AI writing studio where users sign in via Whop OAuth, pick a writing template
 
 ```bash
 git clone https://github.com/whopio/whop-tutorials.git
-cd whop-tutorials/pencraft
+cd whop-tutorials/ai-writing-tool
 ```
 
 ### 2. Install dependencies
