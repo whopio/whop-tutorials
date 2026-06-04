@@ -111,7 +111,7 @@ export default async function LessonPage({
             )}
           </div>
         </div>
-
+      </div>
 
       <aside className="w-full lg:w-80 flex-shrink-0 border-l border-[var(--color-border)] bg-[var(--color-surface)] overflow-y-auto">
         <div className="p-5 border-b border-[var(--color-border)]">
