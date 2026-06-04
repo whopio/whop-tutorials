@@ -230,6 +230,7 @@ export default async function CourseDetailPage({
               </div>
             </div>
           </div>
+        </div>
       </div>
     </div>
   );
