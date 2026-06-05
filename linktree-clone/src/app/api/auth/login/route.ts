@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { randomBytes, createHash } from "crypto";
+import { rateLimit, clientIp } from "@/lib/rate-limit";
 
 const HANDLE_PATTERN = /^[a-z0-9_-]{2,32}$/;
 
@@ -12,6 +13,12 @@ function generateCodeChallenge(verifier: string): string {
 }
 
 export async function GET(req: NextRequest) {
+  if (!rateLimit(`login:${await clientIp()}`, 20, 60_000)) {
+    return NextResponse.redirect(
+      `${process.env.NEXT_PUBLIC_APP_URL ?? ""}/?error=rate_limited`
+    );
+  }
+
   const codeVerifier = generateCodeVerifier();
   const codeChallenge = generateCodeChallenge(codeVerifier);
   const state = randomBytes(16).toString("hex");
@@ -46,6 +53,9 @@ export async function GET(req: NextRequest) {
   };
   res.cookies.set("pkce_verifier", codeVerifier, cookieOpts);
   res.cookies.set("oauth_state", state, cookieOpts);
+  // Bind this login attempt to the id_token we get back: the callback checks
+  // that the token's `nonce` claim matches this cookie before trusting it.
+  res.cookies.set("oauth_nonce", nonce, cookieOpts);
 
   // Optional: a handle hint passed in from the homepage CTA. We don't trust
   // it, we just round-trip it as a non-httpOnly cookie so the dashboard can

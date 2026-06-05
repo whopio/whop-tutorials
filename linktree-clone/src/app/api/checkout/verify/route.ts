@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { whop } from "@/lib/whop";
+import { unlockCookieName, signUnlock } from "@/lib/unlock";
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
 
@@ -26,6 +27,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.redirect(profileUrl);
   }
 
+  let unlockedCreatorId: string | null = null;
   try {
     const payment = await whop.payments.retrieve(paymentId);
     if (payment.status === "paid") {
@@ -39,6 +41,7 @@ export async function GET(req: NextRequest) {
           where: { id: unlockId, status: "PENDING" },
           data: { status: "PAID", whopPaymentId: paymentId },
         });
+        unlockedCreatorId = unlock.creatorId;
       }
     }
   } catch (err) {
@@ -46,5 +49,17 @@ export async function GET(req: NextRequest) {
     console.error("[checkout/verify] payment retrieve failed:", err);
   }
 
-  return NextResponse.redirect(`${profileUrl}?unlocked=${unlockId}`);
+  const res = NextResponse.redirect(profileUrl);
+  // Grant access via a signed httpOnly cookie rather than a URL parameter, so a
+  // paid unlock cannot be shared by copying the link.
+  if (unlockedCreatorId) {
+    res.cookies.set(unlockCookieName(unlockedCreatorId), signUnlock(unlockId), {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "lax",
+      path: "/",
+      maxAge: 60 * 60 * 24 * 365,
+    });
+  }
+  return res;
 }

@@ -2,6 +2,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { whop } from "@/lib/whop";
+import { rateLimit, clientIp } from "@/lib/rate-limit";
 import { redirect } from "next/navigation";
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
@@ -9,6 +10,10 @@ const APP_URL = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
 export async function createCheckout(
   creatorId: string
 ): Promise<{ error: string }> {
+  if (!rateLimit(`checkout:${await clientIp()}`, 20, 60_000)) {
+    return { error: "Too many attempts. Try again in a minute." };
+  }
+
   const creator = await prisma.creator.findUnique({
     where: { id: creatorId },
   });

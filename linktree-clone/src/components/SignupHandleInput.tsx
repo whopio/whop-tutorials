@@ -34,18 +34,25 @@ export function SignupHandleInput({
   const showError = handle.length > 0 && !HANDLE_PATTERN.test(handle);
   const inlinePrefix = compact ? "/u/" : `${urlHost}/u/`;
 
+  // Native form submission used to fight the React-controlled input value:
+  // the cleaned string would land in the DOM but React would re-render to
+  // the raw string before the browser collected the form data. Navigating
+  // programmatically avoids the race entirely and lets us use the cleaned
+  // value verbatim.
+  function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const target = cleaned
+      ? `/api/auth/login?handle=${encodeURIComponent(cleaned)}`
+      : `/api/auth/login`;
+    window.location.assign(target);
+  }
+
   return (
     <form
       action="/api/auth/login"
       method="GET"
       className="w-full max-w-md"
-      onSubmit={(e) => {
-        // Strip whitespace and disallowed chars before submit.
-        const f = e.currentTarget.elements.namedItem(
-          "handle"
-        ) as HTMLInputElement | null;
-        if (f) f.value = cleaned;
-      }}
+      onSubmit={handleSubmit}
     >
       <label htmlFor="hero-handle" className="sr-only">
         Pick your handle

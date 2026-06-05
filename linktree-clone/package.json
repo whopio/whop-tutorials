@@ -16,13 +16,15 @@
     "@dnd-kit/sortable": "^8.0.0",
     "@dnd-kit/utilities": "^3.2.2",
     "@prisma/client": "^5.22.0",
+    "@vercel/blob": "^2.3.3",
     "@whop/embedded-components-react-js": "^0.0.12",
     "@whop/embedded-components-vanilla-js": "^0.0.12",
     "@whop/sdk": "^0.0.30",
     "iron-session": "^8.0.4",
-    "next": "16.1.6",
-    "react": "19.2.3",
-    "react-dom": "19.2.3",
+    "next": "16.2.7",
+    "react": "19.2.7",
+    "react-dom": "19.2.7",
+    "simple-icons": "^16.19.0",
     "zod": "^4.3.6"
   },
   "devDependencies": {
@@ -31,7 +33,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
-    "eslint-config-next": "16.1.6",
+    "eslint-config-next": "16.2.7",
     "prisma": "^5.22.0",
     "tailwindcss": "^4",
     "typescript": "^5"
