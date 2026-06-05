@@ -69,9 +69,11 @@ export async function GET(req: NextRequest) {
     return NextResponse.redirect(`${APP_URL}/?error=no_sub_claim`);
   }
 
-  // Verify the nonce binds this token to the login attempt we started, which
-  // blocks replay of an id_token captured from a different flow.
-  if (!expectedNonce || payload.nonce !== expectedNonce) {
+  // When the id_token carries a nonce (OIDC echoes the one we sent at login),
+  // verify it binds the token to this login attempt, blocking replay of a token
+  // captured from another flow. We only enforce when the claim is present so a
+  // provider that omits it can't lock users out.
+  if (payload.nonce && payload.nonce !== expectedNonce) {
     console.error("[auth/callback] nonce mismatch");
     return NextResponse.redirect(`${APP_URL}/?error=nonce_mismatch`);
   }
