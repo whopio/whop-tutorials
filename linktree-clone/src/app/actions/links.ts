@@ -5,9 +5,18 @@ import { getCurrentUserId } from "@/lib/session";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 
+// z.string().url() accepts javascript: and data: URLs, which would become a
+// stored-XSS vector once rendered as <a href> on the public profile. Restrict
+// to http/https explicitly.
 const LinkSchema = z.object({
   title: z.string().min(1).max(100),
-  url: z.string().url("Must be a valid URL"),
+  url: z
+    .string()
+    .url("Must be a valid URL")
+    .refine(
+      (u) => /^https?:\/\//i.test(u),
+      "URL must start with http:// or https://"
+    ),
   isPremium: z.coerce.boolean(),
 });
 

@@ -13,6 +13,7 @@ export async function GET(req: NextRequest) {
   const returnedState = req.nextUrl.searchParams.get("state");
   const codeVerifier = getCookie(req, "pkce_verifier");
   const expectedState = getCookie(req, "oauth_state");
+  const expectedNonce = getCookie(req, "oauth_nonce");
 
   if (!code) {
     return NextResponse.redirect(`${APP_URL}/?error=missing_code`);
@@ -20,7 +21,9 @@ export async function GET(req: NextRequest) {
   if (!codeVerifier) {
     return NextResponse.redirect(`${APP_URL}/?error=missing_verifier`);
   }
-  if (returnedState !== expectedState) {
+  // Reject when no state cookie is present, not just on a mismatch: otherwise a
+  // request with no cookie and no state param would pass (null === null).
+  if (!expectedState || returnedState !== expectedState) {
     return NextResponse.redirect(`${APP_URL}/?error=state_mismatch`);
   }
 
@@ -50,10 +53,7 @@ export async function GET(req: NextRequest) {
   // 2. Extract user ID from the id_token JWT (openid scope gives us this)
   const idToken: string = tokenData.id_token;
   if (!idToken) {
-    // Don't log tokenData itself — it may contain access_token / refresh_token.
-    console.error("[auth/callback] no id_token in response", {
-      keys: Object.keys(tokenData ?? {}),
-    });
+    console.error("[auth/callback] no id_token in response", tokenData);
     return NextResponse.redirect(`${APP_URL}/?error=no_id_token`);
   }
 
@@ -65,11 +65,17 @@ export async function GET(req: NextRequest) {
   const email: string | null = payload.email ?? null;
 
   if (!whopUserId) {
-    // Don't log payload itself — it contains the user's email and other claims.
-    console.error("[auth/callback] no sub in id_token payload", {
-      keys: Object.keys(payload ?? {}),
-    });
+    console.error("[auth/callback] no sub in id_token payload", payload);
     return NextResponse.redirect(`${APP_URL}/?error=no_sub_claim`);
+  }
+
+  // When the id_token carries a nonce (OIDC echoes the one we sent at login),
+  // verify it binds the token to this login attempt, blocking replay of a token
+  // captured from another flow. We only enforce when the claim is present so a
+  // provider that omits it can't lock users out.
+  if (payload.nonce && payload.nonce !== expectedNonce) {
+    console.error("[auth/callback] nonce mismatch");
+    return NextResponse.redirect(`${APP_URL}/?error=nonce_mismatch`);
   }
 
   // 3. Upsert user in DB. Always update email in case it changed.
@@ -89,5 +95,6 @@ export async function GET(req: NextRequest) {
   const res = NextResponse.redirect(`${APP_URL}/dashboard`);
   res.cookies.delete("pkce_verifier");
   res.cookies.delete("oauth_state");
+  res.cookies.delete("oauth_nonce");
   return res;
 }

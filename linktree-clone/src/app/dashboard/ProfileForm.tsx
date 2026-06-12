@@ -1,8 +1,7 @@
 "use client";
 
-import { useActionState, useState, useTransition } from "react";
-import { saveProfile, setAccent } from "@/app/actions/creator";
-import { ACCENTS, type AccentKey } from "@/lib/theme";
+import { useActionState } from "react";
+import { saveProfile } from "@/app/actions/creator";
 import type { Creator } from "@prisma/client";
 
 const inputClass =
@@ -102,60 +101,5 @@ export function ProfileForm({
   );
 }
 
-export function AccentPicker({
-  current,
-  hasProfile,
-}: {
-  current: AccentKey;
-  hasProfile: boolean;
-}) {
-  const [pending, startTransition] = useTransition();
-  const [optimistic, setOptimistic] = useState<AccentKey>(current);
-  const [error, setError] = useState<string | null>(null);
-
-  const update = (next: AccentKey) => {
-    if (!hasProfile) {
-      setError("Save your profile first.");
-      return;
-    }
-    setError(null);
-    setOptimistic(next);
-    startTransition(async () => {
-      const fd = new FormData();
-      fd.append("accent", next);
-      const res = await setAccent({}, fd);
-      if (res.error) {
-        setError(res.error);
-        setOptimistic(current);
-      }
-    });
-  };
-
-  return (
-    <div>
-      <p className={labelClass}>Accent color</p>
-      <div className="flex items-center gap-2.5">
-        {ACCENTS.map((accent) => {
-          const active = optimistic === accent.key;
-          return (
-            <button
-              key={accent.key}
-              type="button"
-              onClick={() => update(accent.key)}
-              disabled={pending || !hasProfile}
-              aria-label={accent.label}
-              aria-pressed={active}
-              className="relative w-9 h-9 rounded-full transition-transform hover:scale-110 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-neutral-900 disabled:opacity-40 disabled:cursor-not-allowed"
-              style={{ background: accent.hex }}
-            >
-              {active && (
-                <span className="absolute inset-0 rounded-full ring-2 ring-offset-2 ring-neutral-900" />
-              )}
-            </button>
-          );
-        })}
-      </div>
-      {error && <p className="text-xs text-red-600 mt-2">{error}</p>}
-    </div>
-  );
-}
+// The accent picker now lives inside `ThemePicker.tsx` alongside the card
+// style, background, and text color controls.

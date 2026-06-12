@@ -1,24 +1,39 @@
 import { getCurrentUserId } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
-import { ProfileForm, AccentPicker } from "./ProfileForm";
+import { ProfileForm } from "./ProfileForm";
 import { AddLinkForm, LinksList } from "./LinkForm";
 import { EarningsButton } from "./EarningsButton";
 import { PayoutPortal } from "./PayoutPortal";
+import { ThemePicker } from "./ThemePicker";
+import { SocialsManager } from "./SocialsManager";
+import { AvatarUpload } from "./AvatarUpload";
 import { ProfileRender } from "@/components/ProfileRender";
-import { resolveAccent, type AccentKey } from "@/lib/theme";
+import {
+  resolveAccent,
+  type CardStyleKey,
+  DEFAULT_CARD_STYLE,
+} from "@/lib/theme";
 import { cookies } from "next/headers";
 
 export default async function DashboardPage() {
   const userId = await getCurrentUserId();
   const creator = await prisma.creator.findUnique({
     where: { userId: userId! },
-    include: { links: { orderBy: { sortOrder: "asc" } } },
+    include: {
+      links: { orderBy: { sortOrder: "asc" } },
+      socials: { orderBy: { sortOrder: "asc" } },
+    },
   });
 
   const cookieStore = await cookies();
   const intendedHandle = cookieStore.get("intended_handle")?.value;
 
   const accent = resolveAccent(creator?.accentColor);
+
+  // The live preview always renders, even before the creator has saved.
+  // When the creator row doesn't exist yet, fall back to a placeholder
+  // shaped like Creator so ProfileRender can read it without optional
+  // chaining everywhere.
   const previewCreator =
     creator ?? {
       handle: "yourname",
@@ -27,8 +42,15 @@ export default async function DashboardPage() {
       avatarUrl: null,
       accentColor: accent.key,
       unlockPrice: 500,
+      cardStyle: DEFAULT_CARD_STYLE,
+      bgKind: "auto",
+      bgValue: null,
+      textColor: "auto",
     };
   const previewLinks = creator?.links ?? [];
+  const previewSocials = creator?.socials ?? [];
+
+  const displayName = creator?.title || creator?.handle || "your name";
 
   return (
     <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)]">
@@ -61,16 +83,27 @@ export default async function DashboardPage() {
       </header>
 
       <main className="mx-auto max-w-6xl px-6 py-10 grid gap-12 lg:grid-cols-[minmax(0,1fr)_360px]">
-        {/* Editor column */}
         <div className="space-y-12 min-w-0">
           <Section title="Profile">
-            <ProfileForm creator={creator} intendedHandle={intendedHandle} />
-            <div className="pt-2">
-              <AccentPicker
-                current={(creator?.accentColor as AccentKey) ?? "violet"}
+            <div className="mb-5">
+              <AvatarUpload
+                current={creator?.avatarUrl ?? null}
                 hasProfile={!!creator}
+                displayName={displayName}
               />
             </div>
+            <ProfileForm creator={creator} intendedHandle={intendedHandle} />
+          </Section>
+
+          <Section title="Theme">
+            <ThemePicker
+              hasProfile={!!creator}
+              accentColor={creator?.accentColor ?? "violet"}
+              cardStyle={(creator?.cardStyle as CardStyleKey) ?? "default"}
+              bgKind={creator?.bgKind ?? "auto"}
+              bgValue={creator?.bgValue ?? null}
+              textColor={creator?.textColor ?? "auto"}
+            />
           </Section>
 
           <Section title="Links">
@@ -84,6 +117,13 @@ export default async function DashboardPage() {
                 <AddLinkForm />
               </>
             )}
+          </Section>
+
+          <Section title="Socials">
+            <SocialsManager
+              socials={creator?.socials ?? []}
+              hasProfile={!!creator}
+            />
           </Section>
 
           <Section title="Earnings">
@@ -106,16 +146,16 @@ export default async function DashboardPage() {
           )}
         </div>
 
-        {/* Live preview column (wide screens only) */}
         <aside className="hidden lg:block">
           <div className="sticky top-24 space-y-3">
             <p className="text-xs font-semibold uppercase tracking-widest text-neutral-500">
               Live preview
             </p>
-            <div className="rounded-2xl border border-neutral-200 overflow-hidden bg-white shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
+            <div className="rounded-2xl border border-neutral-200 overflow-hidden shadow-[0_1px_2px_rgba(0,0,0,0.04)]">
               <ProfileRender
                 creator={previewCreator}
                 links={previewLinks}
+                socials={previewSocials}
                 hasPaidUnlock={false}
                 hasEarnings={!!creator?.whopCompanyId}
                 scale="preview"

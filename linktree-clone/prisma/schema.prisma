@@ -30,7 +30,11 @@ model Creator {
   bio            String   @default("")
   avatarUrl      String?
   unlockPrice    Int      @default(500) // cents, e.g. 500 = $5.00
-  accentColor    String   @default("violet") // preset key, mapped to hex in src/lib/theme.ts
+  accentColor    String   @default("violet") // preset key OR raw hex (#xxxxxx); resolved in src/lib/theme.ts
+  cardStyle      String   @default("default") // preset key; controls border-radius/shadow/border of link cards
+  bgKind         String   @default("auto")    // "auto" | "solid" | "gradient" | "preset"
+  bgValue        String?  // hex string when solid, gradient CSS when gradient, preset key otherwise
+  textColor      String   @default("auto")    // "auto" | hex; auto picks based on bg brightness
 
   // Whop Connected Account
   whopCompanyId  String?  // set after "Enable Earnings" enrollment
@@ -42,6 +46,7 @@ model Creator {
   updatedAt      DateTime @updatedAt
 
   links          Link[]
+  socials        SocialLink[]
   unlocks        Unlock[]
 }
 
@@ -86,4 +91,16 @@ model WebhookEvent {
   id          String   @id // Whop event ID, used as idempotency key
   type        String
   receivedAt  DateTime @default(now())
+}
+
+model SocialLink {
+  id         String   @id @default(cuid())
+  creatorId  String
+  creator    Creator  @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  platform   String   // platform key, must match src/lib/socials.ts
+  url        String
+  color      String?  // optional override (hex). When null, the platform's brand color is used.
+  sortOrder  Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 }
