@@ -1,0 +1,4 @@
+# Local env files must never be uploaded with `vercel deploy`.
+# Vercel project environment variables are the source of truth in every environment.
+.env
+.env.*

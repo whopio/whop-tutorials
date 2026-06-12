@@ -1,0 +1,235 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(cuid())
+  whopUserId   String   @unique
+  username     String
+  email        String?
+  name         String?
+  avatarUrl    String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  creator      Creator?
+  supports     Support[]    @relation("UserSupports")
+  memberships  Membership[]
+  orders       Order[]      @relation("UserOrders")
+  follows      Follow[]     @relation("UserFollows")
+}
+
+model Creator {
+  id            String   @id @default(cuid())
+  userId        String   @unique
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  whopCompanyId String?  @unique
+  whopOnboarded Boolean  @default(false)
+
+  username      String   @unique
+  displayName   String
+  bio           String?
+  coverImageUrl String?
+  avatarUrl     String?
+  accentColor   String   @default("sky")
+  websiteUrl    String?
+  socialLinks   Json?
+  tags          String[]
+
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  tiers         Tier[]
+  posts         Post[]
+  products      Product[]
+  goals         Goal[]
+  supports      Support[]
+  memberships   Membership[]
+  orders        Order[]
+  followers     Follow[]
+}
+
+model Tier {
+  id           String   @id @default(cuid())
+  creatorId    String
+  creator      Creator  @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+
+  whopPlanId   String?  @unique
+  name         String
+  description  String?
+  priceCents   Int
+  benefits     String[]
+  order        Int      @default(0)
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  memberships  Membership[]
+  gatedPosts   Post[]   @relation("TierGatedPosts")
+}
+
+model Product {
+  id           String      @id @default(cuid())
+  creatorId    String
+  creator      Creator     @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+
+  whopPlanId   String?     @unique
+  title        String
+  description  String?
+  priceCents   Int         @default(0)
+  imageUrl     String?
+  type         ProductType @default(DIGITAL)
+  downloadUrl  String?
+  salesCount   Int         @default(0)
+  isActive     Boolean     @default(true)
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  orders       Order[]
+}
+
+model Post {
+  id             String     @id @default(cuid())
+  creatorId      String
+  creator        Creator    @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+
+  title          String
+  content        String
+  imageUrl       String?
+  visibility     Visibility @default(PUBLIC)
+  minimumTierId  String?
+  minimumTier    Tier?      @relation("TierGatedPosts", fields: [minimumTierId], references: [id])
+  pinned         Boolean    @default(false)
+  published      Boolean    @default(true)
+  reactionsCount Int        @default(0)
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+}
+
+model Goal {
+  id           String    @id @default(cuid())
+  creatorId    String
+  creator      Creator   @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+
+  title        String
+  description  String?
+  targetCents  Int
+  isActive     Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  supports     Support[]
+}
+
+model Support {
+  id              String        @id @default(cuid())
+  creatorId       String
+  creator         Creator       @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+
+  supporterUserId String?
+  supporter       User?         @relation("UserSupports", fields: [supporterUserId], references: [id])
+  supporterName   String
+  message         String?
+  amountCents     Int
+  coffees         Int           @default(1)
+  isPublic        Boolean       @default(true)
+
+  whopPaymentId   String?       @unique
+  status          SupportStatus @default(PENDING)
+
+  goalId          String?
+  goal            Goal?         @relation(fields: [goalId], references: [id])
+
+  createdAt       DateTime      @default(now())
+}
+
+model Membership {
+  id               String           @id @default(cuid())
+  creatorId        String
+  creator          Creator          @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+
+  userId           String
+  user             User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  tierId           String
+  tier             Tier             @relation(fields: [tierId], references: [id])
+
+  whopMembershipId String?          @unique
+  status           MembershipStatus @default(ACTIVE)
+
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  @@unique([userId, tierId])
+}
+
+model Order {
+  id            String        @id @default(cuid())
+  creatorId     String
+  creator       Creator       @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+
+  productId     String
+  product       Product       @relation(fields: [productId], references: [id])
+
+  buyerUserId   String?
+  buyer         User?         @relation("UserOrders", fields: [buyerUserId], references: [id])
+  buyerName     String
+  amountCents   Int
+
+  whopPaymentId String?       @unique
+  status        SupportStatus @default(PENDING)
+
+  createdAt     DateTime      @default(now())
+}
+
+model Follow {
+  id        String   @id @default(cuid())
+  creatorId String
+  creator   Creator  @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+
+  userId    String
+  user      User     @relation("UserFollows", fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([creatorId, userId])
+}
+
+model ProcessedWebhook {
+  id        String   @id
+  type      String
+  createdAt DateTime @default(now())
+}
+
+enum Visibility {
+  PUBLIC
+  SUPPORTERS
+  TIER
+}
+
+enum SupportStatus {
+  PENDING
+  COMPLETED
+  REFUNDED
+  FAILED
+}
+
+enum MembershipStatus {
+  ACTIVE
+  CANCELING
+  CANCELED
+  PAST_DUE
+  EXPIRED
+}
+
+enum ProductType {
+  DIGITAL
+  PHYSICAL
+}

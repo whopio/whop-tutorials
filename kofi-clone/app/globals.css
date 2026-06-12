@@ -1,0 +1,153 @@
+/* Frosted UI's stylesheet goes in its own cascade layer between Tailwind's base
+   and components. Above `base`, so Frosted's component styles (e.g. solid button
+   backgrounds) beat Tailwind's preflight `button { background: transparent }`.
+   Below `components`/`utilities`, so our heading rules and size utilities beat
+   Frosted's global h1-h6 reset. */
+@layer theme, base, frosted, components, utilities;
+@import "tailwindcss";
+@import "@whop/react/styles.css" layer(frosted);
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  /* Ko-fi palette - light */
+  --page: #f4efe7;          /* stone-100 */
+  --surface: #ffffff;
+  --surface-2: #ede6dd;     /* stone-200 */
+  --foreground: #192025;    /* mirage-900 */
+  --muted: #6a6a6a;         /* gray-700 */
+  --line: #e6ddd0;          /* warm hairline */
+  --brand: #467ceb;         /* brand-blue-500 */
+  --accent: #467ceb;        /* brand-blue-500 (per-creator pages override via --accent inline) */
+  --accent-strong: #305de0; /* brand-blue-600 */
+  --soft-blue: #c3d8fa;     /* brand-blue-200 */
+  --btn-primary: #202020;   /* black */
+  --btn-primary-fg: #ffffff;
+  --btn-primary-hover: #2a2625;
+  --positive: #07b25d;      /* spring-green-600 */
+}
+
+.dark {
+  /* mapped to the mirage scale */
+  --page: #192025;          /* mirage-900 */
+  --surface: #2b3a44;       /* mirage-800 */
+  --surface-2: #324653;     /* mirage-700 */
+  --foreground: #eef2f3;
+  --muted: #8eacba;         /* mirage-300 */
+  --line: #324653;          /* mirage-700 */
+  --brand: #72a4f2;         /* brand-blue-400 */
+  --accent: #72a4f2;
+  --accent-strong: #467ceb;
+  --soft-blue: #263da7;     /* brand-blue-800 */
+  --btn-primary: #edebea;   /* inverted near-white pill */
+  --btn-primary-fg: #192025;
+  --btn-primary-hover: #d4cfcd;
+  --positive: #10d773;
+}
+
+/* Frosted UI bridge: make @whop/react (Frosted) components wear the Ko-fi skin. */
+.fui-BaseButton {
+  border-radius: 9999px;
+}
+
+@theme inline {
+  --font-sans: var(--font-dm-sans), Nunito, ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-fraunces), Georgia, "Times New Roman", serif;
+  --color-page: var(--page);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-ink: var(--foreground);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-brand: var(--brand);
+  --color-soft-blue: var(--soft-blue);
+  --color-positive: var(--positive);
+  --radius-card: 18px;
+}
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+  body {
+    background: var(--page);
+    color: var(--foreground);
+    font-family: var(--font-dm-sans), Nunito, ui-sans-serif, system-ui, sans-serif;
+  }
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]),
+  summary,
+  label[for] {
+    cursor: pointer;
+  }
+}
+
+@layer components {
+  /* Headings live in the components layer (above Frosted) so Frosted's global
+     h1-h6 reset can't strip our Fraunces weight; sizes still come from utilities. */
+  h1,
+  h2,
+  h3,
+  .font-display {
+    font-family: var(--font-fraunces), Georgia, "Times New Roman", serif;
+    font-weight: 800;
+    letter-spacing: -0.015em;
+  }
+  .kofi-card {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius-card);
+  }
+  .btn-pill {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    border-radius: 9999px;
+    font-weight: 700;
+    line-height: 1;
+    padding: 0.625rem 1.25rem;
+    transition: filter 0.15s ease, background-color 0.15s ease, opacity 0.15s ease;
+    cursor: pointer;
+  }
+  .btn-pill:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
+  .btn-primary {
+    background: var(--btn-primary);
+    color: var(--btn-primary-fg);
+  }
+  .btn-primary:hover:not(:disabled) {
+    background: var(--btn-primary-hover);
+  }
+  .btn-soft {
+    background: var(--soft-blue);
+    color: var(--foreground);
+  }
+  .btn-soft:hover:not(:disabled) {
+    filter: brightness(0.97);
+  }
+  .btn-accent {
+    background: var(--accent);
+    color: #ffffff;
+  }
+  .btn-accent:hover:not(:disabled) {
+    filter: brightness(0.95);
+  }
+  .btn-secondary {
+    background: color-mix(in srgb, var(--muted) 22%, transparent);
+    color: var(--foreground);
+  }
+  .btn-secondary:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--muted) 32%, transparent);
+  }
+  .btn-outline {
+    background: transparent;
+    border: 1px solid var(--line);
+    color: var(--foreground);
+  }
+  .text-muted {
+    color: var(--muted);
+  }
+}
