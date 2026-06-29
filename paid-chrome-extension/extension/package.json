@@ -1,0 +1,21 @@
+{
+  "name": "@whop-extension-template/extension",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite build --watch",
+    "build": "vite build",
+    "typecheck": "tsc --noEmit",
+    "lint": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/chrome": "^0.1.42",
+    "typescript": "^6.0.3",
+    "vite": "^7.3.3"
+  },
+  "packageManager": "pnpm@9.15.9",
+  "engines": {
+    "node": "22.x"
+  }
+}
