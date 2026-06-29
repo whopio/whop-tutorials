@@ -1,0 +1,36 @@
+{
+  "name": "whop-chrome-extension-template",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A Chrome extension starter template with Whop OAuth, checkout, and premium gating through a Next.js API.",
+  "packageManager": "pnpm@9.15.9",
+  "scripts": {
+    "dev:web": "pnpm --filter @whop-extension-template/web dev",
+    "dev:extension": "pnpm --filter @whop-extension-template/extension dev",
+    "build": "pnpm -r build",
+    "build:web": "pnpm --filter @whop-extension-template/web build",
+    "build:extension": "pnpm --filter @whop-extension-template/extension build",
+    "typecheck": "pnpm -r typecheck",
+    "lint": "pnpm -r lint"
+  },
+  "keywords": [
+    "chrome-extension",
+    "manifest-v3",
+    "whop",
+    "nextjs",
+    "saas",
+    "template"
+  ],
+  "license": "MIT",
+  "engines": {
+    "node": "22.x"
+  },
+  "pnpm": {
+    "overrides": {
+      "rollup": "npm:@rollup/wasm-node@4.60.4"
+    }
+  },
+  "devDependencies": {
+    "@rollup/wasm-node": "4.60.4"
+  }
+}

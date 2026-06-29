@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Whop Starter Options</title>
+  </head>
+  <body>
+    <main class="options-shell">
+      <section class="options-header">
+        <p class="eyebrow">Template configuration</p>
+        <h1>Whop Starter Options</h1>
+        <p>
+          Configure the extension defaults for local development, production,
+          and Whop OAuth redirect setup.
+        </p>
+      </section>
+
+      <form id="options-form" class="options-form">
+        <label>
+          API base URL
+          <input id="api-base-url" name="apiBaseUrl" type="url" required />
+        </label>
+        <label>
+          Checkout URL
+          <input id="checkout-url" name="checkoutUrl" type="url" required />
+        </label>
+        <label>
+          Whop OAuth app id
+          <input id="whop-client-id" name="whopClientId" placeholder="app_xxxxxxxxxxxxx" />
+        </label>
+        <label>
+          Whop access resource id
+          <input id="whop-resource-id" name="whopResourceId" placeholder="exp_or_prod_xxxxxxxxxxxxx" />
+        </label>
+        <label>
+          OAuth scope
+          <input id="oauth-scope" name="oauthScope" value="openid profile email" />
+        </label>
+        <label class="checkbox-row">
+          <input id="mock-mode" name="mockMode" type="checkbox" />
+          Use mock mode until Whop credentials are ready
+        </label>
+
+        <div class="button-row">
+          <button class="button primary" type="submit">Save</button>
+          <button id="reset-options" class="button secondary" type="button">Reset</button>
+          <button id="test-api" class="button secondary" type="button">Test API</button>
+        </div>
+      </form>
+
+      <section class="redirect-box">
+        <p class="eyebrow">Whop redirect URI</p>
+        <code id="redirect-uri"></code>
+        <button id="copy-redirect" class="button secondary" type="button">
+          Copy redirect URI
+        </button>
+      </section>
+
+      <p id="options-status" class="status-line" role="status"></p>
+    </main>
+    <script type="module" src="/src/options.ts"></script>
+  </body>
+</html>

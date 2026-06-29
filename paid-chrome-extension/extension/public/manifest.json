@@ -1,0 +1,21 @@
+{
+  "manifest_version": 3,
+  "name": "Whop Extension Starter",
+  "version": "0.1.0",
+  "description": "A Chrome extension starter for Whop login, billing, and gated access.",
+  "minimum_chrome_version": "113",
+  "permissions": ["identity", "storage"],
+  "host_permissions": ["https://api.whop.com/*", "http://localhost:3001/*"],
+  "action": {
+    "default_title": "Whop Starter",
+    "default_popup": "popup.html"
+  },
+  "options_page": "options.html",
+  "background": {
+    "service_worker": "assets/background.js",
+    "type": "module"
+  },
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'; connect-src 'self' https://api.whop.com http://localhost:3001 https://your-app.vercel.app;"
+  }
+}
