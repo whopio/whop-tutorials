@@ -4,7 +4,7 @@ A condensed reference for building **Cuppa**, a Next.js Ko-fi clone where fans s
 
 This file keeps **full code only for the security-sensitive and Whop-specific parts**: the Whop SDK service layer (connected accounts, inline-plan checkout configurations, ledger reads, access tokens, push notifications), OAuth 2.1/PKCE login and callback, the lazy-validated env module, the iron-session helpers and edge guard, the checkout API with its tip/membership/shop metadata pattern, the embedded checkout widget, the webhook handler with idempotency, the fulfillment module, the embedded payout portal wiring, the sharp-backed upload route, the content-gating logic, and the full Prisma schema. Boring UI and plain CRUD are summarized in a line or two.
 
-- Demo: https://kofi-clone-whop-tutorial.vercel.app
+- Demo: https://kofi-clone-tutorial.vercel.app
 - Source: https://github.com/whopio/whop-tutorials/tree/main/kofi-clone
 
 ---
