@@ -1,0 +1,182 @@
+{
+  "novaclips-1": {
+    "url": "https://nnjygvvtqqkv1wg4.public.blob.vercel-storage.com/seed/videos/novaclips-1.mp4",
+    "durationSeconds": 30,
+    "thumbUrl": "https://nnjygvvtqqkv1wg4.public.blob.vercel-storage.com/seed/thumbnails/novaclips-1.jpg"
+  },
+  "novaclips-2": {
+    "url": "https://nnjygvvtqqkv1wg4.public.blob.vercel-storage.com/seed/videos/novaclips-2.mp4",
+    "durationSeconds": 15,
+    "thumbUrl": "https://nnjygvvtqqkv1wg4.public.blob.vercel-storage.com/seed/thumbnails/novaclips-2.jpg"
+  },
+  "novaclips-3": {
+    "url": "https://nnjygvvtqqkv1wg4.public.blob.vercel-storage.com/seed/videos/novaclips-3.mp4",
+    "durationSeconds": 15,
+    "thumbUrl": "https://nnjygvvtqqkv1wg4.public.blob.vercel-storage.com/seed/thumbnails/novaclips-3.jpg"
+  },
+  "pixelforge-2": {
+    "url": "https://nnjygvvtqqkv1wg4.public.blob.vercel-storage.com/seed/videos/pixelforge-2.mp4",
+    "durationSeconds": 15,
+    "thumbUrl": "https://nnjygvvtqqkv1wg4.public.blob.vercel-storage.com/seed/thumbnails/pixelforge-2.jpg"
+  },
+  "dailyknead-2": {
+    "url": "https://nnjygvvtqqkv1wg4.public.blob.vercel-storage.com/seed/videos/dailyknead-2.mp4",
+    "durationSeconds": 15,
+    "thumbUrl": "https://nnjygvvtqqkv1wg4.public.blob.vercel-storage.com/seed/thumbnails/dailyknead-2.jpg"
+  },
+  "dailyknead-3": {
+    "url": "https://nnjygvvtqqkv1wg4.public.blob.vercel-storage.com/seed/videos/dailyknead-3.mp4",
+    "durationSeconds": 15,
+    "thumbUrl": "https://nnjygvvtqqkv1wg4.public.blob.vercel-storage.com/seed/thumbnails/dailyknead-3.jpg"
+  },
+  "trailhead-2": {
+    "url": "https://nnjygvvtqqkv1wg4.public.blob.vercel-storage.com/seed/videos/trailhead-2.mp4",
+    "durationSeconds": 15,
+    "thumbUrl": "https://nnjygvvtqqkv1wg4.public.blob.vercel-storage.com/seed/thumbnails/trailhead-2.jpg"
+  },
+  "synthlab-2": {
+    "url": "https://nnjygvvtqqkv1wg4.public.blob.vercel-storage.com/seed/videos/synthlab-2.mp4",
+    "durationSeconds": 15,
+    "thumbUrl": "https://nnjygvvtqqkv1wg4.public.blob.vercel-storage.com/seed/thumbnails/synthlab-2.jpg"
+  },
+  "mindthegap-1": {
+    "url": "https://nnjygvvtqqkv1wg4.public.blob.vercel-storage.com/seed/videos/mindthegap-1.mp4",
+    "durationSeconds": 15,
+    "thumbUrl": "https://nnjygvvtqqkv1wg4.public.blob.vercel-storage.com/seed/thumbnails/mindthegap-1.jpg"
+  },
+  "pixelforge-3": {
+    "url": "https://nnjygvvtqqkv1wg4.public.blob.vercel-storage.com/seed/videos/pixelforge-3.mp4",
+    "durationSeconds": 5,
+    "thumbUrl": "https://nnjygvvtqqkv1wg4.public.blob.vercel-storage.com/seed/thumbnails/pixelforge-3.jpg"
+  },
+  "trailhead-3": {
+    "url": "https://nnjygvvtqqkv1wg4.public.blob.vercel-storage.com/seed/videos/trailhead-3.mp4",
+    "durationSeconds": 5,
+    "thumbUrl": "https://nnjygvvtqqkv1wg4.public.blob.vercel-storage.com/seed/thumbnails/trailhead-3.jpg"
+  },
+  "synthlab-3": {
+    "url": "https://nnjygvvtqqkv1wg4.public.blob.vercel-storage.com/seed/videos/synthlab-3.mp4",
+    "durationSeconds": 5,
+    "thumbUrl": "https://nnjygvvtqqkv1wg4.public.blob.vercel-storage.com/seed/thumbnails/synthlab-3.jpg"
+  },
+  "novaclips-s2": {
+    "url": "https://nnjygvvtqqkv1wg4.public.blob.vercel-storage.com/seed/videos/novaclips-s2.mp4",
+    "durationSeconds": 5,
+    "thumbUrl": "https://nnjygvvtqqkv1wg4.public.blob.vercel-storage.com/seed/thumbnails/novaclips-s2.jpg"
+  },
+  "novaclips-s3": {
+    "url": "https://nnjygvvtqqkv1wg4.public.blob.vercel-storage.com/seed/videos/novaclips-s3.mp4",
+    "durationSeconds": 5,
+    "thumbUrl": "https://nnjygvvtqqkv1wg4.public.blob.vercel-storage.com/seed/thumbnails/novaclips-s3.jpg"
+  },
+  "pixelforge-s1": {
+    "url": "https://nnjygvvtqqkv1wg4.public.blob.vercel-storage.com/seed/videos/pixelforge-s1.mp4",
+    "durationSeconds": 5,
+    "thumbUrl": "https://nnjygvvtqqkv1wg4.public.blob.vercel-storage.com/seed/thumbnails/pixelforge-s1.jpg"
+  },
+  "pixelforge-s2": {
+    "url": "https://nnjygvvtqqkv1wg4.public.blob.vercel-storage.com/seed/videos/pixelforge-s2.mp4",
+    "durationSeconds": 5,
+    "thumbUrl": "https://nnjygvvtqqkv1wg4.public.blob.vercel-storage.com/seed/thumbnails/pixelforge-s2.jpg"
+  },
+  "pixelforge-s3": {
+    "url": "https://nnjygvvtqqkv1wg4.public.blob.vercel-storage.com/seed/videos/pixelforge-s3.mp4",
+    "durationSeconds": 5,
+    "thumbUrl": "https://nnjygvvtqqkv1wg4.public.blob.vercel-storage.com/seed/thumbnails/pixelforge-s3.jpg"
+  },
+  "dailyknead-s1": {
+    "url": "https://nnjygvvtqqkv1wg4.public.blob.vercel-storage.com/seed/videos/dailyknead-s1.mp4",
+    "durationSeconds": 5,
+    "thumbUrl": "https://nnjygvvtqqkv1wg4.public.blob.vercel-storage.com/seed/thumbnails/dailyknead-s1.jpg"
+  },
+  "dailyknead-s2": {
+    "url": "https://nnjygvvtqqkv1wg4.public.blob.vercel-storage.com/seed/videos/dailyknead-s2.mp4",
+    "durationSeconds": 5,
+    "thumbUrl": "https://nnjygvvtqqkv1wg4.public.blob.vercel-storage.com/seed/thumbnails/dailyknead-s2.jpg"
+  },
+  "dailyknead-s3": {
+    "url": "https://nnjygvvtqqkv1wg4.public.blob.vercel-storage.com/seed/videos/dailyknead-s3.mp4",
+    "durationSeconds": 5,
+    "thumbUrl": "https://nnjygvvtqqkv1wg4.public.blob.vercel-storage.com/seed/thumbnails/dailyknead-s3.jpg"
+  },
+  "trailhead-s1": {
+    "url": "https://nnjygvvtqqkv1wg4.public.blob.vercel-storage.com/seed/videos/trailhead-s1.mp4",
+    "durationSeconds": 5,
+    "thumbUrl": "https://nnjygvvtqqkv1wg4.public.blob.vercel-storage.com/seed/thumbnails/trailhead-s1.jpg"
+  },
+  "trailhead-s2": {
+    "url": "https://nnjygvvtqqkv1wg4.public.blob.vercel-storage.com/seed/videos/trailhead-s2.mp4",
+    "durationSeconds": 5,
+    "thumbUrl": "https://nnjygvvtqqkv1wg4.public.blob.vercel-storage.com/seed/thumbnails/trailhead-s2.jpg"
+  },
+  "trailhead-s3": {
+    "url": "https://nnjygvvtqqkv1wg4.public.blob.vercel-storage.com/seed/videos/trailhead-s3.mp4",
+    "durationSeconds": 5,
+    "thumbUrl": "https://nnjygvvtqqkv1wg4.public.blob.vercel-storage.com/seed/thumbnails/trailhead-s3.jpg"
+  },
+  "synthlab-s1": {
+    "url": "https://nnjygvvtqqkv1wg4.public.blob.vercel-storage.com/seed/videos/synthlab-s1.mp4",
+    "durationSeconds": 5,
+    "thumbUrl": "https://nnjygvvtqqkv1wg4.public.blob.vercel-storage.com/seed/thumbnails/synthlab-s1.jpg"
+  },
+  "synthlab-s2": {
+    "url": "https://nnjygvvtqqkv1wg4.public.blob.vercel-storage.com/seed/videos/synthlab-s2.mp4",
+    "durationSeconds": 5,
+    "thumbUrl": "https://nnjygvvtqqkv1wg4.public.blob.vercel-storage.com/seed/thumbnails/synthlab-s2.jpg"
+  },
+  "synthlab-s3": {
+    "url": "https://nnjygvvtqqkv1wg4.public.blob.vercel-storage.com/seed/videos/synthlab-s3.mp4",
+    "durationSeconds": 5,
+    "thumbUrl": "https://nnjygvvtqqkv1wg4.public.blob.vercel-storage.com/seed/thumbnails/synthlab-s3.jpg"
+  },
+  "mindthegap-s1": {
+    "url": "https://nnjygvvtqqkv1wg4.public.blob.vercel-storage.com/seed/videos/mindthegap-s1.mp4",
+    "durationSeconds": 5,
+    "thumbUrl": "https://nnjygvvtqqkv1wg4.public.blob.vercel-storage.com/seed/thumbnails/mindthegap-s1.jpg"
+  },
+  "mindthegap-s2": {
+    "url": "https://nnjygvvtqqkv1wg4.public.blob.vercel-storage.com/seed/videos/mindthegap-s2.mp4",
+    "durationSeconds": 5,
+    "thumbUrl": "https://nnjygvvtqqkv1wg4.public.blob.vercel-storage.com/seed/thumbnails/mindthegap-s2.jpg"
+  },
+  "mindthegap-s3": {
+    "url": "https://nnjygvvtqqkv1wg4.public.blob.vercel-storage.com/seed/videos/mindthegap-s3.mp4",
+    "durationSeconds": 5,
+    "thumbUrl": "https://nnjygvvtqqkv1wg4.public.blob.vercel-storage.com/seed/thumbnails/mindthegap-s3.jpg"
+  },
+  "pixelforge-1": {
+    "url": "https://nnjygvvtqqkv1wg4.public.blob.vercel-storage.com/seed/videos/pixelforge-1.mp4",
+    "durationSeconds": 30,
+    "thumbUrl": "https://nnjygvvtqqkv1wg4.public.blob.vercel-storage.com/seed/thumbnails/pixelforge-1.jpg"
+  },
+  "dailyknead-1": {
+    "url": "https://nnjygvvtqqkv1wg4.public.blob.vercel-storage.com/seed/videos/dailyknead-1.mp4",
+    "durationSeconds": 30,
+    "thumbUrl": "https://nnjygvvtqqkv1wg4.public.blob.vercel-storage.com/seed/thumbnails/dailyknead-1.jpg"
+  },
+  "trailhead-1": {
+    "url": "https://nnjygvvtqqkv1wg4.public.blob.vercel-storage.com/seed/videos/trailhead-1.mp4",
+    "durationSeconds": 30,
+    "thumbUrl": "https://nnjygvvtqqkv1wg4.public.blob.vercel-storage.com/seed/thumbnails/trailhead-1.jpg"
+  },
+  "synthlab-1": {
+    "url": "https://nnjygvvtqqkv1wg4.public.blob.vercel-storage.com/seed/videos/synthlab-1.mp4",
+    "durationSeconds": 30,
+    "thumbUrl": "https://nnjygvvtqqkv1wg4.public.blob.vercel-storage.com/seed/thumbnails/synthlab-1.jpg"
+  },
+  "mindthegap-2": {
+    "url": "https://nnjygvvtqqkv1wg4.public.blob.vercel-storage.com/seed/videos/mindthegap-2.mp4",
+    "durationSeconds": 30,
+    "thumbUrl": "https://nnjygvvtqqkv1wg4.public.blob.vercel-storage.com/seed/thumbnails/mindthegap-2.jpg"
+  },
+  "mindthegap-3": {
+    "url": "https://nnjygvvtqqkv1wg4.public.blob.vercel-storage.com/seed/videos/mindthegap-3.mp4",
+    "durationSeconds": 30,
+    "thumbUrl": "https://nnjygvvtqqkv1wg4.public.blob.vercel-storage.com/seed/thumbnails/mindthegap-3.jpg"
+  },
+  "novaclips-s1": {
+    "url": "https://nnjygvvtqqkv1wg4.public.blob.vercel-storage.com/seed/videos/novaclips-s1.mp4",
+    "durationSeconds": 5,
+    "thumbUrl": "https://nnjygvvtqqkv1wg4.public.blob.vercel-storage.com/seed/thumbnails/novaclips-s1.jpg"
+  }
+}
