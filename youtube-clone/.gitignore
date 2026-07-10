@@ -44,9 +44,7 @@ next-env.d.ts
 # local preview screenshots
 /_preview
 
-.vercel
 
 # prisma generated client
 /src/generated
 
-.env*
