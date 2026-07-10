@@ -121,7 +121,7 @@ export default nextConfig;
 
 ### Environment variables
 
-Two Whop API keys with different powers: the **Company API key** (Business Settings → API keys, needs the `access_pass:create` scope) creates products/plans/checkouts/connected accounts/payout tokens; the **App API key** (Developer → your app) does OAuth token exchange and webhook verification. In the Whop dashboard create an app with the `oauth:token_exchange` permission and the `openid profile email` scopes, and register `http://localhost:3000/api/auth/callback` (plus your production URL later) as redirect URIs.
+Two Whop API keys with different powers: the **Company API key** (Whop dashboard → Developer → Company API Keys, needs the `access_pass:create` scope) creates products/plans/checkouts/connected accounts/payout tokens; the **App API key** (Developer → your app) does OAuth token exchange and webhook verification. In the Whop dashboard create an app with the `oauth:token_exchange` permission and the `openid profile email` scopes, and register `http://localhost:3000/api/auth/callback` (plus your production URL later) as redirect URIs.
 
 ### `src/lib/env.ts`
 
@@ -177,18 +177,15 @@ export const devRoutesEnabled = () => process.env.NODE_ENV !== "production";
 ### `.env.example`
 
 ```bash
-# Wavora environment template. Copy to `.env.local` and fill in.
-# Pull from Vercel in CI/other machines with: vercel env pull .env.local
-
 # Whop OAuth (app): Whop dashboard > Developer > Apps > [App] > OAuth
 WHOP_CLIENT_ID=app_xxxxxxxxxxxx
 WHOP_CLIENT_SECRET=xxxxxxxxxxxxxxxxxxxx
 
-# Whop platform (company): Business Settings > API Keys
+# Whop platform (company): Whop dashboard > Developer > Company API Keys
 WHOP_COMPANY_API_KEY=apik_xxxxxxxxxxxx
 WHOP_PLATFORM_COMPANY_ID=biz_xxxxxxxxxxxx
 
-# Webhook signing secret: added in Part 4 (dashboard > Webhooks)
+# Webhook signing secret: added in Part 4 (Whop dashboard > Developer > Apps > Webhooks)
 WHOP_WEBHOOK_SECRET=
 
 # Session: node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"

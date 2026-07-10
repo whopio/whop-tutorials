@@ -69,7 +69,7 @@ cp .env.example .env.local
 See `.env.example` for every variable and where to find it. The short version:
 
 - `WHOP_CLIENT_ID` / `WHOP_CLIENT_SECRET` - your Whop app's OAuth credentials (Developer → your app). Enable the `oauth:token_exchange` permission and the `openid profile email` scopes.
-- `WHOP_COMPANY_API_KEY` - a Company API key (Business Settings → API keys) with the `access_pass:create` scope
+- `WHOP_COMPANY_API_KEY` - a Company API key (Whop dashboard → Developer → Company API Keys) with the `access_pass:create` scope
 - `WHOP_PLATFORM_COMPANY_ID` - your company id (`biz_...`)
 - `WHOP_WEBHOOK_SECRET` - set after creating the webhook (step 8)
 - `SESSION_SECRET` - 32+ random chars: `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`
