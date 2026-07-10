@@ -1,0 +1,114 @@
+@import "tailwindcss";
+
+/* Class-based dark mode, driven by our ThemeProvider adding `.dark` to <html>. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+:root {
+  /* Wavora LIGHT theme — warm off-white, not YouTube's pure white */
+  --canvas: #faf8f3;
+  --surface: #ffffff;
+  --hover: #f0ece3;
+  --hover-strong: #e7e2d6;
+  --fg: #16140f;
+  --fg-muted: #5f5b52;
+  --border: #e7e2d6;
+  --accent: #065fd4;
+  --accent-fg: #ffffff;
+  --brand: #cc0000;
+  --chip: #efebe2;
+  --chip-active: #16140f;
+  --chip-active-fg: #ffffff;
+
+  /* Layout metrics (DESIGN-4/5) */
+  --header-h: 56px;
+  --sidebar-w: 240px;
+  --sidebar-mini-w: 72px;
+}
+
+.dark {
+  /* YouTube-faithful DARK theme (hero) */
+  --canvas: #0f0f0f;
+  --surface: #212121;
+  --hover: #272727;
+  --hover-strong: #3f3f3f;
+  --fg: #f1f1f1;
+  --fg-muted: #aaaaaa;
+  --border: #303030;
+  --accent: #3ea6ff;
+  --accent-fg: #0f0f0f;
+  --brand: #ff0000;
+  --chip: #272727;
+  --chip-active: #f1f1f1;
+  --chip-active-fg: #0f0f0f;
+}
+
+@theme inline {
+  --color-canvas: var(--canvas);
+  --color-surface: var(--surface);
+  --color-hover: var(--hover);
+  --color-hover-strong: var(--hover-strong);
+  --color-fg: var(--fg);
+  --color-fg-muted: var(--fg-muted);
+  --color-border: var(--border);
+  --color-accent: var(--accent);
+  --color-accent-fg: var(--accent-fg);
+  --color-brand: var(--brand);
+  --color-chip: var(--chip);
+  --color-chip-active: var(--chip-active);
+  --color-chip-active-fg: var(--chip-active-fg);
+
+  --font-sans: var(--font-roboto);
+
+  --spacing-header: var(--header-h);
+  --spacing-sidebar: var(--sidebar-w);
+  --spacing-sidebar-mini: var(--sidebar-mini-w);
+}
+
+/* Wavora signature radius — softer than YouTube's tight corners. A static
+   (non-inline) @theme override so rounded-lg/xl/2xl pick up our scale everywhere. */
+@theme {
+  --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
+  --radius-2xl: 1.25rem;
+}
+
+body {
+  background: var(--canvas);
+  color: var(--fg);
+  font-family: var(--font-roboto), Roboto, Arial, sans-serif;
+  font-size: 14px;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Thin YouTube-style scrollbars */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--fg-muted) transparent;
+}
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+*::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--fg-muted) 60%, transparent);
+  border-radius: 9999px;
+}
+
+::selection {
+  background: var(--accent);
+  color: #fff;
+}
+
+/* Create-channel live handle-availability loading dots (CHANNEL-2) */
+@keyframes dot-bounce {
+  0%,
+  80%,
+  100% {
+    transform: translateY(0);
+    opacity: 0.45;
+  }
+  40% {
+    transform: translateY(-5px);
+    opacity: 1;
+  }
+}

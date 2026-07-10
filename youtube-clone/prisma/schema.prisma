@@ -1,0 +1,414 @@
+// Wavora data model. All models defined upfront; some are used in later phases.
+// Firehose tables (View, WatchHistory, WebhookEvent) are kept lean + prunable —
+// see the "Database Scale" notes in CLAUDE.md.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ─── Enums ──────────────────────────────────────────────────────────────────
+
+enum Visibility {
+  PUBLIC
+  UNLISTED
+  PRIVATE
+}
+
+enum VideoStatus {
+  UPLOADING
+  PROCESSING
+  READY
+  ERRORED
+}
+
+enum VideoCategory {
+  MUSIC
+  GAMING
+  NEWS
+  SPORTS
+  COMEDY
+  EDUCATION
+  ENTERTAINMENT
+  TECH
+  PODCASTS
+  COOKING
+  OTHER
+}
+
+enum ReactionType {
+  LIKE
+  DISLIKE
+}
+
+enum CommentStatus {
+  PUBLISHED
+  HELD
+  REMOVED
+  DELETED
+}
+
+enum MemberStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum LedgerSource {
+  MEMBERSHIP
+  SUPER_THANKS
+}
+
+enum NotificationType {
+  NEW_SUBSCRIBER
+  NEW_MEMBER
+  SUPER_THANKS
+  NEW_UPLOAD
+  COMMENT_REPLY
+}
+
+// NOTIFY-1/2: per-subscription bell level. ALL = every upload (the column
+// default: subscribing opts into upload notifications), PERSONALIZED = some,
+// NONE = muted.
+enum NotifyLevel {
+  ALL
+  PERSONALIZED
+  NONE
+}
+
+// ─── Core identity ──────────────────────────────────────────────────────────
+
+model User {
+  id         String   @id @default(cuid())
+  whopUserId String   @unique
+  username   String
+  name          String?
+  email         String?
+  avatarUrl     String?
+  historyPaused Boolean  @default(false) // LIB-5: pause watch history
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  channel          Channel?
+  subscriptions    Subscription[]
+  reactions        Reaction[]
+  comments         Comment[]
+  commentReactions CommentReaction[]
+  watchHistory     WatchHistory[]
+  views            View[]
+  watchLater       WatchLater[]
+  playlists        Playlist[]
+  memberships      ChannelMember[]
+  tips             Tip[]             @relation("TipSupporter")
+  notifications    Notification[]
+}
+
+model Channel {
+  id                 String   @id @default(cuid())
+  userId             String   @unique
+  handle             String   @unique
+  name               String
+  description        String?
+  avatarUrl          String?
+  bannerUrl          String?
+  whopCompanyId      String? // connected account (biz_xxx)
+  payoutEnabled      Boolean  @default(false)
+  superThanksEnabled Boolean  @default(false)
+  membershipsEnabled Boolean  @default(false)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  user            User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  videos          Video[]
+  subscribers     Subscription[]
+  membershipTiers MembershipTier[]
+  members         ChannelMember[]
+  tips            Tip[]
+  earnings        EarningsLedger[]
+}
+
+// ─── Video ──────────────────────────────────────────────────────────────────
+
+model Video {
+  id              String        @id @default(cuid())
+  channelId       String
+  title           String
+  description     String?
+  category        VideoCategory @default(OTHER)
+  visibility      Visibility    @default(PUBLIC)
+  status          VideoStatus   @default(UPLOADING)
+  isShort         Boolean       @default(false)
+  membersOnly     Boolean       @default(false)
+  commentsEnabled Boolean       @default(true)
+
+  // Vercel Blob (object storage; no transcoding — H.264 MP4 for the demo).
+  // Production would add a transcoding/CDN layer (Mux/Cloudinary) for any-format
+  // ingest + adaptive streaming + signed playback. See CLAUDE.md.
+  videoUrl        String? // Blob URL of the uploaded file
+  videoPathname   String? // Blob pathname (for deletion)
+  durationSeconds Int     @default(0)
+  thumbnailUrl    String? // Blob URL of a client-captured poster frame
+
+  // Denormalized aggregate (kept in sync); raw events live in View (prunable).
+  viewCount   Int       @default(0)
+  publishedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  channel       Channel        @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  reactions     Reaction[]
+  comments      Comment[]
+  watchHistory  WatchHistory[]
+  views         View[]
+  watchLater    WatchLater[]
+  playlistItems PlaylistItem[]
+  tips          Tip[]
+
+  @@index([channelId])
+  @@index([visibility, status, publishedAt])
+  @@index([category])
+}
+
+// ─── Engagement ─────────────────────────────────────────────────────────────
+
+model Subscription {
+  id           String      @id @default(cuid())
+  subscriberId String
+  channelId    String
+  notify       NotifyLevel @default(ALL)
+  createdAt    DateTime    @default(now())
+
+  subscriber User    @relation(fields: [subscriberId], references: [id], onDelete: Cascade)
+  channel    Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+
+  @@unique([subscriberId, channelId])
+  @@index([channelId])
+}
+
+model Reaction {
+  id        String       @id @default(cuid())
+  userId    String
+  videoId   String
+  type      ReactionType
+  createdAt DateTime     @default(now())
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  video Video @relation(fields: [videoId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, videoId])
+  @@index([videoId, type])
+}
+
+model Comment {
+  id                String        @id @default(cuid())
+  videoId           String
+  authorId          String
+  parentId          String?
+  body              String
+  status            CommentStatus @default(PUBLISHED)
+  isPinned          Boolean       @default(false)
+  heartedByCreator  Boolean       @default(false)
+  isSuperThanks     Boolean       @default(false)
+  superThanksAmount Int? // cents
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  video     Video             @relation(fields: [videoId], references: [id], onDelete: Cascade)
+  author    User              @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  parent    Comment?          @relation("CommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies   Comment[]         @relation("CommentReplies")
+  reactions CommentReaction[]
+
+  @@index([videoId, status, createdAt])
+  @@index([parentId])
+}
+
+model CommentReaction {
+  id        String   @id @default(cuid())
+  userId    String
+  commentId String
+  createdAt DateTime @default(now())
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  comment Comment @relation(fields: [commentId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, commentId])
+}
+
+// ─── Library / history (firehose — keep lean) ───────────────────────────────
+
+model WatchHistory {
+  id              String   @id @default(cuid())
+  userId          String
+  videoId         String
+  positionSeconds Int      @default(0)
+  completed       Boolean  @default(false)
+  lastWatchedAt   DateTime @default(now())
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  video Video @relation(fields: [videoId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, videoId]) // one upserted row per (user, video), not per event
+  @@index([userId, lastWatchedAt])
+}
+
+// Dedup rows for view counting. sessionKey carries a debounce bucket
+// (e.g. "<userOrAnonHash>:<dayBucket>"). Prunable on a retention window.
+model View {
+  id         String   @id @default(cuid())
+  videoId    String
+  userId     String?
+  sessionKey String
+  createdAt  DateTime @default(now())
+
+  video Video @relation(fields: [videoId], references: [id], onDelete: Cascade)
+  user  User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@unique([videoId, sessionKey])
+  @@index([videoId])
+  @@index([createdAt])
+}
+
+model WatchLater {
+  id      String   @id @default(cuid())
+  userId  String
+  videoId String
+  addedAt DateTime @default(now())
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  video Video @relation(fields: [videoId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, videoId])
+}
+
+model Playlist {
+  id          String     @id @default(cuid())
+  ownerId     String
+  title       String
+  description String?
+  visibility  Visibility @default(PRIVATE)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  owner User           @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  items PlaylistItem[]
+
+  @@index([ownerId])
+}
+
+model PlaylistItem {
+  id         String   @id @default(cuid())
+  playlistId String
+  videoId    String
+  position   Int
+  addedAt    DateTime @default(now())
+
+  playlist Playlist @relation(fields: [playlistId], references: [id], onDelete: Cascade)
+  video    Video    @relation(fields: [videoId], references: [id], onDelete: Cascade)
+
+  @@unique([playlistId, videoId])
+  @@index([playlistId, position])
+}
+
+// ─── Monetization ───────────────────────────────────────────────────────────
+
+model MembershipTier {
+  id            String   @id @default(cuid())
+  channelId     String
+  name          String
+  description   String?
+  priceCents    Int
+  whopPlanId    String?
+  whopProductId String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  channel Channel         @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  members ChannelMember[]
+
+  @@index([channelId])
+}
+
+model ChannelMember {
+  id               String       @id @default(cuid())
+  userId           String
+  channelId        String
+  tierId           String?
+  status           MemberStatus @default(ACTIVE)
+  whopMembershipId String?      @unique
+  startedAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  user    User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  channel Channel         @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  tier    MembershipTier? @relation(fields: [tierId], references: [id], onDelete: SetNull)
+
+  @@unique([userId, channelId])
+  @@index([channelId, status])
+}
+
+model Tip {
+  id            String   @id @default(cuid())
+  supporterId   String
+  channelId     String
+  videoId       String?
+  amountCents   Int
+  feeCents      Int
+  netCents      Int
+  currency      String   @default("usd")
+  message       String?
+  whopPaymentId String   @unique
+  createdAt     DateTime @default(now())
+
+  supporter User    @relation("TipSupporter", fields: [supporterId], references: [id], onDelete: Cascade)
+  channel   Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  video     Video?  @relation(fields: [videoId], references: [id], onDelete: SetNull)
+
+  @@index([channelId])
+}
+
+model EarningsLedger {
+  id            String       @id @default(cuid())
+  channelId     String
+  source        LedgerSource
+  grossCents    Int
+  feeCents      Int
+  netCents      Int
+  currency      String       @default("usd")
+  whopPaymentId String       @unique
+  videoId       String?
+  createdAt     DateTime     @default(now())
+
+  channel Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+
+  @@index([channelId, createdAt])
+}
+
+// ─── Notifications / platform ───────────────────────────────────────────────
+
+model Notification {
+  id          String           @id @default(cuid())
+  recipientId String
+  type        NotificationType
+  title       String
+  body        String?
+  data        Json?
+  readAt      DateTime?
+  createdAt   DateTime         @default(now())
+
+  recipient User @relation(fields: [recipientId], references: [id], onDelete: Cascade)
+
+  @@index([recipientId, createdAt])
+}
+
+// Idempotency keys for Whop + Mux webhooks. Prunable after a retention window.
+model WebhookEvent {
+  id          String   @id // external event id
+  source      String // "whop" | "mux"
+  processedAt DateTime @default(now())
+
+  @@index([processedAt])
+}
