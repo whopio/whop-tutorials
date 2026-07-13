@@ -1,0 +1,30 @@
+{
+  "name": "nextjs-whop-chat-demo",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "setup": "node scripts/setup-sandbox.mjs",
+    "setup:prod": "node scripts/setup-prod.mjs"
+  },
+  "dependencies": {
+    "@whop/embedded-components-react-js": "^1.0.0",
+    "@whop/embedded-components-vanilla-js": "^1.0.0",
+    "@whop/react": "^0.3.2",
+    "@whop/sdk": "^0.0.40",
+    "next": "16.2.6",
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "tailwindcss": "^4",
+    "typescript": "^5"
+  }
+}
