@@ -1,0 +1,31 @@
+{
+  "name": "nextjs-whop-kyc-demo",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test --experimental-strip-types lib/*.test.ts"
+  },
+  "dependencies": {
+    "@whop/embedded-components-react-js": "^1.2.0",
+    "@whop/embedded-components-vanilla-js": "^1.2.0",
+    "@whop/react": "^0.3.2",
+    "@whop/sdk": "^0.0.42",
+    "iron-session": "^8.0.4",
+    "next": "16.3.0",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "tailwindcss": "^4",
+    "typescript": "^5"
+  }
+}

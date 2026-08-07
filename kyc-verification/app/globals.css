@@ -1,0 +1,116 @@
+@import "tailwindcss";
+@import "@whop/react/styles.css";
+
+/* The live demo uses Whop's licensed typefaces (Acid Grotesk and Inter).
+ * Those font files are not redistributed in this repo, so the stacks below
+ * fall back to system fonts. Drop your own files in public/fonts and add
+ * @font-face rules here if you want the exact look.
+ */
+
+:root {
+  --font-body: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-acid: var(--font-body);
+}
+
+.frosted-ui {
+  /* Body text uses Inter; headings use Acid Grotesk. */
+  --default-font-family: var(--font-body);
+  --heading-font-family: var(--font-acid);
+  --strong-font-family: var(--font-body);
+
+  --default-font-weight: var(--font-weight-regular);
+  --strong-font-weight: var(--font-weight-semi-bold);
+}
+
+/* Opt-in 1.5x scale. Only applied at ≥768px viewports so mobile keeps
+   the comfortable default sizing. */
+@media (min-width: 768px) {
+  [data-scale="lg"] {
+    --space-1: 6px;
+    --space-2: 12px;
+    --space-3: 18px;
+    --space-4: 24px;
+    --space-5: 36px;
+    --space-6: 48px;
+    --space-7: 60px;
+    --space-8: 72px;
+    --space-9: 96px;
+
+    --font-size-0: 15px;
+    --font-size-1: 18px;
+    --font-size-2: 21px;
+    --font-size-3: 24px;
+    --font-size-4: 27px;
+    --font-size-5: 30px;
+    --font-size-6: 36px;
+    --font-size-7: 42px;
+    --font-size-8: 48px;
+    --font-size-9: 60px;
+
+    --line-height-0: 18px;
+    --line-height-1: 24px;
+    --line-height-2: 30px;
+    --line-height-3: 36px;
+    --line-height-4: 39px;
+    --line-height-5: 42px;
+    --line-height-6: 45px;
+    --line-height-7: 51px;
+    --line-height-8: 57px;
+    --line-height-9: 72px;
+
+    --heading-line-height-1: 24px;
+    --heading-line-height-2: 27px;
+    --heading-line-height-3: 33px;
+    --heading-line-height-4: 36px;
+    --heading-line-height-5: 39px;
+    --heading-line-height-6: 45px;
+    --heading-line-height-7: 51px;
+    --heading-line-height-8: 57px;
+    --heading-line-height-9: 72px;
+
+    --radius-1: 5px;
+    --radius-2: 6px;
+    --radius-3: 9px;
+    --radius-4: 12px;
+    --radius-5: 18px;
+    --radius-6: 24px;
+  }
+}
+
+/* Whop's embedded elements size their own iframe and settle on 150px here,
+   which clips the form to its header and footer. They never grow past it, so
+   give them a floor to sit on. */
+[data-annotation-id="verify"] iframe {
+  min-height: 620px;
+}
+
+/* The verify element draws its own title bar with a close button. The element
+   has no option to turn that off and the frame is cross origin, so nothing
+   inside it can be styled. Crop the row instead. Our own panel heading already
+   says what this is, and a close button that empties the step is not something
+   we want offered. */
+.embed-crop-header {
+  overflow: hidden;
+}
+
+.embed-crop-header > * {
+  margin-top: -60px;
+}
+
+/* Frosted UI buttons don't ship with cursor: pointer; opt in. */
+.fui-Button,
+.fui-IconButton,
+button[type="button"],
+button[type="submit"],
+button[type="reset"],
+[role="button"],
+a.fui-Button {
+  cursor: pointer;
+}
+
+.fui-Button:disabled,
+.fui-IconButton:disabled,
+button:disabled {
+  cursor: not-allowed;
+}
