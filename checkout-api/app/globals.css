@@ -1,5 +1,6 @@
 @import "tailwindcss";
-@import "@whop/react/styles.css";
+/* Frosted UI styles load only on the walkthrough page (app/page.tsx), so the
+   article pages render with Tailwind alone, as they would in a reader's app. */
 
 /* The live demo uses Whop's licensed typefaces (Acid Grotesk and Inter).
  * Those font files are not redistributed in this repo, so the stacks below
@@ -128,4 +129,10 @@ a.fui-Button {
 .fui-IconButton:disabled,
 button:disabled {
   cursor: not-allowed;
+}
+
+/* The article pages render outside .frosted-ui, so give the body
+   the house body font directly. */
+body {
+  font-family: var(--font-body);
 }

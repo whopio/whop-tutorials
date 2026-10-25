@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { whop } from "@/lib/whop";
-import { getEnv } from "@/lib/env";
 import { WHOP_IDS } from "@/constants/whop-ids";
 
 // Demo chrome. The order id comes from the browser and is never stored. That
@@ -19,12 +18,6 @@ export async function POST(request: Request) {
   }
 
   const { orderId } = parsed.data;
-  const env = getEnv();
-
-  const redirectUrl = env.APP_URL.startsWith("https://")
-    ? `${env.APP_URL}/?returned=1&order_id=${orderId}`
-    : undefined;
-
   const started = Date.now();
 
   const configuration = await whop().checkoutConfigurations.create(
@@ -32,16 +25,13 @@ export async function POST(request: Request) {
       plan_id: WHOP_IDS.planId,
       mode: "payment",
       metadata: { order_id: orderId },
-      ...(redirectUrl ? { redirect_url: redirectUrl } : {}),
     },
-    { headers: { "Idempotency-Key": `demo-${orderId}` } },
+    { idempotencyKey: `demo-${orderId}` },
   );
 
   return NextResponse.json({
     id: configuration.id,
-    purchaseUrl: configuration.purchase_url,
     metadata: configuration.metadata ?? null,
-    redirectUrl: configuration.redirect_url ?? null,
     tookMs: Date.now() - started,
   });
 }

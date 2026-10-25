@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import { WhopCheckoutEmbed } from "@whop/checkout/react";
+import { loadWhop } from "@whop/elements";
+import { Checkout as WhopCheckout, CheckoutElement, WhopElements } from "@whop/elements-react";
 import { Badge, Button, Code, Heading, Text } from "@whop/react/components";
 import { ActivityLog, logEntry, type ActivityEntry } from "@/components/ActivityLog";
 
@@ -16,14 +17,13 @@ export interface PlanInfo {
 interface SessionInfo {
   id: string;
   metadata: Record<string, string> | null;
-  purchaseUrl: string;
 }
 
 interface Receipt {
   id: string;
   status: string;
   substatus: string | null;
-  total: number | null;
+  total: string | null;
   currency: string;
   metadata: Record<string, string> | null;
   cardBrand: string | null;
@@ -121,17 +121,17 @@ export function CheckoutLab({
   );
 
   const verify = useCallback(
-    async (receiptId: string) => {
+    async (paymentId: string) => {
       setBusy("verify");
-      note("embed.onComplete", receiptId);
+      note("checkout.onComplete", paymentId);
 
       for (let attempt = 0; attempt < VERIFY_ATTEMPTS; attempt++) {
-        note("POST /payments/retrieve", `${receiptId}, asking Whop`);
+        note("GET /payments/{id}", `${paymentId}, asking Whop`);
 
         const response = await fetch("/api/demo/verify", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ receiptId }),
+          body: JSON.stringify({ paymentId }),
         });
 
         if (response.ok) {
@@ -160,12 +160,12 @@ export function CheckoutLab({
   );
 
   const handleComplete = useCallback(
-    (_planId: string, receiptId?: string) => {
-      if (!receiptId) {
-        setError("The checkout finished but no receipt came back.");
+    (completion: { result: string; paymentId?: string }) => {
+      if (completion.result !== "payment" || !completion.paymentId) {
+        setError("The checkout finished but no payment came back.");
         return;
       }
-      void verify(receiptId);
+      void verify(completion.paymentId);
     },
     [verify],
   );
@@ -290,21 +290,22 @@ export function CheckoutLab({
               date, any three digits.
             </Text>
             <div className="overflow-hidden rounded-lg border border-[#E5E4E0]">
-              <WhopCheckoutEmbed
-                sessionId={session.id}
-                environment={environment}
-                returnUrl={returnUrl}
-                theme="light"
-                themeOptions={{ accentColor: "orange" }}
-                onComplete={handleComplete}
-                fallback={
-                  <div className="flex h-64 items-center justify-center">
-                    <Text size="2" color="gray">
-                      Loading the checkout
-                    </Text>
-                  </div>
-                }
-              />
+              <WhopElements elements={loadWhop()} environment={environment}>
+                <WhopCheckout
+                  checkoutConfiguration={session.id}
+                  returnUrl={returnUrl}
+                  onComplete={handleComplete}
+                  fallback={
+                    <div className="flex h-64 items-center justify-center">
+                      <Text size="2" color="gray">
+                        Loading the checkout
+                      </Text>
+                    </div>
+                  }
+                >
+                  <CheckoutElement />
+                </WhopCheckout>
+              </WhopElements>
             </div>
           </div>
         )}

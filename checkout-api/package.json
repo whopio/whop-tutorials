@@ -9,10 +9,11 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@whop/checkout": "^0.3.1",
+    "@whop/elements": "1.9.0",
+    "@whop/elements-react": "1.9.0",
     "@whop/react": "^0.3.2",
-    "@whop/sdk": "^0.0.42",
-    "next": "16.2.6",
+    "@whop/sdk": "2.4.0",
+    "next": "16.4.3",
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "zod": "^4.4.3"

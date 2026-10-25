@@ -1,5 +1,6 @@
 import { markPaid } from "@/lib/orders";
 import { recordDelivery } from "@/lib/webhook-log";
+import { WHOP_IDS } from "@/constants/whop-ids";
 
 export interface WhopWebhookEvent {
   type: string;
@@ -20,6 +21,16 @@ function readOrderId(data: Record<string, unknown>): string | undefined {
   return typeof orderId === "string" ? orderId : undefined;
 }
 
+function readPlanId(data: Record<string, unknown>): string | undefined {
+  if (typeof data.plan_id === "string") return data.plan_id;
+
+  const plan = data.plan;
+  if (!plan || typeof plan !== "object") return undefined;
+
+  const planId = (plan as Record<string, unknown>).id;
+  return typeof planId === "string" ? planId : undefined;
+}
+
 // Replace this with what "they bought it" means in this app: flip a column,
 // insert a row, send the licence key, add them to the group.
 async function grantAccess(userId: string): Promise<void> {
@@ -32,6 +43,10 @@ export async function fulfil(
 ): Promise<FulfilResult> {
   if (event.type !== "payment.succeeded") {
     return { outcome: "ignored", reason: `nothing to do for ${event.type}` };
+  }
+
+  if (readPlanId(event.data) !== WHOP_IDS.planId) {
+    return { outcome: "ignored", reason: "payment for another product" };
   }
 
   const orderId = readOrderId(event.data);

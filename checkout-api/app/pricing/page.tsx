@@ -2,10 +2,14 @@ import { Checkout } from "@/components/Checkout";
 import { getEnv } from "@/lib/env";
 import { WHOP_IDS } from "@/constants/whop-ids";
 
-export const dynamic = "force-dynamic";
-
-export default function PricingPage() {
+export default async function PricingPage({
+  searchParams,
+}: {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}) {
   const env = getEnv();
+  const { payment, payment_id, status } = await searchParams;
+  const paymentId = typeof payment === "string" ? payment : payment_id;
 
   return (
     <main className="mx-auto flex min-h-screen max-w-md flex-col justify-center gap-6 px-6">
@@ -21,6 +25,11 @@ export default function PricingPage() {
       <Checkout
         environment={env.WHOP_SANDBOX ? "sandbox" : "production"}
         returnUrl={`${env.APP_URL}/pricing`}
+        returned={
+          typeof paymentId === "string" && typeof status === "string"
+            ? { paymentId, status }
+            : undefined
+        }
       />
     </main>
   );

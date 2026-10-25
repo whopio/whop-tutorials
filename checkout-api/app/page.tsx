@@ -1,3 +1,4 @@
+import "@whop/react/styles.css";
 import { randomUUID } from "node:crypto";
 import { getEnv } from "@/lib/env";
 import { whop } from "@/lib/whop";
@@ -12,8 +13,8 @@ export const dynamic = "force-dynamic";
 export default async function Home() {
   const env = getEnv();
   const [plan, product] = await Promise.all([
-    whop().plans.retrieve(WHOP_IDS.planId),
-    whop().products.retrieve(WHOP_IDS.productId),
+    whop().variants.retrieve({ id: WHOP_IDS.planId }),
+    whop().products.retrieve({ id: WHOP_IDS.productId }),
   ]);
 
   const planInfo: PlanInfo = {

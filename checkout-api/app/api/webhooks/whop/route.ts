@@ -1,10 +1,12 @@
 import { NextResponse } from "next/server";
-import { whop } from "@/lib/whop";
+import { unwrapWebhook } from "@whop/sdk/helpers";
 import { getEnv } from "@/lib/env";
 import { fulfil, type WhopWebhookEvent } from "@/lib/fulfil";
 
 export async function POST(request: Request) {
-  if (!getEnv().WHOP_WEBHOOK_SECRET) {
+  const secret = getEnv().WHOP_WEBHOOK_SECRET;
+
+  if (!secret) {
     return NextResponse.json({ error: "webhook secret is not configured" }, { status: 500 });
   }
 
@@ -14,7 +16,7 @@ export async function POST(request: Request) {
   let event: WhopWebhookEvent;
 
   try {
-    event = whop().webhooks.unwrap(raw, { headers }) as unknown as WhopWebhookEvent;
+    event = unwrapWebhook<WhopWebhookEvent>(raw, { headers, key: secret });
   } catch {
     return NextResponse.json({ error: "bad signature" }, { status: 401 });
   }

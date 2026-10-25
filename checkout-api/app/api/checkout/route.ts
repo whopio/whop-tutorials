@@ -19,8 +19,8 @@ export async function POST() {
       mode: "payment",
       metadata: { order_id: order.id },
     },
-    { headers: { "Idempotency-Key": `checkout-${order.id}` } },
+    { idempotencyKey: `checkout-${order.id}` },
   );
 
-  return NextResponse.json({ orderId: order.id, sessionId: checkout.id });
+  return NextResponse.json({ orderId: order.id, checkoutId: checkout.id });
 }

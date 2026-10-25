@@ -1,23 +1,43 @@
 "use client";
 
-import { useState } from "react";
-import { WhopCheckoutEmbed } from "@whop/checkout/react";
+import { useEffect, useRef, useState } from "react";
+import { loadWhop } from "@whop/elements";
+import { Checkout as WhopCheckout, CheckoutElement, WhopElements } from "@whop/elements-react";
 
 type Stage =
   | { name: "idle" }
-  | { name: "paying"; sessionId: string }
+  | { name: "paying"; checkoutId: string }
   | { name: "checking" }
   | { name: "done" }
   | { name: "failed"; message: string };
 
+type Returned = { paymentId: string; status: string };
+
+function firstStage(returned?: Returned): Stage {
+  if (!returned) return { name: "idle" };
+
+  if (returned.status === "failed" || returned.status === "canceled") {
+    return { name: "failed", message: "That payment did not go through. You can try again." };
+  }
+
+  return { name: "checking" };
+}
+
 export function Checkout({
   environment,
   returnUrl,
+  returned,
 }: {
   environment: "production" | "sandbox";
   returnUrl: string;
+  returned?: Returned;
 }) {
-  const [stage, setStage] = useState<Stage>({ name: "idle" });
+  const [stage, setStage] = useState<Stage>(() => firstStage(returned));
+  const confirming = useRef(false);
+
+  useEffect(() => {
+    if (returned && firstStage(returned).name === "checking") void confirm(returned.paymentId);
+  }, [returned]);
 
   async function start() {
     const response = await fetch("/api/checkout", { method: "POST" });
@@ -27,34 +47,40 @@ export function Checkout({
       return;
     }
 
-    const { sessionId } = (await response.json()) as { sessionId: string };
-    setStage({ name: "paying", sessionId });
+    const { checkoutId } = (await response.json()) as { checkoutId: string };
+    setStage({ name: "paying", checkoutId });
   }
 
-  async function confirm(receiptId: string) {
+  async function confirm(paymentId: string) {
+    if (confirming.current) return;
+    confirming.current = true;
     setStage({ name: "checking" });
 
-    for (let attempt = 0; attempt < 10; attempt++) {
-      const response = await fetch("/api/verify", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ receiptId }),
-      });
+    try {
+      for (let attempt = 0; attempt < 10; attempt++) {
+        const response = await fetch("/api/verify", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ paymentId }),
+        });
 
-      if (response.ok) {
-        setStage({ name: "done" });
-        return;
+        if (response.status === 200) {
+          setStage({ name: "done" });
+          return;
+        }
+
+        if (response.status !== 202) {
+          setStage({ name: "failed", message: "We could not confirm that payment." });
+          return;
+        }
+
+        await new Promise((resolve) => setTimeout(resolve, 2000));
       }
 
-      if (response.status !== 202) {
-        setStage({ name: "failed", message: "We could not confirm that payment." });
-        return;
-      }
-
-      await new Promise((resolve) => setTimeout(resolve, 2000));
+      setStage({ name: "failed", message: "Whop is taking longer than usual to confirm this." });
+    } finally {
+      confirming.current = false;
     }
-
-    setStage({ name: "failed", message: "Whop is taking longer than usual to confirm this." });
   }
 
   if (stage.name === "done") {
@@ -67,16 +93,18 @@ export function Checkout({
 
   if (stage.name === "paying") {
     return (
-      <WhopCheckoutEmbed
-        sessionId={stage.sessionId}
-        environment={environment}
-        returnUrl={returnUrl}
-        theme="light"
-        onComplete={(_planId, receiptId) => {
-          if (receiptId) void confirm(receiptId);
-        }}
-        fallback={<p className="text-neutral-600">Loading the checkout.</p>}
-      />
+      <WhopElements elements={loadWhop()} environment={environment}>
+        <WhopCheckout
+          checkoutConfiguration={stage.checkoutId}
+          returnUrl={returnUrl}
+          onComplete={(completion) => {
+            if (completion.result === "payment") void confirm(completion.paymentId);
+          }}
+          fallback={<p className="text-neutral-600">Loading the checkout.</p>}
+        >
+          <CheckoutElement />
+        </WhopCheckout>
+      </WhopElements>
     );
   }
 
