@@ -2,6 +2,9 @@ import { getServerEnv } from "./env";
 import type { AccessLevel } from "./types";
 
 const WHOP_API_BASE = "https://api.whop.com";
+// Pin the API version so the membership filters below mean the same thing for every
+// API key. Newer keys default to the latest version, older keys to a legacy one.
+const WHOP_API_VERSION = "2026-10-09-2";
 
 export type WhopUserInfo = {
   sub: string;
@@ -115,11 +118,11 @@ export async function findBillingPortalUrl({
   const env = getServerEnv();
   const params = new URLSearchParams({
     first: "10",
-    user_ids: userId
+    user_id: userId
   });
 
   if (env.whopCompanyId) {
-    params.set("company_id", env.whopCompanyId);
+    params.set("account_id", env.whopCompanyId);
   }
 
   if (env.whopResourceId.startsWith("prod_")) {
@@ -133,7 +136,8 @@ export async function findBillingPortalUrl({
   async function requestMemberships(authToken: string) {
     const response = await fetch(`${WHOP_API_BASE}/api/v1/memberships?${params}`, {
       headers: {
-        Authorization: `Bearer ${authToken}`
+        Authorization: `Bearer ${authToken}`,
+        "Api-Version-Date": WHOP_API_VERSION
       },
       cache: "no-store",
       signal: AbortSignal.timeout(8000)

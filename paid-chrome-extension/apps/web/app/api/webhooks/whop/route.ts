@@ -4,22 +4,20 @@ export const dynamic = "force-dynamic";
 
 export async function POST(request: NextRequest) {
   const webhookSecret = process.env.WHOP_WEBHOOK_SECRET;
-  const apiKey = process.env.WHOP_API_KEY;
 
-  if (!webhookSecret || !apiKey) {
+  if (!webhookSecret) {
     return new Response("Webhook verification is not configured", { status: 501 });
   }
 
   try {
-    const { Whop } = await import("@whop/sdk");
-    const whop = new Whop({
-      apiKey,
-      webhookKey: Buffer.from(webhookSecret).toString("base64")
-    });
+    const { unwrapWebhook } = await import("@whop/sdk/helpers");
 
     const requestBodyText = await request.text();
     const headers = Object.fromEntries(request.headers.entries());
-    const webhookData = whop.webhooks.unwrap(requestBodyText, { headers });
+    const webhookData = unwrapWebhook<{ type: string }>(requestBodyText, {
+      headers,
+      key: webhookSecret
+    });
 
     // In a database-backed app, enqueue this event and dedupe by the webhook id.
     const webhookId =

@@ -21,8 +21,8 @@ importers:
         specifier: ^0.0.52
         version: 0.0.52(react@19.2.6)
       '@whop/sdk':
-        specifier: ^0.0.39
-        version: 0.0.39
+        specifier: 2.4.0
+        version: 2.4.0
       next:
         specifier: ^16.2.6
         version: 16.2.6(@babel/core@7.29.0)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
@@ -817,8 +817,9 @@ packages:
       react:
         optional: true
 
-  '@whop/sdk@0.0.39':
-    resolution: {integrity: sha512-TuGXT0Bj0J+epcionN5PuvteuAyJn3ruu1S06l2QhoR/j2NfzQj7lebDpt84cnzkDEHSc9XmPhFauDoxquSqOg==}
+  '@whop/sdk@2.4.0':
+    resolution: {integrity: sha512-A45/GxiNk9WLxICKliN4+NAf2Qsw+PFTwE6saisGcBXtp5q9uElFOJ7vp7FZc36ykCS2zolomKbWydweeDCIYQ==}
+    engines: {node: '>=18.0.0'}
 
   acorn-jsx@5.3.2:
     resolution: {integrity: sha512-rq9s+JNhf0IChjtDXxllJ7g41oZk5SlXtp0LHwyA5cejwn7vKmKp4pPri6YEePv2PU65sAsegbXtIinmDFDXgQ==}
@@ -1473,9 +1474,6 @@ packages:
   iterator.prototype@1.1.5:
     resolution: {integrity: sha512-H0dkQoCa3b2VEeKQBOxFph+JAbcrQdE7KC0UkqwpLmv2EC4P41QXP+rqo9wYodACiG5/WM5s9oDApTU8utwj9g==}
     engines: {node: '>= 0.4'}
-
-  jose@6.2.3:
-    resolution: {integrity: sha512-YYVDInQKFJfR/xa3ojUTl8c2KoTwiL1R5Wg9YCydwH0x0B9grbzlg5HC7mMjCtUJjbQ/YnGEZIhI5tCgfTb4Hw==}
 
   js-tokens@4.0.0:
     resolution: {integrity: sha512-RdJUflcE3cUzKiMqQgsCu06FPu9UdIJO0beYbPhHN4k6apgJtifcoCtT9bcxOpYBtpD2kCM6Sbzg4CausW/PKQ==}
@@ -2747,9 +2745,8 @@ snapshots:
     optionalDependencies:
       react: 19.2.6
 
-  '@whop/sdk@0.0.39':
+  '@whop/sdk@2.4.0':
     dependencies:
-      jose: 6.2.3
       standardwebhooks: 1.0.0
 
   acorn-jsx@5.3.2(acorn@8.16.0):
@@ -3605,8 +3602,6 @@ snapshots:
       get-proto: 1.0.1
       has-symbols: 1.1.0
       set-function-name: 2.0.2
-
-  jose@6.2.3: {}
 
   js-tokens@4.0.0: {}
 

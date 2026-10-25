@@ -12,7 +12,7 @@
   },
   "dependencies": {
     "@whop/checkout": "^0.0.52",
-    "@whop/sdk": "^0.0.39",
+    "@whop/sdk": "2.4.0",
     "next": "^16.2.6",
     "react": "^19.2.0",
     "react-dom": "^19.2.0"
