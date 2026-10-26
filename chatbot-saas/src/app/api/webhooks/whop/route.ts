@@ -1,20 +1,27 @@
 import type { NextRequest } from "next/server";
-import { getWhop } from "@/lib/whop";
+import { unwrapWebhook } from "@whop/sdk/helpers";
 import { prisma } from "@/lib/prisma";
+
+type WhopWebhookEvent = {
+  id: string;
+  type: string;
+  data: Record<string, unknown>;
+};
 
 export async function POST(request: NextRequest): Promise<Response> {
   const body = await request.text();
   const headers = Object.fromEntries(request.headers);
 
-  let event;
+  let event: WhopWebhookEvent;
   try {
-    event = getWhop().webhooks.unwrap(body, { headers });
+    event = unwrapWebhook<WhopWebhookEvent>(body, {
+      headers,
+      key: process.env.WHOP_WEBHOOK_SECRET,
+    });
   } catch {
     return new Response("Invalid signature", { status: 401 });
   }
 
-  // Idempotency: try to record the event. If it already exists
-  // (unique constraint on id), we've already processed it.
   try {
     await prisma.webhookEvent.create({ data: { id: event.id } });
   } catch {
@@ -32,25 +39,48 @@ export async function POST(request: NextRequest): Promise<Response> {
   return new Response("OK", { status: 200 });
 }
 
+// Webhooks pinned to a recent API version send flat fields (user_id, product_id,
+// current_period_start). Unpinned webhooks send the older shape (user.id,
+// product.id, renewal_period_start). We read both.
+function readString(data: Record<string, unknown>, key: string): string | null {
+  const value = data[key];
+  if (typeof value === "string") return value;
+  if (typeof value === "number") return String(value);
+  return null;
+}
+
+function readNestedId(data: Record<string, unknown>, key: string): string | null {
+  const value = data[key];
+  if (value && typeof value === "object") {
+    const id = (value as { id?: unknown }).id;
+    if (typeof id === "string") return id;
+  }
+  return null;
+}
+
 async function handleMembershipActivated(
-  membership: {
-    id: string;
-    user?: { id: string } | null;
-    product: { id: string };
-    renewal_period_start: string | null;
-    renewal_period_end: string | null;
-  },
+  membership: Record<string, unknown>,
   eventId: string
 ) {
-  const whopUserId = membership.user?.id;
-  if (!whopUserId) return;
+  const membershipId = readString(membership, "id");
+  const whopUserId =
+    readString(membership, "user_id") ?? readNestedId(membership, "user");
+  const whopProductId =
+    readString(membership, "product_id") ?? readNestedId(membership, "product");
+  if (!membershipId || !whopUserId || !whopProductId) return;
+
+  const periodStart =
+    readString(membership, "current_period_start") ??
+    readString(membership, "renewal_period_start");
+  const periodEnd =
+    readString(membership, "current_period_end") ??
+    readString(membership, "renewal_period_end");
 
   const user = await prisma.user.findUnique({ where: { whopUserId } });
   if (!user) return;
 
-  // Look up the plan by Whop product ID
   const plan = await prisma.plan.findUnique({
-    where: { whopProductId: membership.product.id },
+    where: { whopProductId },
   });
   if (!plan) return;
 
@@ -60,27 +90,28 @@ async function handleMembershipActivated(
       userId: user.id,
       planId: plan.id,
       status: "ACTIVE",
-      whopMembershipId: membership.id,
-      periodStart: parseTimestamp(membership.renewal_period_start),
-      periodEnd: parseTimestamp(membership.renewal_period_end),
+      whopMembershipId: membershipId,
+      periodStart: parseTimestamp(periodStart),
+      periodEnd: parseTimestamp(periodEnd),
       lastWebhookEventId: eventId,
     },
     update: {
       planId: plan.id,
       status: "ACTIVE",
-      whopMembershipId: membership.id,
-      periodStart: parseTimestamp(membership.renewal_period_start),
-      periodEnd: parseTimestamp(membership.renewal_period_end),
+      whopMembershipId: membershipId,
+      periodStart: parseTimestamp(periodStart),
+      periodEnd: parseTimestamp(periodEnd),
       lastWebhookEventId: eventId,
     },
   });
 }
 
 async function handleMembershipDeactivated(
-  membership: { user?: { id: string } | null },
+  membership: Record<string, unknown>,
   eventId: string
 ) {
-  const whopUserId = membership.user?.id;
+  const whopUserId =
+    readString(membership, "user_id") ?? readNestedId(membership, "user");
   if (!whopUserId) return;
 
   const user = await prisma.user.findUnique({ where: { whopUserId } });

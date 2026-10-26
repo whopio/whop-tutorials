@@ -12,5 +12,8 @@ export async function createCheckoutUrl(whopPlanId: string): Promise<string> {
     redirect_url: `${process.env.NEXT_PUBLIC_APP_URL}/chat`,
   });
 
+  if (!config.purchase_url) {
+    throw new Error(`Checkout configuration ${config.id} has no purchase_url`);
+  }
   return config.purchase_url;
 }

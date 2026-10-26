@@ -1,32 +1,28 @@
-import Whop from "@whop/sdk";
+import { WhopClient, WhopEnvironment } from "@whop/sdk";
 
-// Lazy initialization — the Whop SDK throws if env vars are missing,
-// so we defer construction to runtime (not build time).
-let _whop: Whop | null = null;
-export function getWhop(): Whop {
+let _whop: WhopClient | null = null;
+export function getWhop(): WhopClient {
   if (!_whop) {
-    _whop = new Whop({
-      appID: process.env.WHOP_APP_ID!,
-      apiKey: process.env.WHOP_API_KEY!,
-      webhookKey: Buffer.from(process.env.WHOP_WEBHOOK_SECRET || "").toString("base64"),
-      ...(process.env.WHOP_SANDBOX === "true" && {
-        baseURL: "https://sandbox-api.whop.com/api/v1",
-      }),
+    _whop = new WhopClient({
+      token: process.env.WHOP_API_KEY!,
+      environment:
+        process.env.WHOP_SANDBOX === "true"
+          ? WhopEnvironment.Sandbox
+          : WhopEnvironment.Production,
     });
   }
   return _whop;
 }
 
-// Company API key client — used for operations that need higher permissions
-// (product/plan creation) which app API keys don't support.
-let _companyWhop: Whop | null = null;
-export function getCompanyWhop(): Whop {
+let _companyWhop: WhopClient | null = null;
+export function getCompanyWhop(): WhopClient {
   if (!_companyWhop) {
-    _companyWhop = new Whop({
-      apiKey: process.env.WHOP_COMPANY_API_KEY!,
-      ...(process.env.WHOP_SANDBOX === "true" && {
-        baseURL: "https://sandbox-api.whop.com/api/v1",
-      }),
+    _companyWhop = new WhopClient({
+      token: process.env.WHOP_COMPANY_API_KEY!,
+      environment:
+        process.env.WHOP_SANDBOX === "true"
+          ? WhopEnvironment.Sandbox
+          : WhopEnvironment.Production,
     });
   }
   return _companyWhop;
@@ -59,9 +55,6 @@ export const WHOP_OAUTH = {
   },
 };
 
-/**
- * Generate PKCE code verifier and challenge using Web Crypto API
- */
 export async function generatePKCE() {
   const array = new Uint8Array(32);
   crypto.getRandomValues(array);

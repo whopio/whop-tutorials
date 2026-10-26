@@ -21,19 +21,16 @@ export async function createPlan(formData: FormData) {
     throw new Error("Price must be a positive number.");
   }
 
-  // Use the company API key for product/plan creation (requires access_pass:create)
   const whop = getCompanyWhop();
   const companyId = process.env.WHOP_COMPANY_ID!;
 
-  // Create a Whop product for this plan
   const product = await whop.products.create({
-    company_id: companyId,
+    account_id: companyId,
     title: name,
   });
 
-  // Create a monthly pricing plan within the product
   const whopPlan = await whop.plans.create({
-    company_id: companyId,
+    account_id: companyId,
     product_id: product.id,
     renewal_price: priceDollars,
     plan_type: "renewal",
@@ -77,7 +74,6 @@ export async function deletePlan(formData: FormData) {
   const planId = formData.get("planId") as string;
   if (!planId) throw new Error("Plan ID is required.");
 
-  // Check no active memberships use this plan
   const activeMemberships = await prisma.membership.count({
     where: { planId, status: "ACTIVE" },
   });
@@ -88,7 +84,6 @@ export async function deletePlan(formData: FormData) {
     );
   }
 
-  // Unassign bots from this plan
   await prisma.bot.updateMany({
     where: { planId },
     data: { planId: null },
