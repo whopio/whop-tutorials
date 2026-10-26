@@ -28,7 +28,7 @@ No database, no webhooks, and no session. The only state is React state in the b
 - `lib/whop.ts` - the fetch wrapper, hardcoded to the sandbox host
 - `lib/env.ts` - refuses to boot unless `WHOP_SANDBOX` is true
 - `components/FormationLab.tsx` - holds the application state and swaps the form for the tracking view
-- `constants/taxonomy.json` - the full business taxonomy, 13 business types, 119 industry groups, 2,033 industry types
+- `constants/taxonomy.json` - the full business taxonomy at the pinned API version, 13 business types, 140 industry groups and 2,034 industry types as the tree offers them (119 groups and 1,902 types once names reused under several parents are counted once)
 
 ## Run it
 
@@ -46,7 +46,9 @@ There are no test cards either. The sandbox never reaches a checkout, so nothing
 
 ## Sandbox behaviour this demo relies on
 
-Verified live, 2026-08-25.
+Verified live, 2026-08-25, with `Api-Version-Date: 2026-08-13`.
+
+Re-checked 2026-10-25. The sandbox still serves `2026-08-13`, but on this demo's sandbox account every application now stops earlier, with `Select a valid business type before submitting`. That happens with the article's taxonomy, with today's glossary values, and with no classification fields at all, so the rule checks below don't get a chance to answer on that account. From API version `2026-10-13` on, `form_company` refuses `business_type`, `industry_group` and `industry_type` as unsupported fields, which is why this demo keeps its pinned version. The list below is what the endpoint did on 2026-08-25.
 
 - The sandbox validates a formation in full and then stops with `Incorporation seller company is not configured`, a 400, at the exact point it would create the checkout. It never returns a `checkout_url`. Production returns 200 on the same body.
 - Nothing is written to the account until the checkout is paid. After roughly forty sandbox probes and one successful production call, `company_formation` was still `{"status":"draft"}` and `business_name` was still `null` on both accounts.
@@ -57,7 +59,7 @@ Verified live, 2026-08-25.
 
 ## What this demo deliberately leaves out
 
-Webhooks, a database, and connected account creation. A real platform calls `POST /accounts` once per user at signup and stores the id, then listens for `account.updated` to follow a filing through `processing`, `filed` and `completed`. This demo reuses one sandbox account and never creates another, so a visitor cannot leave businesses behind in the sandbox by loading the page. The tracking view renders those later stages from their documented shapes rather than from live data, and says so on screen.
+Webhooks, a database, and connected account creation. A real platform calls `POST /accounts` once per user at signup and stores the id, then listens for `account.updated` to follow a filing through `processing`, `filed` and `completed`, or to `rejected`. This demo reuses one sandbox account and never creates another, so a visitor cannot leave businesses behind in the sandbox by loading the page. The tracking view renders those later stages from their documented shapes rather than from live data, and says so on screen.
 
 ## Fonts
 

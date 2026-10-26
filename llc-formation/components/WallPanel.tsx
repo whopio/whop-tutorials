@@ -80,6 +80,13 @@ export function WallPanel({ reached }: { reached: boolean }) {
             ))}
           </ol>
           <Text size="1" color="gray" as="p" className="mt-1.5">
+            It can also come back as{" "}
+            <Code size="1" variant="soft">
+              rejected
+            </Code>
+            , so handle that value too.
+          </Text>
+          <Text size="1" color="gray" as="p" className="mt-1.5">
             Read{" "}
             <Code size="1" variant="soft">
               company_formation

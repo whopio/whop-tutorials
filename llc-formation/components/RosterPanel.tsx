@@ -9,6 +9,7 @@ const DOT: Record<RosterUser["status"], string> = {
   draft: "bg-[#D9A400]",
   processing: "bg-[#2E6FD9]",
   filed: "bg-[#2E6FD9]",
+  rejected: "bg-[#D93900]",
   completed: "bg-[#1A7F55]",
 };
 

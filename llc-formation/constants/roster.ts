@@ -12,7 +12,8 @@ export interface RosterUser {
   handle: string;
   joined: string;
   live: boolean;
-  status: "none" | "draft" | "processing" | "filed" | "completed";
+  // company_formation.status, plus "none" for a user who has not applied.
+  status: "none" | "draft" | "processing" | "filed" | "rejected" | "completed";
   legalName?: string;
   state?: string;
   entity?: "LLC" | "C-Corp";
@@ -91,5 +92,6 @@ export const STATUS_LABEL: Record<RosterUser["status"], string> = {
   draft: "Awaiting payment",
   processing: "Filing",
   filed: "Filed, EIN pending",
+  rejected: "Rejected",
   completed: "Registered",
 };

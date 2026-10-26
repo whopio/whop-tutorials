@@ -1,9 +1,11 @@
 import raw from "@/constants/taxonomy.json";
 
-// The full business taxonomy: 13 business types, 119 industry groups, 2,033
-// industry types, taken from the glossary on the Account page and verified
-// against the sandbox. Shipping the whole tree rather than a curated handful
-// means every option in the dropdowns is one formation accepts.
+// The full business taxonomy: 13 business types, 140 industry groups and 2,034
+// industry types as the tree offers them, which is 119 and 1,902 distinct names
+// once you account for groups and types reused under several parents. Taken from
+// the glossary on the Account page and verified against the sandbox. Shipping the
+// whole tree rather than a curated handful means every option in the dropdowns is
+// one formation accepts.
 export type Taxonomy = Record<string, Record<string, string[]>>;
 
 export const TAXONOMY = raw as Taxonomy;
