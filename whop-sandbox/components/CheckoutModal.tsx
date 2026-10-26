@@ -124,7 +124,9 @@ export function CheckoutModal({
           }
           if (cancelled.current) return;
 
-          if (res.ok) {
+          // Only a 200 carries a receipt. A 202 is also "ok", but it means
+          // the payment is still settling, so it falls through to the retry.
+          if (res.status === 200) {
             const data = (await res.json()) as { receipt: ReceiptSummary };
             onEvent(
               "payments.retrieve",

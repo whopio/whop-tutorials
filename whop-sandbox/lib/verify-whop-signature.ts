@@ -3,7 +3,7 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 // Verifies the `x-whop-signature: t=<unix>,v1=<hex>` scheme that
 // API-created Whop webhooks deliver: HMAC-SHA256 over "<t>.<body>" keyed
 // with the raw webhook secret. Dashboard-created webhooks use the Standard
-// Webhooks spec instead and are verified with whop.webhooks.unwrap; the
+// Webhooks spec instead and are verified with unwrapWebhook; the
 // article teaches that path.
 const TOLERANCE_SECONDS = 5 * 60;
 

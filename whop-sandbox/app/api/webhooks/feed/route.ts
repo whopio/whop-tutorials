@@ -6,7 +6,7 @@ import { verifyWhopSignature } from "@/lib/verify-whop-signature";
 // render a live feed (deliveries can't be read back from the API). This
 // endpoint was registered via webhooks.create, so it verifies the
 // x-whop-signature scheme; the article's route verifies the dashboard's
-// Standard Webhooks scheme with whop.webhooks.unwrap instead.
+// Standard Webhooks scheme with unwrapWebhook instead.
 export async function POST(request: Request) {
   const env = getEnv();
   if (!env.WHOP_FEED_WEBHOOK_SECRET || !env.DATABASE_URL) {

@@ -10,7 +10,7 @@ export const WALKTHROUGH_STEPS: WalkthroughStep[] = [
   {
     id: "environment",
     title: "Meet the sandbox",
-    body: "The sandbox is a practice copy of Whop with fake money. This badge shows exactly what this page is wired to, down to the `baseURL` every call goes through.",
+    body: "The sandbox is a practice copy of Whop with fake money. This badge shows exactly what this page is wired to, down to the API host every call goes through.",
   },
   {
     id: "product",

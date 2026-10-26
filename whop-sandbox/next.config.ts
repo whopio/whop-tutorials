@@ -2,7 +2,9 @@ import type { NextConfig } from "next";
 import { withWhopAppConfig } from "@whop/react/next.config";
 
 const csp = [
-  "frame-src https://*.whop.com",
+  // The production checkout frame loads from whop.com itself, which the
+  // wildcard doesn't match, so it is listed on its own.
+  "frame-src https://whop.com https://*.whop.com",
   // The embed ships in our own bundle via @whop/checkout, so no Whop script
   // host is required here. js.whop.com stays listed for the script-tag
   // integration, and it is the same host in sandbox and production. Plaid and

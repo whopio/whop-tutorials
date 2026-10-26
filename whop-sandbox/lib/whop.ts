@@ -1,16 +1,16 @@
-import Whop from "@whop/sdk";
+import { WhopClient, WhopEnvironment } from "@whop/sdk";
 import { getEnv } from "@/lib/env";
 
-let cached: Whop | null = null;
+let cached: WhopClient | null = null;
 
-export function getWhop(): Whop {
+export function getWhop(): WhopClient {
   if (cached) return cached;
   const env = getEnv();
-  cached = new Whop({
-    apiKey: env.WHOP_COMPANY_API_KEY,
-    baseURL: env.WHOP_SANDBOX
-      ? "https://sandbox-api.whop.com/api/v1"
-      : "https://api.whop.com/api/v1",
+  cached = new WhopClient({
+    token: env.WHOP_COMPANY_API_KEY,
+    environment: env.WHOP_SANDBOX
+      ? WhopEnvironment.Sandbox
+      : WhopEnvironment.Production,
   });
   return cached;
 }

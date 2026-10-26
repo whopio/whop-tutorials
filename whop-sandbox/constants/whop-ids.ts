@@ -3,5 +3,4 @@
 export const WHOP_IDS = {
   productId: "prod_XXXXXXXXX",
   planId: "plan_XXXXXXXXX",
-  purchaseUrl: "https://sandbox.whop.com/checkout/plan_XXXXXXXXX",
 } as const;

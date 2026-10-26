@@ -17,14 +17,17 @@ export default async function Home() {
   const whop = getWhop();
   const session = await getSession();
 
-  const plan = await whop.plans.retrieve(WHOP_IDS.planId);
+  const [plan, product] = await Promise.all([
+    whop.variants.retrieve({ id: WHOP_IDS.planId }),
+    whop.products.retrieve({ id: WHOP_IDS.productId }),
+  ]);
   const planInfo: PlanInfo = {
     id: plan.id,
-    productId: plan.product?.id ?? WHOP_IDS.productId,
-    title: plan.product?.title ?? "Demo product",
+    productId: product.id,
+    title: product.title,
     priceLabel: `$${plan.initial_price} one-time`,
     planType: plan.plan_type,
-    purchaseUrl: plan.purchase_url ?? WHOP_IDS.purchaseUrl,
+    purchaseUrl: plan.purchase_url,
   };
 
   // Rebuild the held receipt from Whop so a returning visitor's refund step
@@ -33,21 +36,22 @@ export default async function Home() {
   let initialRefunded = false;
   if (session.receiptId) {
     try {
-      const payment = await whop.payments.retrieve(session.receiptId);
+      const payment = await whop.payments.retrieve({ id: session.receiptId });
+      const card = payment.payment_instrument?.card;
       initialReceipt = {
         id: payment.id,
-        status: payment.status ?? "unknown",
+        status: payment.status,
         substatus: payment.substatus,
-        total: payment.total ?? 0,
-        currency: payment.currency ?? "usd",
+        total: payment.total ? Number(payment.total.amount) : 0,
+        currency: payment.currency,
         paidAt: payment.paid_at,
-        cardBrand: payment.payment_method?.card?.brand ?? null,
-        cardLast4: payment.payment_method?.card?.last4 ?? null,
-        membershipId: payment.membership?.id ?? null,
+        cardBrand: card?.brand ?? null,
+        cardLast4: card?.last4 ?? null,
+        membershipId: payment.membership_id,
       };
       initialRefunded =
-        Boolean(payment.substatus?.includes("refund")) ||
-        (payment.refunded_amount ?? 0) > 0;
+        payment.substatus.includes("refund") ||
+        Number(payment.refunded_amount?.amount ?? 0) > 0;
     } catch {
       // If the held receipt can't be read the panels start clean.
     }

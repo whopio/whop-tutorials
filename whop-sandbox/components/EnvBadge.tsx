@@ -45,9 +45,9 @@ export function EnvBadge({ info }: { info: EnvInfo }) {
       <div className="rounded-lg bg-[#151515] px-3 py-2.5 font-mono text-[11px] leading-relaxed text-[#F1F1F1]">
         <span className="text-[#9A9993]">{"// every SDK call on this page"}</span>
         <br />
-        {"new Whop({ apiKey, baseURL:"}
+        {"new WhopClient({ token, environment:"}
         <br />
-        {'  "https://sandbox-api.whop.com/api/v1" })'}
+        {`  WhopEnvironment.${info.sandbox ? "Sandbox" : "Production"} })`}
       </div>
 
       <Text size="1" color="gray">

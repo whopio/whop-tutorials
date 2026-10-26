@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { NotFoundError } from "@whop/sdk";
+import { Whop } from "@whop/sdk";
 import { WHOP_IDS } from "@/constants/whop-ids";
 import { getSession } from "@/lib/session";
 import { getWhop } from "@/lib/whop";
@@ -19,9 +19,9 @@ export async function POST(request: Request) {
 
   let payment;
   try {
-    payment = await getWhop().payments.retrieve(parsed.data.receiptId);
+    payment = await getWhop().payments.retrieve({ id: parsed.data.receiptId });
   } catch (error: unknown) {
-    if (error instanceof NotFoundError) {
+    if (error instanceof Whop.NotFoundError) {
       // Right after checkout the payment can take a moment to become
       // readable. The client treats 404 as "try again shortly".
       return Response.json({ error: "not_found" }, { status: 404 });
@@ -30,7 +30,7 @@ export async function POST(request: Request) {
   }
 
   // Only receipts for this demo's product count.
-  if (payment.product?.id !== WHOP_IDS.productId) {
+  if (payment.product_id !== WHOP_IDS.productId) {
     return Response.json({ error: "wrong_product" }, { status: 403 });
   }
 
@@ -41,11 +41,12 @@ export async function POST(request: Request) {
     return Response.json({ error: "not_paid" }, { status: 403 });
   }
 
+  const card = payment.payment_instrument?.card;
   const session = await getSession();
   session.receiptId = payment.id;
-  session.membershipId = payment.membership?.id;
-  session.cardLast4 = payment.payment_method?.card?.last4 ?? undefined;
-  session.refundedAt = payment.substatus?.includes("refund")
+  session.membershipId = payment.membership_id ?? undefined;
+  session.cardLast4 = card?.last4 ?? undefined;
+  session.refundedAt = payment.substatus.includes("refund")
     ? Date.now()
     : undefined;
   await session.save();
@@ -56,12 +57,12 @@ export async function POST(request: Request) {
       id: payment.id,
       status: payment.status,
       substatus: payment.substatus,
-      total: payment.total,
+      total: payment.total ? Number(payment.total.amount) : 0,
       currency: payment.currency,
       paidAt: payment.paid_at,
-      cardBrand: payment.payment_method?.card?.brand ?? null,
-      cardLast4: payment.payment_method?.card?.last4 ?? null,
-      membershipId: payment.membership?.id ?? null,
+      cardBrand: card?.brand ?? null,
+      cardLast4: card?.last4 ?? null,
+      membershipId: payment.membership_id,
     },
   });
 }
