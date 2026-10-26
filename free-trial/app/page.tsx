@@ -23,11 +23,11 @@ export default async function Home() {
   let renewalPeriodEnd: string | null = null;
   if (granted && session.membershipId) {
     try {
-      const membership = await getWhop().memberships.retrieve(
-        session.membershipId,
-      );
+      const membership = await getWhop().memberships.retrieve({
+        id: session.membershipId,
+      });
       status = membership.status;
-      renewalPeriodEnd = membership.renewal_period_end;
+      renewalPeriodEnd = membership.current_period_end;
     } catch {
       // If the membership can't be read, fall through to the walkthrough.
     }

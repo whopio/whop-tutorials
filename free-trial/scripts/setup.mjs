@@ -1,15 +1,19 @@
-import Whop from "@whop/sdk";
+// Reference for the article's "create it from code" step: creates a
+// product + a $0-today recurring trial plan through the SDK. Needs the
+// access_pass:create and plan:create permissions on the key. Run once:
+//   node --env-file=.env.local scripts/setup.mjs
+import { WhopClient, WhopEnvironment } from "@whop/sdk";
 
-const whop = new Whop({
-  apiKey: process.env.WHOP_COMPANY_API_KEY,
-  baseURL: "https://sandbox-api.whop.com/api/v1",
+const whop = new WhopClient({
+  token: process.env.WHOP_COMPANY_API_KEY,
+  environment: WhopEnvironment.Sandbox,
 });
 
 // Your company id, from the dashboard URL: whop.com/dashboard/biz_...
 const COMPANY_ID = "biz_...";
 
 const product = await whop.products.create({
-  company_id: COMPANY_ID,
+  account_id: COMPANY_ID,
   title: "Pro",
   visibility: "visible",
 });

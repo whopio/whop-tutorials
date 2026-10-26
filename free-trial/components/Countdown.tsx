@@ -13,7 +13,7 @@ function breakdown(ms: number) {
   };
 }
 
-// Live countdown to an ISO timestamp (the trial's renewal_period_end). The
+// Live countdown to an ISO timestamp (the trial's current_period_end). The
 // clock only starts after mount so the server and client render the same
 // initial markup (no hydration mismatch from Date.now()).
 export function Countdown({ target }: { target: string }) {

@@ -6,8 +6,9 @@ import { getWhop } from "@/lib/whop";
 // component in one request shares a single checkAccess call per product.
 export const checkProductAccess = cache(
   async (productId: string, whopUserId: string): Promise<boolean> => {
-    const result = await getWhop().users.checkAccess(productId, {
+    const result = await getWhop().users.checkAccess({
       id: whopUserId,
+      resource_id: productId,
     });
     return result.has_access;
   },

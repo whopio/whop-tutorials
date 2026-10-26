@@ -1,12 +1,13 @@
 // Provisions the demo's two products on your sandbox company and prints the
 // four ids for constants/products.ts. Needs WHOP_COMPANY_API_KEY (with the
-// access_pass:create permission) and WHOP_COMPANY_ID in .env.local. Run once:
+// access_pass:create and plan:create permissions) and WHOP_COMPANY_ID in
+// .env.local. Run once:
 //   node --env-file=.env.local scripts/setup-demo.mjs
-import Whop from "@whop/sdk";
+import { WhopClient, WhopEnvironment } from "@whop/sdk";
 
-const whop = new Whop({
-  apiKey: process.env.WHOP_COMPANY_API_KEY,
-  baseURL: "https://sandbox-api.whop.com/api/v1",
+const whop = new WhopClient({
+  token: process.env.WHOP_COMPANY_API_KEY,
+  environment: WhopEnvironment.Sandbox,
 });
 
 const COMPANY_ID = process.env.WHOP_COMPANY_ID;
@@ -17,7 +18,7 @@ if (!COMPANY_ID?.startsWith("biz_")) {
 
 // Northwind Pro: the recurring plan that carries the 3-day free trial.
 const trialProduct = await whop.products.create({
-  company_id: COMPANY_ID,
+  account_id: COMPANY_ID,
   title: "Northwind Pro",
   description: "The full Northwind toolkit, billed monthly.",
   visibility: "visible",
@@ -37,7 +38,7 @@ const trialPlan = await whop.plans.create({
 // Northwind Lifetime: a one-time foil, which cannot carry a free trial
 // (trials are recurring-only). The demo's first step teaches exactly that.
 const foilProduct = await whop.products.create({
-  company_id: COMPANY_ID,
+  account_id: COMPANY_ID,
   title: "Northwind Lifetime",
   description: "One-time lifetime license. One-time, so no free trial.",
   visibility: "visible",

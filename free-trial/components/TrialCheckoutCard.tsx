@@ -55,7 +55,7 @@ export function TrialCheckoutCard({
         }
         if (cancelled.current) return;
 
-        if (res.ok) {
+        if (res.status === 200) {
           router.refresh();
           return;
         }

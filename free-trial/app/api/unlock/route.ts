@@ -1,6 +1,6 @@
 import { z } from "zod";
-import { NotFoundError } from "@whop/sdk";
-import { knownProductIds } from "@/constants/products";
+import { Whop } from "@whop/sdk";
+import { getEnv } from "@/lib/env";
 import { getSession } from "@/lib/session";
 import { getWhop } from "@/lib/whop";
 
@@ -17,9 +17,9 @@ export async function POST(request: Request) {
 
   let payment;
   try {
-    payment = await getWhop().payments.retrieve(parsed.data.receiptId);
+    payment = await getWhop().payments.retrieve({ id: parsed.data.receiptId });
   } catch (error: unknown) {
-    if (error instanceof NotFoundError) {
+    if (error instanceof Whop.NotFoundError) {
       // Right after checkout the payment can take a moment to become
       // readable. The client treats 404 as "try again shortly".
       return Response.json({ error: "not_found" }, { status: 404 });
@@ -27,9 +27,8 @@ export async function POST(request: Request) {
     throw error;
   }
 
-  // A receipt only unlocks content if it paid for one of our products.
-  const known = new Set(knownProductIds);
-  if (!payment.product?.id || !known.has(payment.product.id)) {
+  // A receipt only unlocks content if it paid for our trial product.
+  if (payment.product_id !== getEnv().WHOP_PRO_PRODUCT_ID) {
     return Response.json({ error: "wrong_product" }, { status: 403 });
   }
 
@@ -49,7 +48,7 @@ export async function POST(request: Request) {
   const session = await getSession();
   session.whopUserId = payment.user.id;
   session.username = payment.user.username;
-  session.membershipId = payment.membership?.id;
+  session.membershipId = payment.membership_id ?? undefined;
   session.unlockedAt = Date.now();
   await session.save();
 

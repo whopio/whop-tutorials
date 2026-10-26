@@ -111,7 +111,9 @@ export function TrialCheckoutModal({
           }
           if (cancelled.current) return;
 
-          if (res.ok) {
+          // Not res.ok: that is also true for the 202 "still settling"
+          // answer, which must fall through to the retry below.
+          if (res.status === 200) {
             setPhase({ name: "unlocked" });
             router.refresh();
             return;

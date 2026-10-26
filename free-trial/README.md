@@ -6,10 +6,10 @@ Companion demo for the article **"How to add free trials to your app or website"
 
 The flow is database-free and webhook-free. Entitlements live on Whop; the session cookie only stores identity.
 
-1. A visitor opens the gated page. The server gate finds no session cookie and renders the pitch with the checkout embedded inline. The checkout collects the card but charges nothing today; Whop starts a membership in the `trialing` state whose `renewal_period_end` is the first-charge date.
+1. A visitor opens the gated page. The server gate finds no session cookie and renders the pitch with the checkout embedded inline. The checkout collects the card but charges nothing today. Whop starts a membership in the `trialing` state whose `current_period_end` is the first-charge date.
 2. `WhopCheckoutEmbed`'s `onComplete(planId, receiptId)` fires. The client POSTs the receipt id (`pay_...`) to `/api/unlock`.
-3. The server retrieves the payment from Whop, confirms it paid for one of this app's products and is not refunded, and seals `{ whopUserId, membershipId }` into an encrypted iron-session cookie. A $0 trial checkout produces a normal `paid` receipt, so the purchase guard verifies trials unchanged.
-4. The gate calls `users.checkAccess(productId, { id: whopUserId })` on every render; `trialing` grants access like `active` does. Extending the trial is `memberships.addFreeDays`, ending it early is `memberships.cancel` with `cancellation_mode: "immediate"`, and conversion day needs no code at all.
+3. The server reads the payment with `payments.retrieve({ id })`, confirms its `product_id` is the trial product (`WHOP_PRO_PRODUCT_ID`) and that it is not refunded, and seals `{ whopUserId, membershipId }` into an encrypted iron-session cookie. A $0 trial checkout produces a normal `paid` receipt, so the purchase guard verifies trials unchanged.
+4. The gate calls `users.checkAccess({ id: whopUserId, resource_id: productId })` on every render, and `trialing` grants access like `active` does. Extending the trial is `memberships.extend({ id, days: 3 })`, ending it early is `memberships.cancel({ id, cancel_at_period_end: false })`, and conversion day needs no code at all.
 
 Two products teach the trial rule: Northwind Pro (recurring, carries the trial) and Northwind Lifetime (one-time, which Whop cannot put a trial on).
 
@@ -17,8 +17,9 @@ Two products teach the trial rule: Northwind Pro (recurring, carries the trial) 
 
 - `lib/paywall.ts` - the gate: per-product `checkAccess`, deduped per request with React `cache()`
 - `app/api/unlock/route.ts` - receipt verification -> session mint (the heart of the flow)
-- `app/api/extend-trial/route.ts` - `addFreeDays`: pushes the first charge back three days
-- `app/api/end-trial/route.ts` - `cancellation_mode: "immediate"`: revokes access on the spot
+- `app/api/extend-trial/route.ts` - `memberships.extend` pushes the first charge back three days
+- `app/api/end-trial/route.ts` - `memberships.cancel` with `cancel_at_period_end: false` revokes access on the spot
+- `lib/whop.ts` - the `@whop/sdk` 2.4.0 client, on sandbox while `WHOP_SANDBOX=true`
 - `components/TrialCheckoutModal.tsx` + `Countdown.tsx` - the demo checkout and the live first-charge countdown
 - `constants/products.ts` - the two demo products (placeholder ids; `scripts/setup-demo.mjs` prints yours)
 - `app/premium/page.tsx` + `components/TrialCheckoutCard.tsx` - the article's minimal versions of the gated page and checkout card
