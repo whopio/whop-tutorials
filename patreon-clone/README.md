@@ -21,7 +21,7 @@ A full-stack subscription platform where creators can monetize content through t
 | [TypeScript](https://www.typescriptlang.org/) | Type safety |
 | [Prisma](https://www.prisma.io/) | Database ORM |
 | [PostgreSQL](https://www.postgresql.org/) | Database |
-| [Whop SDK](https://dev.whop.com/) | Payments, subscriptions, KYC |
+| [Whop SDK](https://docs.whop.com/) (`@whop/sdk` 2.4.0) | Payments, subscriptions, KYC |
 | [Iron Session](https://github.com/vvo/iron-session) | Encrypted cookie sessions |
 | [Zod](https://zod.dev/) | Request validation |
 | [Tailwind CSS](https://tailwindcss.com/) | Styling |
@@ -30,9 +30,10 @@ A full-stack subscription platform where creators can monetize content through t
 
 ### Prerequisites
 
-- Node.js 18+
+- Node.js 20.9+ (Next.js 16 needs it)
 - PostgreSQL database
-- [Whop Developer Account](https://dev.whop.com/)
+- [Whop Developer Account](https://docs.whop.com/)
+- A company API key with these permissions: `company:create_child`, `company:basic:read`, `checkout_configuration:create`, `checkout_configuration:basic:read`, `plan:create`, `plan:basic:read`, `plan:update`, `plan:delete`, `access_pass:create`, `access_pass:basic:read`, `access_pass:update`, `payment:basic:read`, `member:basic:read`, `member:email:read`, `membership:cancel`, `webhook_receive:payments`, `webhook_receive:memberships`, `payout:destination:read`
 
 ### 1. Clone the repository
 
@@ -67,6 +68,7 @@ SESSION_SECRET="your-32-character-minimum-secret-key"
 
 # Whop OAuth & API (from https://dev.whop.com)
 WHOP_APP_ID="your-whop-app-id"
+WHOP_CLIENT_SECRET="your-app-oauth-client-secret"
 WHOP_API_KEY="your-whop-api-key"
 WHOP_WEBHOOK_SECRET="your-webhook-secret"
 WHOP_COMPANY_ID="your-parent-company-id"
@@ -102,6 +104,7 @@ https://your-domain.com/api/webhooks/whop
 
 Subscribe to these events:
 - `payment.succeeded`
+- `membership.activated`
 - `membership.cancel_at_period_end_changed`
 - `membership.deactivated`
 
@@ -160,7 +163,7 @@ npm start
 ```
 
 Requires:
-- Node.js 18+ runtime
+- Node.js 20.9+ runtime
 - PostgreSQL database
 - Environment variables configured
 

@@ -40,8 +40,9 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
   }
 
   try {
-    await whop.memberships.cancel(subscription.whopMembershipId, {
-      cancellation_mode: 'at_period_end',
+    await whop.memberships.cancel({
+      id: subscription.whopMembershipId,
+      cancel_at_period_end: true,
     })
 
     await prisma.subscription.update({

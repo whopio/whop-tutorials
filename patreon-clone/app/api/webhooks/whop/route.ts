@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { whop } from '@/lib/whop'
+import { unwrapWebhook } from '@whop/sdk/helpers'
 import { prisma } from '@/lib/prisma'
 
 type PlatformMetadata = {
@@ -11,8 +11,11 @@ type PlatformMetadata = {
 type WebhookData = {
   id?: string
   membership?: { id?: string } | null
+  membership_id?: string | null
   user?: { id?: string } | null
+  user_id?: string | null
   plan?: { id?: string } | null
+  plan_id?: string | null
   cancel_at_period_end?: boolean
   checkout_configuration?: { metadata?: PlatformMetadata } | null
   metadata?: PlatformMetadata | null
@@ -23,10 +26,10 @@ export async function POST(request: NextRequest) {
   const headers = Object.fromEntries(request.headers)
 
   try {
-    const webhook = whop.webhooks.unwrap(rawBody, { headers }) as unknown as {
-      type: string
-      data: WebhookData
-    }
+    const webhook = unwrapWebhook<{ type: string; data: WebhookData }>(rawBody, {
+      headers,
+      key: process.env.WHOP_WEBHOOK_SECRET,
+    })
 
     switch (webhook.type) {
       case 'payment.succeeded':
@@ -42,7 +45,6 @@ export async function POST(request: NextRequest) {
         await handleMembershipDeactivated(webhook.data)
         break
       default:
-        // Ignore events we don't handle
         break
     }
 
@@ -66,9 +68,9 @@ async function handlePaymentSucceeded(data: WebhookData) {
   const creatorId = metadata.platform_creator_id
   const tierId = metadata.platform_tier_id
 
-  // On payment.succeeded the membership id is on data.membership.id.
-  // It is NOT data.id (that is the payment id, pay_...). Never fall back to it.
-  const whopMembershipId = data.membership?.id ?? null
+  // Depending on the webhook's API version, Whop sends nested objects (membership.id)
+  // or flat IDs (membership_id), so we read both.
+  const whopMembershipId = data.membership_id ?? data.membership?.id ?? null
 
   if (!userId || !creatorId || !tierId) {
     console.error('Missing platform metadata in payment.succeeded:', { metadata })
@@ -99,13 +101,10 @@ async function handlePaymentSucceeded(data: WebhookData) {
   })
 }
 
-// membership.activated always carries the membership id (data.id = mem_...).
-// Use it to backfill/correct whopMembershipId by matching the Whop user + plan,
-// which we already store. This keeps cancellation lookups reliable.
 async function handleMembershipActivated(data: WebhookData) {
   const whopMembershipId = data.id
-  const whopUserId = data.user?.id
-  const whopPlanId = data.plan?.id
+  const whopUserId = data.user_id ?? data.user?.id
+  const whopPlanId = data.plan_id ?? data.plan?.id
 
   if (!whopMembershipId || !whopUserId || !whopPlanId) {
     return
@@ -115,6 +114,7 @@ async function handleMembershipActivated(data: WebhookData) {
     where: { whopUserId },
     select: { id: true },
   })
+
   const tier = await prisma.tier.findUnique({
     where: { whopPlanId },
     select: { creatorId: true },
@@ -126,7 +126,10 @@ async function handleMembershipActivated(data: WebhookData) {
 
   const subscription = await prisma.subscription.findUnique({
     where: {
-      userId_creatorId: { userId: user.id, creatorId: tier.creatorId },
+      userId_creatorId: {
+        userId: user.id,
+        creatorId: tier.creatorId,
+      },
     },
     select: { id: true },
   })
@@ -161,7 +164,9 @@ async function handleCancelAtPeriodEndChanged(data: WebhookData) {
 
   await prisma.subscription.update({
     where: { id: subscription.id },
-    data: { status: data.cancel_at_period_end ? 'CANCELING' : 'ACTIVE' },
+    data: {
+      status: data.cancel_at_period_end ? 'CANCELING' : 'ACTIVE',
+    },
   })
 }
 

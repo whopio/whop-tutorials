@@ -53,17 +53,18 @@ export async function PUT(
   const { name, description, priceInCents } = parsed.data
 
   try {
-    // Update the plan in Whop
+
     if (tier.whopPlanId) {
       const priceInDollars = priceInCents / 100
-      await whop.plans.update(tier.whopPlanId, {
-        initial_price: priceInDollars,
+      await whop.plans.update({
+        id: tier.whopPlanId,
+        // Whop charges initial_price on top of the first renewal_price, so it stays 0
+        initial_price: 0,
         renewal_price: priceInDollars,
         internal_notes: `Tier: ${name}`,
       })
     }
 
-    // Update the tier in your database
     const updatedTier = await prisma.tier.update({
       where: { id: tierId },
       data: {
@@ -104,12 +105,11 @@ export async function DELETE(
   }
 
   try {
-    // Delete the plan from Whop
+
     if (tier.whopPlanId) {
-      await whop.plans.delete(tier.whopPlanId)
+      await whop.plans.delete({ id: tier.whopPlanId })
     }
 
-    // Delete the tier from your database
     await prisma.tier.delete({
       where: { id: tierId },
     })

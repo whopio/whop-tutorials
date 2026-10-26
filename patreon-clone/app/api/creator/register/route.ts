@@ -28,7 +28,6 @@ export async function POST(request: NextRequest) {
   const { error: rateLimitError } = checkRateLimit(user.id)
   if (rateLimitError) return rateLimitError
 
-  // Check if user is already a creator
   const existingCreator = await prisma.creator.findUnique({
     where: { userId: user.id },
   })
@@ -52,7 +51,6 @@ export async function POST(request: NextRequest) {
 
   const { username, displayName, bio } = parsed.data
 
-  // Check if username is taken
   const usernameTaken = await prisma.creator.findUnique({
     where: { username },
   })
@@ -65,10 +63,9 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    // Create a Whop connected account for the creator
-    const whopCompany = await whop.companies.create({
+
+    const whopCompany = await whop.accounts.create({
       email: user.email,
-      parent_company_id: process.env.WHOP_COMPANY_ID!,
       title: displayName,
       metadata: {
         platform_user_id: user.id,
@@ -76,7 +73,6 @@ export async function POST(request: NextRequest) {
       },
     })
 
-    // Save creator to database
     const creator = await prisma.creator.create({
       data: {
         userId: user.id,

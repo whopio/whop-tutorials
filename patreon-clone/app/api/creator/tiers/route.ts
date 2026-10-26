@@ -59,29 +59,27 @@ export async function POST(request: NextRequest) {
   const { name, description, priceInCents } = parsed.data
 
   try {
-    // Create a product (access pass) in Whop for this creator if they don't have one
+
     let whopProductId = creator.whopProductId
 
     if (!whopProductId) {
       const product = await whop.products.create({
-        company_id: creator.whopCompanyId,
+        account_id: creator.whopCompanyId,
         title: `${creator.displayName}'s Membership`,
         visibility: 'visible',
       })
       whopProductId = product.id
 
-      // Save the product ID to the creator
       await prisma.creator.update({
         where: { id: creator.id },
         data: { whopProductId },
       })
     }
 
-    // Create a plan for this tier
     const priceInDollars = priceInCents / 100
 
     const plan = await whop.plans.create({
-      company_id: creator.whopCompanyId,
+      account_id: creator.whopCompanyId,
       product_id: whopProductId,
       plan_type: 'renewal',
       initial_price: 0,
@@ -89,7 +87,6 @@ export async function POST(request: NextRequest) {
       billing_period: 30,
     } as Parameters<typeof whop.plans.create>[0])
 
-    // Save the tier to your database
     const tier = await prisma.tier.create({
       data: {
         creatorId: creator.id,

@@ -16,7 +16,7 @@ export async function POST() {
   const baseUrl = process.env.AUTH_URL || 'http://localhost:3000'
 
   const accountLink = await whop.accountLinks.create({
-    company_id: creator.whopCompanyId,
+    account_id: creator.whopCompanyId,
     use_case: 'payouts_portal',
     return_url: `${baseUrl}/creator/payouts?returned=true`,
     refresh_url: `${baseUrl}/creator/payouts`,

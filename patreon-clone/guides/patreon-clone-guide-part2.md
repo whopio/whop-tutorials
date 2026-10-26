@@ -131,29 +131,27 @@ export async function POST(request: NextRequest) {
   const { name, description, priceInCents } = parsed.data
 
   try {
-    // Create a product (access pass) in Whop for this creator if they don't have one
+
     let whopProductId = creator.whopProductId
 
     if (!whopProductId) {
       const product = await whop.products.create({
-        company_id: creator.whopCompanyId,
+        account_id: creator.whopCompanyId,
         title: `${creator.displayName}'s Membership`,
         visibility: 'visible',
       })
       whopProductId = product.id
 
-      // Save the product ID to the creator
       await prisma.creator.update({
         where: { id: creator.id },
         data: { whopProductId },
       })
     }
 
-    // Create a plan for this tier
     const priceInDollars = priceInCents / 100
 
     const plan = await whop.plans.create({
-      company_id: creator.whopCompanyId,
+      account_id: creator.whopCompanyId,
       product_id: whopProductId,
       plan_type: 'renewal',
       initial_price: 0,
@@ -161,7 +159,6 @@ export async function POST(request: NextRequest) {
       billing_period: 30,
     } as Parameters<typeof whop.plans.create>[0])
 
-    // Save the tier to your database
     const tier = await prisma.tier.create({
       data: {
         creatorId: creator.id,
@@ -248,17 +245,18 @@ export async function PUT(
   const { name, description, priceInCents } = parsed.data
 
   try {
-    // Update the plan in Whop
+
     if (tier.whopPlanId) {
       const priceInDollars = priceInCents / 100
-      await whop.plans.update(tier.whopPlanId, {
-        initial_price: priceInDollars,
+      await whop.plans.update({
+        id: tier.whopPlanId,
+        // Whop charges initial_price on top of the first renewal_price, so it stays 0
+        initial_price: 0,
         renewal_price: priceInDollars,
         internal_notes: `Tier: ${name}`,
       })
     }
 
-    // Update the tier in your database
     const updatedTier = await prisma.tier.update({
       where: { id: tierId },
       data: {
@@ -299,12 +297,11 @@ export async function DELETE(
   }
 
   try {
-    // Delete the plan from Whop
+
     if (tier.whopPlanId) {
-      await whop.plans.delete(tier.whopPlanId)
+      await whop.plans.delete({ id: tier.whopPlanId })
     }
 
-    // Delete the tier from your database
     await prisma.tier.delete({
       where: { id: tierId },
     })
@@ -1028,7 +1025,7 @@ Without webhooks, your database never learns about successful payments - users w
 ```
 Whop Checkout Completed
   → Whop sends POST to /api/webhooks/whop
-    → whop.webhooks.unwrap() verifies signature
+    → unwrapWebhook() verifies signature
       → Extract metadata (user_id, creator_id, tier_id)
         → Create Subscription record in database
 ```
@@ -1061,95 +1058,220 @@ WHOP_WEBHOOK_SECRET="ws_xxxxxxxxxxxxx"
 ```
 
 ## lib/whop.ts (Updated)
-Add the `webhookKey` for signature verification:
+`lib/whop.ts` stays as it was in Step 4. The webhook secret goes to `unwrapWebhook` in the route below, not into the client:
 
 ```
-import Whop from "@whop/sdk"
+import { WhopClient, WhopEnvironment } from "@whop/sdk"
 
 const isSandbox = process.env.WHOP_SANDBOX === 'true'
 
-export const whop = new Whop({
-  appID: process.env.WHOP_APP_ID,
-  apiKey: process.env.WHOP_API_KEY,
-  webhookKey: Buffer.from(process.env.WHOP_WEBHOOK_SECRET || "").toString('base64'),
-  ...(isSandbox && { baseURL: "https://sandbox-api.whop.com/api/v1" }),
+export const whop = new WhopClient({
+  token: process.env.WHOP_API_KEY,
+  environment: isSandbox ? WhopEnvironment.Sandbox : WhopEnvironment.Production,
 })
 ```
 
-**Note**: The SDK requires base64-encoded webhook secret. The raw secret starts with `ws_`.
+**Note**: `unwrapWebhook` takes the raw secret, which starts with `ws_`. Don't base64-encode it, or verification fails.
 
 ## app/api/webhooks/whop/route.ts
 Receives and processes Whop webhooks.
 
-**Key WPN call**: `whop.webhooks.unwrap()` - Verifies the webhook signature and returns parsed data.
+**Key WPN call**: `unwrapWebhook()` from `@whop/sdk/helpers` - Verifies the webhook signature with the raw `ws_` secret and returns parsed data. Depending on the webhook's API version, Whop sends nested IDs (`membership.id`) or flat IDs (`membership_id`), so the handlers read both.
 
 ```
 import { NextRequest, NextResponse } from 'next/server'
-import { whop } from '@/lib/whop'
+import { unwrapWebhook } from '@whop/sdk/helpers'
 import { prisma } from '@/lib/prisma'
+
+type PlatformMetadata = {
+  platform_user_id?: string
+  platform_creator_id?: string
+  platform_tier_id?: string
+}
+
+type WebhookData = {
+  id?: string
+  membership?: { id?: string } | null
+  membership_id?: string | null
+  user?: { id?: string } | null
+  user_id?: string | null
+  plan?: { id?: string } | null
+  plan_id?: string | null
+  cancel_at_period_end?: boolean
+  checkout_configuration?: { metadata?: PlatformMetadata } | null
+  metadata?: PlatformMetadata | null
+}
 
 export async function POST(request: NextRequest) {
   const rawBody = await request.text()
   const headers = Object.fromEntries(request.headers)
 
   try {
-    // VERIFY WEBHOOK SIGNATURE
-    // This ensures the webhook actually came from Whop
-    const webhookData = whop.webhooks.unwrap(rawBody, { headers })
+    const webhook = unwrapWebhook<{ type: string; data: WebhookData }>(rawBody, {
+      headers,
+      key: process.env.WHOP_WEBHOOK_SECRET,
+    })
 
-    const { type, data } = webhookData as any
-
-    if (type === 'payment.succeeded') {
-      await handlePaymentSucceeded(data)
+    switch (webhook.type) {
+      case 'payment.succeeded':
+        await handlePaymentSucceeded(webhook.data)
+        break
+      case 'membership.activated':
+        await handleMembershipActivated(webhook.data)
+        break
+      case 'membership.cancel_at_period_end_changed':
+        await handleCancelAtPeriodEndChanged(webhook.data)
+        break
+      case 'membership.deactivated':
+        await handleMembershipDeactivated(webhook.data)
+        break
+      default:
+        break
     }
 
     return NextResponse.json({ received: true })
   } catch (error) {
     console.error('Webhook verification failed:', error)
-    return NextResponse.json({ error: 'Invalid webhook signature' }, { status: 401 })
+    return NextResponse.json(
+      { error: 'Invalid webhook signature' },
+      { status: 401 }
+    )
   }
 }
 
-async function handlePaymentSucceeded(data: any) {
-  // Extract metadata passed from checkout configuration
-  const metadata = data.checkout_configuration?.metadata || data.metadata
+function getPlatformMetadata(data: WebhookData): PlatformMetadata {
+  return data.checkout_configuration?.metadata ?? data.metadata ?? {}
+}
 
-  const platformUserId = metadata?.platform_user_id
-  const platformCreatorId = metadata?.platform_creator_id
-  const platformTierId = metadata?.platform_tier_id
-  const membershipId = data.membership?.id || data.id
+async function handlePaymentSucceeded(data: WebhookData) {
+  const metadata = getPlatformMetadata(data)
+  const userId = metadata.platform_user_id
+  const creatorId = metadata.platform_creator_id
+  const tierId = metadata.platform_tier_id
 
-  if (!platformUserId || !platformCreatorId || !platformTierId) {
-    console.error('Missing platform metadata in payment:', { metadata })
+  // Depending on the webhook's API version, Whop sends nested objects (membership.id)
+  // or flat IDs (membership_id), so we read both.
+  const whopMembershipId = data.membership_id ?? data.membership?.id ?? null
+
+  if (!userId || !creatorId || !tierId) {
+    console.error('Missing platform metadata in payment.succeeded:', { metadata })
     return
   }
 
-  // Check for existing subscription (reactivation case)
-  const existingSubscription = await prisma.subscription.findFirst({
-    where: {
-      userId: platformUserId,
-      creatorId: platformCreatorId,
-    },
+  const existing = await prisma.subscription.findFirst({
+    where: { userId, creatorId },
+    select: { id: true },
   })
 
-  if (existingSubscription) {
-    // Reactivate existing subscription
+  if (existing) {
     await prisma.subscription.update({
-      where: { id: existingSubscription.id },
-      data: { status: 'ACTIVE', whopMembershipId: membershipId },
+      where: { id: existing.id },
+      data: { status: 'ACTIVE', whopMembershipId },
     })
     return
   }
 
-  // Create new subscription
   await prisma.subscription.create({
     data: {
-      userId: platformUserId,
-      creatorId: platformCreatorId,
-      tierId: platformTierId,
-      whopMembershipId: membershipId,  // Store for cancellation API
+      userId,
+      creatorId,
+      tierId,
+      whopMembershipId,
       status: 'ACTIVE',
     },
+  })
+}
+
+async function handleMembershipActivated(data: WebhookData) {
+  const whopMembershipId = data.id
+  const whopUserId = data.user_id ?? data.user?.id
+  const whopPlanId = data.plan_id ?? data.plan?.id
+
+  if (!whopMembershipId || !whopUserId || !whopPlanId) {
+    return
+  }
+
+  const user = await prisma.user.findUnique({
+    where: { whopUserId },
+    select: { id: true },
+  })
+
+  const tier = await prisma.tier.findUnique({
+    where: { whopPlanId },
+    select: { creatorId: true },
+  })
+
+  if (!user || !tier) {
+    return
+  }
+
+  const subscription = await prisma.subscription.findUnique({
+    where: {
+      userId_creatorId: {
+        userId: user.id,
+        creatorId: tier.creatorId,
+      },
+    },
+    select: { id: true },
+  })
+
+  if (!subscription) {
+    return
+  }
+
+  await prisma.subscription.update({
+    where: { id: subscription.id },
+    data: { status: 'ACTIVE', whopMembershipId },
+  })
+}
+
+async function handleCancelAtPeriodEndChanged(data: WebhookData) {
+  const whopMembershipId = data.id
+
+  if (!whopMembershipId) {
+    console.error('Missing membership ID in membership.cancel_at_period_end_changed')
+    return
+  }
+
+  const subscription = await prisma.subscription.findUnique({
+    where: { whopMembershipId },
+    select: { id: true },
+  })
+
+  if (!subscription) {
+    console.error('Subscription not found for membership:', whopMembershipId)
+    return
+  }
+
+  await prisma.subscription.update({
+    where: { id: subscription.id },
+    data: {
+      status: data.cancel_at_period_end ? 'CANCELING' : 'ACTIVE',
+    },
+  })
+}
+
+async function handleMembershipDeactivated(data: WebhookData) {
+  const whopMembershipId = data.id
+
+  if (!whopMembershipId) {
+    console.error('Missing membership ID in membership.deactivated')
+    return
+  }
+
+  const subscription = await prisma.subscription.findUnique({
+    where: { whopMembershipId },
+    select: { id: true },
+  })
+
+  if (!subscription) {
+    console.error('Subscription not found for membership:', whopMembershipId)
+    return
+  }
+
+  await prisma.subscription.update({
+    where: { id: subscription.id },
+    data: { status: 'CANCELED' },
   })
 }
 ```

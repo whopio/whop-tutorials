@@ -14,12 +14,11 @@ export async function POST() {
   }
 
   try {
-    // Whop requires https URLs, so use a placeholder for local development
     const baseUrl = process.env.AUTH_URL || 'http://localhost:3000'
     const useHttps = baseUrl.startsWith('https://')
 
     const accountLink = await whop.accountLinks.create({
-      company_id: creator.whopCompanyId,
+      account_id: creator.whopCompanyId,
       use_case: 'account_onboarding',
       return_url: useHttps
         ? `${baseUrl}/creator/dashboard?onboarding=complete`
