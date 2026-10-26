@@ -30,8 +30,8 @@ body {
   color: white;
 }
 
-/* Coursera-inspired base refinements */
-* {
+/* Smooth transitions for interactive elements only */
+a, button, input, select, textarea, [role="button"] {
   transition-property: color, background-color, border-color, box-shadow, opacity, transform;
   transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
   transition-duration: 150ms;

@@ -56,14 +56,14 @@ export async function POST(
     const whop = getWhop();
 
     const product = await whop.products.create({
-      company_id: profile.whopCompanyId,
+      account_id: profile.whopCompanyId,
       title: course.title.slice(0, 40),
       description: course.description.slice(0, 500),
     });
 
     const priceInDollars = course.price / 100;
     const plan = await whop.plans.create({
-      company_id: profile.whopCompanyId,
+      account_id: profile.whopCompanyId,
       product_id: product.id,
       initial_price: priceInDollars,
       plan_type: "one_time",
@@ -71,21 +71,23 @@ export async function POST(
 
     const applicationFee = Math.round(priceInDollars * (PLATFORM_FEE_PERCENT / 100) * 100) / 100;
 
+    // application_fee_amount is accepted by the Whop API but missing from the SDK types,
+    // so we build the checkout plan as a variable first instead of writing it inline.
+    const checkoutPlan = {
+      account_id: profile.whopCompanyId,
+      currency: "usd",
+      initial_price: priceInDollars,
+      plan_type: "one_time" as const,
+      application_fee_amount: applicationFee,
+    };
+
     const checkout = await whop.checkoutConfigurations.create({
-      plan: {
-        company_id: profile.whopCompanyId,
-        currency: "usd",
-        initial_price: priceInDollars,
-        plan_type: "one_time",
-        application_fee_amount: applicationFee,
-      },
+      plan: checkoutPlan,
       metadata: {
         courstar_course_id: course.id,
       },
       redirect_url: `${process.env.NEXT_PUBLIC_APP_URL}/courses/${course.slug}/learn`,
     });
-
-
 
     await prisma.course.update({
       where: { id: courseId },

@@ -36,7 +36,7 @@ A multi-instructor online course marketplace where users sign up, become teacher
 
 ### Prerequisites
 
-- Node.js 18+
+- Node.js 20.9+ (Next.js 16 needs it)
 - [Whop Developer Account](https://sandbox.whop.com/)
 - [Vercel Account](https://vercel.com/)
 - [Mux Account](https://mux.com/) (free tier)
@@ -81,7 +81,7 @@ To populate the app with demo instructors and courses:
 npx ts-node prisma/seed.ts
 ```
 
-To create real Whop sandbox companies for seeded instructors, set `WHOP_SANDBOX_EMAIL` in your `.env.local` to a real email address.
+The seed creates a Whop sandbox account for each instructor, and Whop refuses email addresses that don't accept mail. Set `WHOP_SANDBOX_EMAIL` in your `.env.local` to a real email address before you run it.
 
 ### 6. Run the development server
 

@@ -2,7 +2,7 @@ import dotenv from "dotenv";
 dotenv.config({ path: ".env.local" });
 import { PrismaClient } from "../src/generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
-import Whop from "@whop/sdk";
+import { WhopClient, WhopEnvironment } from "@whop/sdk";
 import Mux from "@mux/mux-node";
 import * as fs from "fs";
 import * as path from "path";
@@ -12,11 +12,12 @@ const PLATFORM_FEE_PERCENT = 20;
 const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
 const prisma = new PrismaClient({ adapter });
 
-const whop = new Whop({
-  apiKey: process.env.WHOP_API_KEY!,
-  ...(process.env.WHOP_SANDBOX === "true" && {
-    baseURL: "https://sandbox-api.whop.com/api/v1",
-  }),
+const whop = new WhopClient({
+  token: process.env.WHOP_API_KEY!,
+  environment:
+    process.env.WHOP_SANDBOX === "true"
+      ? WhopEnvironment.Sandbox
+      : WhopEnvironment.Production,
 });
 
 const mux = new Mux({
@@ -25,11 +26,11 @@ const mux = new Mux({
 });
 
 const APP_URL = process.env.NEXT_PUBLIC_APP_URL!;
-const COMPANY_ID = process.env.WHOP_COMPANY_ID!;
+const SANDBOX_EMAIL = process.env.WHOP_SANDBOX_EMAIL;
 
 const SEED_DATA = [
   {
-    instructor: { name: "Sarah Chen", email: "sarah.chen.demo@gmail.com" },
+    instructor: { name: "Sarah Chen" },
     course: {
       title: "Web Development Fundamentals",
       description: "Learn the fundamentals of HTML, CSS, and JavaScript. Build real projects from scratch and deploy them to the web. This course covers everything from basic syntax to modern frameworks.",
@@ -43,7 +44,7 @@ const SEED_DATA = [
     videoFile: "video1-web-dev.mp4",
   },
   {
-    instructor: { name: "Marcus Rivera", email: "marcus.rivera.demo@gmail.com" },
+    instructor: { name: "Marcus Rivera" },
     course: {
       title: "UI/UX Design Masterclass",
       description: "Master the principles of user interface and experience design. From wireframing to high-fidelity prototypes, learn the complete design workflow used by top companies.",
@@ -57,7 +58,7 @@ const SEED_DATA = [
     videoFile: "video2-design.mp4",
   },
   {
-    instructor: { name: "Amira Patel", email: "amira.patel.demo@gmail.com" },
+    instructor: { name: "Amira Patel" },
     course: {
       title: "Marketing & Growth Strategy",
       description: "Learn proven strategies to grow your business online. Covers SEO, content marketing, social media, paid ads, and analytics. Real case studies from successful startups.",
@@ -71,7 +72,7 @@ const SEED_DATA = [
     videoFile: "video3-marketing.mp4",
   },
   {
-    instructor: { name: "James Okafor", email: "james.okafor.demo@gmail.com" },
+    instructor: { name: "James Okafor" },
     course: {
       title: "Data Science with Python",
       description: "From zero to data scientist. Learn Python, pandas, NumPy, matplotlib, and scikit-learn through hands-on projects. Analyze real datasets and build predictive models.",
@@ -85,7 +86,7 @@ const SEED_DATA = [
     videoFile: "video4-data-science.mp4",
   },
   {
-    instructor: { name: "Elena Volkov", email: "elena.volkov.demo@gmail.com" },
+    instructor: { name: "Elena Volkov" },
     course: {
       title: "Photography & Visual Arts",
       description: "Transform your photography skills from amateur to professional. Covers composition, lighting, editing, and building a portfolio. Works with any camera, including smartphones.",
@@ -173,7 +174,7 @@ async function setupCourseChat(
 ): Promise<{ experienceId: string; chatChannelId: string } | null> {
   try {
     let chatAppId: string | null = null;
-    for await (const app of whop.apps.list({ query: "chat", first: 20 })) {
+    for await (const app of await whop.apps.list({ query: "chat", first: 20 })) {
       if (app.name.toLowerCase().includes("chat")) {
         chatAppId = app.id;
         break;
@@ -183,15 +184,15 @@ async function setupCourseChat(
 
     const experience = await whop.experiences.create({
       app_id: chatAppId,
-      company_id: companyId,
+      account_id: companyId,
       name: `${courseName.slice(0, 50)} Discussion`,
     });
 
-    await whop.experiences.attach(experience.id, { product_id: productId });
+    await whop.experiences.attach({ id: experience.id, product_id: productId });
 
     let chatChannelId: string | null = null;
-    for await (const channel of whop.chatChannels.list({
-      company_id: companyId,
+    for await (const channel of await whop.chatChannels.list({
+      account_id: companyId,
       first: 50,
     })) {
       if (channel.experience.id === experience.id) {
@@ -210,6 +211,12 @@ async function setupCourseChat(
 
 async function seed() {
   console.log("=== Courstar Seed Script ===\n");
+
+  if (!SANDBOX_EMAIL) {
+    throw new Error(
+      "Set WHOP_SANDBOX_EMAIL to a real email address. Whop refuses account emails that don't accept mail."
+    );
+  }
 
   // Clean up any previous seed data
   const seedUsers = await prisma.user.findMany({
@@ -233,7 +240,6 @@ async function seed() {
     const user = await prisma.user.create({
       data: {
         whopUserId: `seed_user_${i + 1}_${Date.now()}`,
-        email: instructor.email,
         name: instructor.name,
         avatarUrl: `https://ui-avatars.com/api/?name=${encodeURIComponent(instructor.name)}&background=14B8A6&color=fff&format=png`,
       },
@@ -242,10 +248,9 @@ async function seed() {
 
     // 2. Create Whop company (connected account)
     console.log("  Creating Whop company...");
-    const company = await whop.companies.create({
-      email: process.env.WHOP_SANDBOX_EMAIL || "developer@example.com",
+    const company = await whop.accounts.create({
+      email: SANDBOX_EMAIL,
       title: `${instructor.name}'s Teaching Account`,
-      parent_company_id: COMPANY_ID,
     });
 
     const profile = await prisma.creatorProfile.create({
@@ -317,14 +322,14 @@ async function seed() {
     // 5. Publish: create Whop product + plan + checkout + chat
     console.log("  Publishing via Whop API...");
     const product = await whop.products.create({
-      company_id: company.id,
+      account_id: company.id,
       title: course.title.slice(0, 40),
       description: course.description.slice(0, 500),
     });
 
     const priceInDollars = course.price / 100;
     const plan = await whop.plans.create({
-      company_id: company.id,
+      account_id: company.id,
       product_id: product.id,
       initial_price: priceInDollars,
       plan_type: "one_time",
@@ -333,14 +338,18 @@ async function seed() {
     const applicationFee =
       Math.round(priceInDollars * (PLATFORM_FEE_PERCENT / 100) * 100) / 100;
 
+    // application_fee_amount is accepted by the Whop API but missing from the SDK types,
+    // so we build the checkout plan as a variable first instead of writing it inline.
+    const checkoutPlan = {
+      account_id: company.id,
+      currency: "usd",
+      initial_price: priceInDollars,
+      plan_type: "one_time" as const,
+      application_fee_amount: applicationFee,
+    };
+
     const checkout = await whop.checkoutConfigurations.create({
-      plan: {
-        company_id: company.id,
-        currency: "usd",
-        initial_price: priceInDollars,
-        plan_type: "one_time",
-        application_fee_amount: applicationFee,
-      },
+      plan: checkoutPlan,
       metadata: { courstar_course_id: dbCourse.id },
       redirect_url: `${APP_URL}/courses/${slug}/learn`,
     });

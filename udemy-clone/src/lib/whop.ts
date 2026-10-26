@@ -1,17 +1,15 @@
-import Whop from "@whop/sdk";
+import { WhopClient, WhopEnvironment } from "@whop/sdk";
 
-let _whop: Whop | null = null;
+let _whop: WhopClient | null = null;
 
-export function getWhop(): Whop {
+export function getWhop(): WhopClient {
   if (!_whop) {
-    _whop = new Whop({
-      apiKey: process.env.WHOP_API_KEY!,
-      webhookKey: process.env.WHOP_WEBHOOK_SECRET
-        ? Buffer.from(process.env.WHOP_WEBHOOK_SECRET).toString("base64")
-        : undefined,
-      ...(process.env.WHOP_SANDBOX === "true" && {
-        baseURL: "https://sandbox-api.whop.com/api/v1",
-      }),
+    _whop = new WhopClient({
+      token: process.env.WHOP_API_KEY!,
+      environment:
+        process.env.WHOP_SANDBOX === "true"
+          ? WhopEnvironment.Sandbox
+          : WhopEnvironment.Production,
     });
   }
   return _whop;

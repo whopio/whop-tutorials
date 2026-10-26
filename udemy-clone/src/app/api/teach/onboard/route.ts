@@ -35,7 +35,7 @@ export async function POST() {
       }
       const whop = getWhop();
       const accountLink = await whop.accountLinks.create({
-        company_id: existing.whopCompanyId,
+        account_id: existing.whopCompanyId,
         use_case: "account_onboarding",
         return_url: `${process.env.NEXT_PUBLIC_APP_URL}/teach/dashboard`,
         refresh_url: `${process.env.NEXT_PUBLIC_APP_URL}/teach?refresh=true`,
@@ -47,10 +47,9 @@ export async function POST() {
 
   const whop = getWhop();
 
-  const company = await whop.companies.create({
+  const company = await whop.accounts.create({
     email: user.email || undefined,
     title: `${user.name || "Instructor"}'s Teaching Account`,
-    parent_company_id: process.env.WHOP_COMPANY_ID!,
   });
 
   if (isSandbox) {
@@ -73,7 +72,7 @@ export async function POST() {
   });
 
   const accountLink = await whop.accountLinks.create({
-    company_id: company.id,
+    account_id: company.id,
     use_case: "account_onboarding",
     return_url: `${process.env.NEXT_PUBLIC_APP_URL}/teach/dashboard`,
     refresh_url: `${process.env.NEXT_PUBLIC_APP_URL}/teach?refresh=true`,
