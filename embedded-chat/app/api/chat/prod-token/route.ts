@@ -31,7 +31,7 @@ export async function POST(request: Request): Promise<Response> {
 
   try {
     const { token } = await getWhopProd().accessTokens.create({
-      company_id: getProdEnv().companyId,
+      account_id: getProdEnv().companyId,
       user_id: userId,
       scoped_actions: EMBED_SCOPES,
     });

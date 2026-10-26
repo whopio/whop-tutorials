@@ -16,7 +16,7 @@ async function userToken(userId: string): Promise<string> {
   const now = Date.now();
   if (hit && hit.expires > now + 60_000) return hit.token;
   const { token, expires_at } = await getWhop().accessTokens.create({
-    company_id: getEnv().WHOP_COMPANY_ID,
+    account_id: getEnv().WHOP_COMPANY_ID,
     user_id: userId,
     scoped_actions: [...CHAT_SCOPES],
   });

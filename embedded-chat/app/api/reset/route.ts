@@ -6,7 +6,8 @@ import { channels } from "@/constants/whop-ids";
 // moderation demo can be replayed from scratch.
 export async function POST(): Promise<Response> {
   try {
-    await getWhop().chatChannels.update(channels.general.id, {
+    await getWhop().chatChannels.update({
+      id: channels.general.id,
       who_can_post: "everyone",
       who_can_react: "everyone",
       ban_media: false,

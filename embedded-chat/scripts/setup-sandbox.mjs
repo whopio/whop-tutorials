@@ -16,7 +16,7 @@
 //
 // Run from code/:  npm run setup
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import Whop from "@whop/sdk";
+import { WhopClient } from "@whop/sdk";
 
 const ROOT = new URL("../", import.meta.url);
 const env = Object.fromEntries(
@@ -34,7 +34,7 @@ const CID = env.WHOP_COMPANY_ID;
 const BASE = "https://sandbox-api.whop.com/api/v1";
 const CHAT_APP_ID = "app_xml5hbizmZPgUT"; // built-in Whop "Chat" app
 
-const whop = new Whop({ apiKey: KEY, baseURL: BASE });
+const whop = new WhopClient({ token: KEY, baseUrl: BASE });
 const log = (...a) => console.log(...a);
 const j = (o) => JSON.stringify(o, null, 2);
 
@@ -52,7 +52,7 @@ const tokenCache = new Map();
 async function tokenFor(userId) {
   if (tokenCache.has(userId)) return tokenCache.get(userId);
   const { token } = await whop.accessTokens.create({
-    company_id: CID,
+    account_id: CID,
     user_id: userId,
     scoped_actions: FULL_SCOPES,
   });
@@ -98,16 +98,16 @@ async function collect(res, max = 300) {
 }
 
 // ── owner (admin / support agent) ─────────────────────────────────────────
-const company = await whop.companies.retrieve(CID);
-const OWNER = company.owner_user.id;
-log(`owner: ${OWNER} (@${company.owner_user.username})`);
+const company = await whop.accounts.retrieve({ id: CID });
+const OWNER = company.owner.id;
+log(`owner: ${OWNER} (@${company.owner.username})`);
 // The owner posts announcements and support replies; show a brand persona
 // instead of the operator's personal name.
 try {
-  await whop.users.update(OWNER, { account_id: CID, name: "Orbit Team" });
+  await whop.users.update({ id: OWNER, account_id: CID, name: "Orbit Team" });
   log("owner display name -> Orbit Team");
 } catch (e) {
-  log(`owner rename skipped: ${e?.status} ${e?.message}`);
+  log(`owner rename skipped: ${e?.statusCode} ${e?.message}`);
 }
 
 // ── 1. Demo users (connected accounts) ────────────────────────────────────
@@ -121,14 +121,13 @@ const WANT = [
 ];
 
 log("\n=== 1. Demo users ===");
-const children = await collect(await whop.companies.list({ parent_company_id: CID }));
+const children = await collect(await whop.accounts.list({ parent_account_id: CID }));
 const demoUsers = [];
 for (const want of WANT) {
   let child = children.find((c) => c.title === want.name);
   if (!child) {
-    child = await whop.companies.create({
+    child = await whop.accounts.create({
       email: want.email,
-      parent_company_id: CID,
       title: want.name,
       send_customer_emails: false,
       metadata: { internal_user_id: `demo_${want.key}` },
@@ -137,12 +136,12 @@ for (const want of WANT) {
   } else {
     log(`reusing ${want.name} -> ${child.id}`);
   }
-  let ownerUser = child.owner_user;
-  if (!ownerUser?.id) ownerUser = (await whop.companies.retrieve(child.id)).owner_user;
+  let ownerUser = child.owner;
+  if (!ownerUser?.id) ownerUser = (await whop.accounts.retrieve({ id: child.id })).owner;
   try {
-    await whop.users.update(ownerUser.id, { account_id: CID, name: want.name });
+    await whop.users.update({ id: ownerUser.id, account_id: CID, name: want.name });
   } catch (e) {
-    log(`  (name override skipped: ${e?.status} ${e?.message})`);
+    log(`  (name override skipped: ${e?.statusCode} ${e?.message})`);
   }
   demoUsers.push({ key: want.key, name: want.name, userId: ownerUser.id });
 }
@@ -151,11 +150,11 @@ const [ava, ben, cara] = demoUsers;
 
 // ── 2. Product ────────────────────────────────────────────────────────────
 log("\n=== 2. Product ===");
-const products = await collect(await whop.products.list({ company_id: CID }));
+const products = await collect(await whop.products.list({ account_id: CID }));
 let product = products.find((p) => p.title === "Orbit Community");
 if (!product) {
   product = await whop.products.create({
-    company_id: CID,
+    account_id: CID,
     title: "Orbit Community",
     description: "Membership that unlocks the Orbit community chat.",
     visibility: "visible",
@@ -167,13 +166,13 @@ if (!product) {
 
 // ── 3. Chat channels (public so connected users can post) ─────────────────
 log("\n=== 3. Chat channels ===");
-const experiences = await collect(await whop.experiences.list({ company_id: CID }));
+const experiences = await collect(await whop.experiences.list({ account_id: CID }));
 async function ensureChannel(name) {
   let exp = experiences.find((e) => e.app?.id === CHAT_APP_ID && e.name === name);
   if (!exp) {
     exp = await whop.experiences.create({
       app_id: CHAT_APP_ID,
-      company_id: CID,
+      account_id: CID,
       name,
       is_public: true,
     });
@@ -181,39 +180,39 @@ async function ensureChannel(name) {
   } else {
     log(`reusing experience "${name}" -> ${exp.id}`);
     try {
-      await whop.experiences.update(exp.id, { is_public: true });
+      await whop.experiences.update({ id: exp.id, is_public: true });
     } catch {}
   }
   try {
-    await whop.experiences.attach(exp.id, { product_id: product.id });
+    await whop.experiences.attach({ id: exp.id, product_id: product.id });
   } catch (e) {
     if (!String(e?.message).toLowerCase().includes("alread"))
-      log(`  attach note: ${e?.status} ${e?.message}`);
+      log(`  attach note: ${e?.statusCode} ${e?.message}`);
   }
-  const channel = await whop.chatChannels.retrieve(exp.id);
+  const channel = await whop.chatChannels.retrieve({ id: exp.id });
   log(`  channel -> ${channel.id}`);
   return { experienceId: exp.id, id: channel.id };
 }
 const general = await ensureChannel("General");
 const announcements = await ensureChannel("Announcements");
 try {
-  await whop.chatChannels.update(announcements.id, { who_can_post: "admins" });
+  await whop.chatChannels.update({ id: announcements.id, who_can_post: "admins" });
   log("  Announcements set read-only (who_can_post: admins)");
 } catch (e) {
-  log(`  read-only update failed: ${e?.status} ${e?.message}`);
+  log(`  read-only update failed: ${e?.statusCode} ${e?.message}`);
 }
 
 // ── 4. DMs ────────────────────────────────────────────────────────────────
 log("\n=== 4. DMs ===");
 const groupDm = await whop.dmChannels.create({
   with_user_ids: [ava.userId, ben.userId, cara.userId],
-  company_id: CID,
+  account_id: CID,
   custom_name: "Orbit team",
 });
 log(`group DM -> ${groupDm.id}`);
 const directDm = await whop.dmChannels.create({
   with_user_ids: [ava.userId, ben.userId],
-  company_id: CID,
+  account_id: CID,
   custom_name: "Ava & Ben",
 });
 log(`1:1 DM -> ${directDm.id}`);
@@ -223,7 +222,7 @@ log("\n=== 5. Support chats ===");
 const supportByUser = {};
 for (const u of demoUsers) {
   const sc = await whop.supportChannels.create({
-    company_id: CID,
+    account_id: CID,
     user_id: u.userId,
     custom_name: `${u.name.split(" ")[0]} - support`,
   });
@@ -263,7 +262,7 @@ async function seedIfEmpty(channelId, seeder, readerId = OWNER) {
     await seeder();
     log(`  ${channelId}: seeded`);
   } catch (e) {
-    log(`  ${channelId}: seed error ${e?.status ?? ""} ${e?.message ?? e}`);
+    log(`  ${channelId}: seed error ${e?.statusCode ?? ""} ${e?.message ?? e}`);
   }
 }
 

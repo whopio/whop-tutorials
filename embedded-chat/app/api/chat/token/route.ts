@@ -19,7 +19,7 @@ export async function POST(request: Request): Promise<Response> {
 
   try {
     const { token } = await getWhop().accessTokens.create({
-      company_id: getEnv().WHOP_COMPANY_ID,
+      account_id: getEnv().WHOP_COMPANY_ID,
       user_id: userId,
       scoped_actions: [...CHAT_SCOPES],
     });

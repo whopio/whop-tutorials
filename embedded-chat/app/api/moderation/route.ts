@@ -36,7 +36,7 @@ const schema = z.object({
 
 export async function GET(): Promise<Response> {
   try {
-    const ch = await getWhop().chatChannels.retrieve(channels.general.id);
+    const ch = await getWhop().chatChannels.retrieve({ id: channels.general.id });
     return NextResponse.json(pick(ch as unknown as Record<string, unknown>));
   } catch (error) {
     return NextResponse.json({ error: "read_error", detail: String(error) }, { status: 502 });
@@ -49,7 +49,7 @@ export async function POST(request: Request): Promise<Response> {
     return NextResponse.json({ error: "bad_request" }, { status: 400 });
   }
   try {
-    const ch = await getWhop().chatChannels.update(channels.general.id, parsed.data);
+    const ch = await getWhop().chatChannels.update({ id: channels.general.id, ...parsed.data });
     return NextResponse.json(pick(ch as unknown as Record<string, unknown>));
   } catch (error) {
     return NextResponse.json({ error: "moderation_error", detail: String(error) }, { status: 502 });

@@ -14,7 +14,7 @@ async function prodUserToken(userId: string): Promise<string> {
   const now = Date.now();
   if (hit && hit.expires > now + 60_000) return hit.token;
   const { token, expires_at } = await getWhopProd().accessTokens.create({
-    company_id: getProdEnv().companyId,
+    account_id: getProdEnv().companyId,
     user_id: userId,
     scoped_actions: [...CHAT_SCOPES],
   });
@@ -101,7 +101,7 @@ export async function prodWipe(channelId: string, adminUserId: string): Promise<
         continue;
       }
       try {
-        await getWhopProd().messages.delete(m.id);
+        await getWhopProd().messages.delete({ id: m.id });
         deleted++;
         any = true;
       } catch {
@@ -117,5 +117,5 @@ export async function prodModerate(
   channelId: string,
   settings: Record<string, unknown>,
 ): Promise<void> {
-  await getWhopProd().chatChannels.update(channelId, settings as never);
+  await getWhopProd().chatChannels.update({ id: channelId, ...settings } as never);
 }

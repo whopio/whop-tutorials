@@ -4,9 +4,11 @@ Companion demo for the article **"How to add embedded chats to your app or websi
 
 A render-path toggle shows both ways to embed Whop chat: the drop-in `<ChatElement>`, live on a dedicated production company, and the same kind of conversation rendered from the REST Chat API on sandbox. Test cards are not needed here: chat has no checkout.
 
-## How embedded chat works
+Live demo: https://whop-embedded-chat-demo.vercel.app
 
-1. Each of your users is a real Whop account. Orbit creates them as connected accounts with `companies.create` and keeps the returned `owner_user.id`.
+## How the flow works
+
+1. Each of your users is a real Whop account. Orbit creates them as connected accounts with `accounts.create` and keeps the returned `owner.id`.
 2. When a user opens chat, the server mints a short-lived, company-scoped token for that user with `accessTokens.create`. The element (or your own UI) calls this and refreshes it automatically.
 3. A channel is a Whop Chat experience. Orbit creates one with `experiences.create` (the built-in Chat app), makes it public, and reads its `chat_feed_` id with `chatChannels.retrieve`.
 4. Direct messages and support chats are created with `dmChannels.create` and `supportChannels.create`; both return a `feed_` id.
@@ -58,6 +60,8 @@ npm run setup                # provisions sandbox resources, writes constants/wh
 npm run dev
 ```
 
+You need a Whop sandbox company and a Company API key (not an App key) with the scopes the article lists: `chat:read`, `chat:message:create`, `chat:moderate`, `dms:read`, `dms:message:manage`, `dms:channel:manage`, `support_chat:read`, `support_chat:create`, `support_chat:message:create`, `company:basic:read`, `company:create_child`, `access_pass:create`, `access_pass:basic:read`, `experience:create`, `experience:attach` and `experience:update`. `constants/whop-ids.ts` ships with placeholder ids and `npm run setup` overwrites it, so run it before `npm run dev`.
+
 To also render the live embed, add production credentials (`WHOP_PROD_API_KEY`, `WHOP_PROD_COMPANY_ID`, and a real throwaway `WHOP_PROD_DEMO_EMAIL`) to `.env.local`, then:
 
 ```bash
@@ -66,8 +70,23 @@ npm run setup:prod           # provisions the production demo company, writes co
 
 Open the printed localhost URL to explore the demo. On the home page, the embed posts for real (moderated, and reset when stale); the Chat API tab's sends are simulated client-side. The article's minimal pages at `/chat` (Chat API) and `/chat/embed` (the element) post for real.
 
+## Sandbox behaviour this demo relies on
+
+Verified live, Oct 25, 2026, on `@whop/sdk` 2.4.0:
+
+- `npm run setup` is safe to rerun. It finds the demo accounts with `accounts.list({ parent_account_id })` and the product and channels by name, and `dmChannels.create` and `supportChannels.create` hand back the existing conversation for the same people. A rerun against an already provisioned company writes the same ids.
+- A Company API key can give each demo user a company-scoped display name on sandbox with `users.update({ id, account_id, name })`, so the chat shows "Ava Chen" rather than a generated username.
+- Reading and posting take a user token from `accessTokens.create({ account_id, user_id, scoped_actions })`. A member posting to a channel set to `who_can_post: "admins"`, and anyone posting to a DM they are not in, is refused with "You are not authorized to post in this channel", which the messages route returns as `not_allowed`.
+- Reading a DM or another member's support chat without being in it returns 403, which the panel shows as no access.
+- `chatChannels.update` with the company key makes General read-only at once, and `/api/reset` opens it again.
+- The drop-in `<ChatElement>` does not authenticate on sandbox. With `loadWhopElements({ environment: "sandbox" })` the element frame still calls production `data.whop.com`, which answers "Authentication failed" to a sandbox token, so `/chat/embed` stays on its loading state. The article says the same, and it is why the live embed runs on a production company.
+
 ## What this demo deliberately leaves out
 
 - No custom auth. In production you would derive the user id from your own session; here the browser picks which demo user to act as.
 - No webhooks or database. State lives in Whop; the app just mints tokens and calls the Chat API.
 - The live embed runs on a dedicated throwaway production company, kept behind heavy moderation and a periodic reset, not a real one.
+
+## Fonts
+
+The live demo uses Whop's licensed typefaces. Those files are not redistributed here, so this copy falls back to system fonts and will look a little different. Add your own files to `public/fonts` and matching `@font-face` rules in `app/globals.css` if you want to change that.

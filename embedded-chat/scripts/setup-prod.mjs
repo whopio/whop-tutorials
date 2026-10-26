@@ -14,7 +14,7 @@
 //
 // Run from code/:  npm run setup:prod
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import Whop from "@whop/sdk";
+import { WhopClient } from "@whop/sdk";
 
 const ROOT = new URL("../", import.meta.url);
 const env = Object.fromEntries(
@@ -36,7 +36,7 @@ if (!KEY || !CID) {
 const BASE = "https://api.whop.com/api/v1";
 const CHAT_APP_ID = "app_xml5hbizmZPgUT"; // built-in Whop "Chat" app
 
-const whop = new Whop({ apiKey: KEY, baseURL: BASE });
+const whop = new WhopClient({ token: KEY, baseUrl: BASE });
 const log = (...a) => console.log(...a);
 const j = (o) => JSON.stringify(o, null, 2);
 
@@ -72,7 +72,7 @@ const tokenCache = new Map();
 async function tokenFor(userId) {
   if (tokenCache.has(userId)) return tokenCache.get(userId);
   const { token } = await whop.accessTokens.create({
-    company_id: CID,
+    account_id: CID,
     user_id: userId,
     scoped_actions: FULL_SCOPES,
   });
@@ -135,7 +135,7 @@ async function wipeChannel(channelId, adminUserId) {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (del.ok) { deleted++; any = true; continue; }
-      try { await whop.messages.delete(m.id); deleted++; any = true; } catch {}
+      try { await whop.messages.delete({ id: m.id }); deleted++; any = true; } catch {}
     }
     if (!any) break; // stop if a page cannot be deleted, rather than loop forever
   }
@@ -143,14 +143,14 @@ async function wipeChannel(channelId, adminUserId) {
 }
 
 // ── owner (admin) ─────────────────────────────────────────────────────────
-const company = await whop.companies.retrieve(CID);
-const OWNER = company.owner_user.id;
-log(`owner: ${OWNER} (@${company.owner_user.username})`);
+const company = await whop.accounts.retrieve({ id: CID });
+const OWNER = company.owner.id;
+log(`owner: ${OWNER} (@${company.owner.username})`);
 try {
-  await whop.users.update(OWNER, { account_id: CID, name: "Orbit Team" });
+  await whop.users.update({ id: OWNER, account_id: CID, name: "Orbit Team" });
   log("owner display name -> Orbit Team (company-scoped)");
 } catch (e) {
-  log(`owner rename skipped: ${e?.status} ${e?.message}`);
+  log(`owner rename skipped: ${e?.statusCode} ${e?.message}`);
 }
 
 // ── 1. Demo users (connected accounts) ────────────────────────────────────
@@ -178,7 +178,7 @@ const WANT = [
 ];
 
 log("\n=== 1. Demo users ===");
-const children = await collect(await whop.companies.list({ parent_company_id: CID }));
+const children = await collect(await whop.accounts.list({ parent_account_id: CID }));
 const demoUsers = [];
 for (const want of WANT) {
   // Match accounts from earlier runs by their metadata marker. The marker does
@@ -187,9 +187,8 @@ for (const want of WANT) {
   // their old email-derived handles).
   let child = children.find((c) => c.metadata?.internal_user_id === MARKER(want.key));
   if (!child) {
-    child = await whop.companies.create({
+    child = await whop.accounts.create({
       email: want.email,
-      parent_company_id: CID,
       title: want.name,
       send_customer_emails: false,
       metadata: { internal_user_id: MARKER(want.key) },
@@ -198,12 +197,12 @@ for (const want of WANT) {
   } else {
     log(`reusing ${want.name} -> ${child.id}`);
   }
-  let ownerUser = child.owner_user;
-  if (!ownerUser?.id) ownerUser = (await whop.companies.retrieve(child.id)).owner_user;
+  let ownerUser = child.owner;
+  if (!ownerUser?.id) ownerUser = (await whop.accounts.retrieve({ id: child.id })).owner;
   try {
-    await whop.users.update(ownerUser.id, { account_id: CID, name: want.name });
+    await whop.users.update({ id: ownerUser.id, account_id: CID, name: want.name });
   } catch (e) {
-    log(`  (name override skipped: ${e?.status} ${e?.message})`);
+    log(`  (name override skipped: ${e?.statusCode} ${e?.message})`);
   }
   demoUsers.push({ key: want.key, name: want.name, userId: ownerUser.id });
 }
@@ -212,11 +211,11 @@ const [ava, ben, cara] = demoUsers;
 
 // ── 2. Product ────────────────────────────────────────────────────────────
 log("\n=== 2. Product ===");
-const products = await collect(await whop.products.list({ company_id: CID }));
+const products = await collect(await whop.products.list({ account_id: CID }));
 let product = products.find((p) => p.title === "Orbit Community");
 if (!product) {
   product = await whop.products.create({
-    company_id: CID,
+    account_id: CID,
     title: "Orbit Community",
     description: "Membership that unlocks the Orbit community chat.",
     visibility: "visible",
@@ -228,12 +227,12 @@ if (!product) {
 
 // ── 3. General channel (public so connected users can post) ───────────────
 log("\n=== 3. General channel ===");
-const experiences = await collect(await whop.experiences.list({ company_id: CID }));
+const experiences = await collect(await whop.experiences.list({ account_id: CID }));
 let exp = experiences.find((e) => e.app?.id === CHAT_APP_ID && e.name === "General");
 if (!exp) {
   exp = await whop.experiences.create({
     app_id: CHAT_APP_ID,
-    company_id: CID,
+    account_id: CID,
     name: "General",
     is_public: true,
   });
@@ -241,16 +240,16 @@ if (!exp) {
 } else {
   log(`reusing experience "General" -> ${exp.id}`);
   try {
-    await whop.experiences.update(exp.id, { is_public: true });
+    await whop.experiences.update({ id: exp.id, is_public: true });
   } catch {}
 }
 try {
-  await whop.experiences.attach(exp.id, { product_id: product.id });
+  await whop.experiences.attach({ id: exp.id, product_id: product.id });
 } catch (e) {
   if (!String(e?.message).toLowerCase().includes("alread"))
-    log(`  attach note: ${e?.status} ${e?.message}`);
+    log(`  attach note: ${e?.statusCode} ${e?.message}`);
 }
-const channel = await whop.chatChannels.retrieve(exp.id);
+const channel = await whop.chatChannels.retrieve({ id: exp.id });
 log(`  channel -> ${channel.id}`);
 
 // ── 4. Seed conversation (authored by the users) ──────────────────────────
@@ -276,7 +275,7 @@ if (existing.ok && existing.count > 0) {
 } else {
   // Seed with slow mode off, then apply it in step 5, so the cooldown does
   // not throttle the seed's back-to-back posts.
-  await whop.chatChannels.update(channel.id, { user_posts_cooldown_seconds: 0 }).catch(() => {});
+  await whop.chatChannels.update({ id: channel.id, user_posts_cooldown_seconds: 0 }).catch(() => {});
   await post(ava.userId, channel.id, "Hey everyone, welcome to Orbit! 👋");
   await post(ben.userId, channel.id, "Heads up: this is the real Whop chat element, live on production.");
   const poll = await post(cara.userId, channel.id, "What should we ship next?", {
@@ -298,10 +297,10 @@ if (existing.ok && existing.count > 0) {
 // ── 5. Moderation (after seeding, so slow mode does not throttle it) ───────
 log("\n=== 5. Moderation ===");
 try {
-  await whop.chatChannels.update(channel.id, MODERATION);
+  await whop.chatChannels.update({ id: channel.id, ...MODERATION });
   log(`  applied (slow mode ${MODERATION.user_posts_cooldown_seconds}s, ${BANNED_WORDS.length} banned words, links + media blocked)`);
 } catch (e) {
-  log(`  moderation update failed: ${e?.status} ${e?.message}`);
+  log(`  moderation update failed: ${e?.statusCode} ${e?.message}`);
 }
 
 // ── 6. Persist ids ────────────────────────────────────────────────────────

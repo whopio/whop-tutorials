@@ -10,7 +10,7 @@ export const steps: WalkthroughStep[] = [
   {
     id: "users",
     title: "Every user is a real Whop account",
-    body: "Ava, Ben and Cara are `connected accounts` created with `companies.create`. Switch between them here: each acts through its own short-lived, company-scoped token, minted server-side for every call. The embed tab fetches its token from `/api/chat/prod-token`; the Chat API tab mints one inside its message routes.",
+    body: "Ava, Ben and Cara are `connected accounts` created with `accounts.create`. Switch between them here: each acts through its own short-lived, company-scoped token, minted server-side for every call. The embed tab fetches its token from `/api/chat/prod-token`; the Chat API tab mints one inside its message routes.",
   },
   {
     id: "surfaces",
