@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 const envSchema = z.object({
-  WHOP_COMPANY_API_KEY: z.string().startsWith("apik_"),
+  WHOP_COMPANY_API_KEY: z.string().min(1),
   WHOP_PRO_PRODUCT_ID: z.string().startsWith("prod_"),
   WHOP_PRO_PLAN_ID: z.string().startsWith("plan_"),
   WHOP_SANDBOX: z
@@ -16,8 +16,6 @@ type Env = z.infer<typeof envSchema>;
 
 let cached: Env | null = null;
 
-// Parses on first call instead of at import time, so `next build` can
-// collect page data without real env values present.
 export function getEnv(): Env {
   if (cached) return cached;
   cached = envSchema.parse({

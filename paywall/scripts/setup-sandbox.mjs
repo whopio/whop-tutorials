@@ -2,7 +2,7 @@
 // unlock. Reads credentials from .env.local.
 // Run from the project root: node scripts/setup-sandbox.mjs
 import { readFileSync } from "node:fs";
-import Whop from "@whop/sdk";
+import { WhopClient, WhopEnvironment } from "@whop/sdk";
 
 const env = Object.fromEntries(
   readFileSync(new URL("../.env.local", import.meta.url), "utf8")
@@ -14,17 +14,17 @@ const env = Object.fromEntries(
     }),
 );
 
-const whop = new Whop({
-  apiKey: env.WHOP_COMPANY_API_KEY,
-  baseURL: "https://sandbox-api.whop.com/api/v1",
+const whop = new WhopClient({
+  token: env.WHOP_COMPANY_API_KEY,
+  environment: WhopEnvironment.Sandbox,
 });
 
 // 1. Create the recurring Pro plan on your subscription product (in the
-// dashboard or via whop.plans.create) and set its id as WHOP_PRO_PLAN_ID.
+// dashboard or via whop.variants.create) and set its id as WHOP_PRO_PLAN_ID.
 
 // 2. One-time product + plan for the individually sellable post.
 const postProduct = await whop.products.create({
-  company_id: env.WHOP_COMPANY_ID,
+  account_id: env.WHOP_COMPANY_ID,
   title: "Pricing teardown: what 50 top SaaS apps actually charge",
   description:
     "One-time unlock of the pricing teardown post on the Pulse paywall demo.",
@@ -32,7 +32,7 @@ const postProduct = await whop.products.create({
 });
 console.log("POST_PRODUCT_ID=" + postProduct.id);
 
-const postPlan = await whop.plans.create({
+const postPlan = await whop.variants.create({
   product_id: postProduct.id,
   plan_type: "one_time",
   initial_price: 5,

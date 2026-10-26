@@ -132,7 +132,9 @@ export function PaywallCard({
           }
           if (cancelled.current) return;
 
-          if (res.ok) {
+          // Only a 200 means the session was set. res.ok is also true for
+          // the 202 "still pending" answer, which must keep polling.
+          if (res.status === 200) {
             setPhase({ name: "unlocked", option });
             router.refresh();
             return;

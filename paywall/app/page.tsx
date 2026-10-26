@@ -108,6 +108,58 @@ export default async function Home({
             )}
           </div>
 
+          <Separator size="4" className="my-5" />
+
+          <div>
+            <Text size="2" weight="bold" as="p">
+              See it in action
+            </Text>
+            <div className="mt-1">
+              <Text size="1" color="gray" as="p">
+                The same Whop paywall, inside two full apps you can open right
+                now.
+              </Text>
+            </div>
+            <div className="mt-3 flex flex-col gap-2">
+              {[
+                {
+                  name: "Storyline",
+                  kind: "Medium-style publication",
+                  blurb: "Readers subscribe to unlock members-only stories.",
+                  href: "https://storyline-three-orpin.vercel.app",
+                },
+                {
+                  name: "Penstack",
+                  kind: "Substack-style newsletter",
+                  blurb: "Paid subscribers unlock premium posts.",
+                  href: "https://penstack-fresh.vercel.app",
+                },
+              ].map((demo) => (
+                <a
+                  key={demo.name}
+                  href={demo.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="group rounded-lg border border-[#E5E4E0] bg-white px-3.5 py-3 transition hover:border-[#151515]/30 hover:shadow-sm"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <Text size="2" weight="medium">
+                      {demo.name}
+                    </Text>
+                    <Text size="1" color="gray" className="shrink-0">
+                      Live demo ↗
+                    </Text>
+                  </div>
+                  <div className="mt-0.5">
+                    <Text size="1" color="gray" as="p">
+                      {demo.kind}. {demo.blurb}
+                    </Text>
+                  </div>
+                </a>
+              ))}
+            </div>
+          </div>
+
           <div className="mt-5">
             <Text size="1" color="gray" as="p">
               Companion demo for the article &quot;How to add a paywall to a
