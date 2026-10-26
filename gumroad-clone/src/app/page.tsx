@@ -124,31 +124,31 @@ export default async function HomePage() {
 
       {/* Seller CTA */}
       <section className="mx-auto max-w-7xl px-4 py-16">
-        <div className="rounded-2xl bg-gradient-to-br from-accent/10 to-accent/5 p-12 text-center">
-          <h2 className="text-3xl font-bold text-text-primary">
+        <div className="bg-gradient-to-br from-accent/10 to-accent/5 p-6 sm:p-12 text-center">
+          <h2 className="text-2xl sm:text-3xl font-bold text-text-primary">
             Turn your skills into income
           </h2>
-          <p className="mx-auto mt-4 max-w-lg text-text-secondary">
+          <p className="mx-auto mt-4 max-w-lg text-sm sm:text-base text-text-secondary">
             Join creators selling digital products on Shelfie. We handle
             payments, payouts, and compliance — you keep 95% of every sale.
           </p>
-          <div className="mt-8 flex items-center justify-center gap-8 text-sm text-text-secondary">
+          <div className="mt-6 sm:mt-8 flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-8 text-sm text-text-secondary">
             <div className="flex items-center gap-2">
-              <Store className="h-5 w-5 text-accent" />
-              Free to start
+              <Store className="h-5 w-5 text-accent" aria-hidden="true" />
+              <span>Free to start</span>
             </div>
             <div className="flex items-center gap-2">
-              <CreditCard className="h-5 w-5 text-accent" />
-              5% platform fee
+              <CreditCard className="h-5 w-5 text-accent" aria-hidden="true" />
+              <span>5% platform fee</span>
             </div>
             <div className="flex items-center gap-2">
-              <TrendingUp className="h-5 w-5 text-accent" />
-              Instant payouts
+              <TrendingUp className="h-5 w-5 text-accent" aria-hidden="true" />
+              <span>Instant payouts</span>
             </div>
           </div>
           <Link
             href="/sell"
-            className="mt-8 inline-flex items-center gap-2 rounded-lg bg-accent px-8 py-3.5 text-sm font-semibold text-white hover:bg-accent-hover transition-colors"
+            className="mt-6 sm:mt-8 inline-flex w-full sm:w-auto items-center justify-center gap-2 bg-accent px-8 py-3.5 text-sm font-semibold text-white hover:bg-accent-hover transition-colors"
           >
             Start Selling
             <ArrowRight className="h-4 w-4" />

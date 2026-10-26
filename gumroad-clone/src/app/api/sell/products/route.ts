@@ -7,31 +7,20 @@ import { generateSlug } from "@/lib/utils";
 const createProductSchema = z.object({
   title: z.string().min(1).max(100),
   description: z.string().min(1).max(5000),
-  price: z.number().int().min(0), // cents
+  price: z.number().int().min(0),
   category: z.enum([
-    "TEMPLATES",
-    "EBOOKS",
-    "SOFTWARE",
-    "DESIGN",
-    "AUDIO",
-    "VIDEO",
-    "PHOTOGRAPHY",
-    "EDUCATION",
-    "OTHER",
+    "TEMPLATES", "EBOOKS", "SOFTWARE", "DESIGN",
+    "AUDIO", "VIDEO", "PHOTOGRAPHY", "EDUCATION", "OTHER",
   ]),
   content: z.string().max(50000).optional(),
-  externalUrl: z.string().url().optional().or(z.literal("")),
-  files: z
-    .array(
-      z.object({
-        fileName: z.string(),
-        fileKey: z.string(),
-        fileUrl: z.string().url(),
-        fileSize: z.number().int(),
-        mimeType: z.string(),
-      })
-    )
-    .optional(),
+  externalUrl: z.url().refine((u) => /^https?:\/\//i.test(u)).optional().nullable().or(z.literal("")),
+  files: z.array(z.object({
+    fileName: z.string(),
+    fileKey: z.string(),
+    fileUrl: z.url(),
+    fileSize: z.number().int(),
+    mimeType: z.string(),
+  })).optional(),
 });
 
 export async function POST(request: NextRequest) {
@@ -65,8 +54,6 @@ export async function POST(request: NextRequest) {
     parsed.data;
 
   const slug = generateSlug(title);
-
-  // Find the first image file for thumbnail
   const thumbnailFile = files?.find((f) => f.mimeType.startsWith("image/"));
 
   const product = await prisma.product.create({

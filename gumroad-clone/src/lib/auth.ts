@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { getSession } from "./session";
 import { prisma } from "./prisma";
+import { getCompanyWhop } from "./whop";
 
 export async function getAuthUser() {
   const session = await getSession();
@@ -27,15 +28,24 @@ export async function requireSeller() {
   return { user, sellerProfile: user.sellerProfile };
 }
 
-/**
- * Complete KYC for a seller whose profile exists but kycComplete is false.
- * Called from the sell dashboard when the seller returns from Whop's KYC flow.
- */
 export async function completeKycIfNeeded(userId: string): Promise<boolean> {
   const profile = await prisma.sellerProfile.findUnique({
     where: { userId },
   });
   if (!profile || profile.kycComplete) return !!profile?.kycComplete;
+
+  // Landing on the KYC return URL doesn't prove the seller finished verification,
+  // so we ask Whop whether the connected account's identity check is approved.
+  const account = await getCompanyWhop().accounts.retrieve({
+    id: profile.whopCompanyId,
+  });
+  const { individual, business } = account.verification as {
+    individual?: { status?: string } | null;
+    business?: { status?: string } | null;
+  };
+  if (individual?.status !== "approved" && business?.status !== "approved") {
+    return false;
+  }
 
   await prisma.sellerProfile.update({
     where: { id: profile.id },

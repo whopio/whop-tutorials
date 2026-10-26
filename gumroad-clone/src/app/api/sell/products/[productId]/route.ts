@@ -1,4 +1,3 @@
-// src/app/api/sell/products/[productId]/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
@@ -8,33 +7,20 @@ const updateProductSchema = z.object({
   title: z.string().min(1).max(100).optional(),
   description: z.string().min(1).max(5000).optional(),
   price: z.number().int().min(0).optional(),
-  category: z
-    .enum([
-      "TEMPLATES",
-      "EBOOKS",
-      "SOFTWARE",
-      "DESIGN",
-      "AUDIO",
-      "VIDEO",
-      "PHOTOGRAPHY",
-      "EDUCATION",
-      "OTHER",
-    ])
-    .optional(),
+  category: z.enum([
+    "TEMPLATES", "EBOOKS", "SOFTWARE", "DESIGN",
+    "AUDIO", "VIDEO", "PHOTOGRAPHY", "EDUCATION", "OTHER",
+  ]).optional(),
   content: z.string().max(50000).optional().nullable(),
-  externalUrl: z.string().url().optional().nullable().or(z.literal("")),
-  thumbnailUrl: z.string().url().optional().nullable(),
-  files: z
-    .array(
-      z.object({
-        fileName: z.string(),
-        fileKey: z.string(),
-        fileUrl: z.string().url(),
-        fileSize: z.number().int(),
-        mimeType: z.string(),
-      })
-    )
-    .optional(),
+  externalUrl: z.url().optional().nullable().or(z.literal("")),
+  thumbnailUrl: z.url().optional().nullable(),
+  files: z.array(z.object({
+    fileName: z.string(),
+    fileKey: z.string(),
+    fileUrl: z.url(),
+    fileSize: z.number().int(),
+    mimeType: z.string(),
+  })).optional(),
   removeFileIds: z.array(z.string()).optional(),
 });
 
@@ -84,14 +70,12 @@ export async function PATCH(
 
   const { files, removeFileIds, ...fields } = parsed.data;
 
-  // Remove files
   if (removeFileIds && removeFileIds.length > 0) {
     await prisma.productFile.deleteMany({
       where: { id: { in: removeFileIds }, productId },
     });
   }
 
-  // Add new files
   if (files && files.length > 0) {
     const existingCount = product.files.length - (removeFileIds?.length || 0);
     await prisma.productFile.createMany({
@@ -107,7 +91,6 @@ export async function PATCH(
     });
   }
 
-  // Update thumbnail if new image files were added
   const newThumbnail = files?.find((f) => f.mimeType.startsWith("image/"));
 
   const updated = await prisma.product.update({

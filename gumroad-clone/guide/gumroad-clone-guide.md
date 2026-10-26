@@ -30,7 +30,7 @@ Next.js 16 (App Router), React 19, Tailwind CSS v4, Whop OAuth + Whop for Platfo
 - `/api/auth/callback` - OAuth callback, token exchange, user upsert
 - `/api/auth/logout` - Session destroy (POST only)
 - `/api/sell/onboard` - Create connected account + KYC
-- `/api/sell/complete-kyc` - Mark KYC complete
+- `/api/sell/complete-kyc` - Mark KYC complete once Whop approves the identity check
 - `/api/sell/profile` - PATCH seller headline/bio
 - `/api/sell/products` - POST create product
 - `/api/sell/products/[productId]` - PATCH update, DELETE remove
@@ -57,8 +57,8 @@ npx create-next-app@latest shelfie --ts --tailwind --eslint --app --src-dir --tu
 ```
 
 ```bash
-npm install @whop/sdk@0.0.35 @prisma/client @prisma/adapter-pg pg iron-session zod lucide-react@0.577.0 next-themes clsx tailwind-merge dotenv uploadthing @uploadthing/react
-npm install -D prisma @types/pg@8.11.11
+npm install @whop/sdk@2.4.0 @prisma/client@7.10.0 @prisma/adapter-pg@7.10.0 pg iron-session zod lucide-react@0.577.0 next-themes clsx tailwind-merge dotenv uploadthing @uploadthing/react
+npm install -D prisma@7.10.0 @types/pg
 ```
 
 ### Environment Variables
@@ -250,7 +250,7 @@ const envSchema = z.object({
   WHOP_WEBHOOK_SECRET: z.string().min(1),
   UPLOADTHING_TOKEN: z.string().min(1),
   SESSION_SECRET: z.string().min(32),
-  NEXT_PUBLIC_APP_URL: z.string().url(),
+  NEXT_PUBLIC_APP_URL: z.url(),
   PLATFORM_FEE_PERCENT: z.coerce.number().min(0).max(100).default(5),
   WHOP_SANDBOX: z.string().optional(),
 });
@@ -269,35 +269,36 @@ export const env = new Proxy({} as Env, {
 
 ### Whop SDK (`src/lib/whop.ts`)
 
-Two SDK clients: `getWhop()` with app API key for general operations, `getCompanyWhop()` with company API key for product/checkout creation. Both sandbox-aware.
+Two `WhopClient` instances on `@whop/sdk` 2.4.0: `getWhop()` with the app API key, and `getCompanyWhop()` with the company API key, which creates connected accounts, account links, products and checkout configurations. Both use `WhopEnvironment.Sandbox` when `WHOP_SANDBOX=true`.
 
 ```ts
-import Whop from "@whop/sdk";
+import { WhopClient, WhopEnvironment } from "@whop/sdk";
 
 const isSandbox = process.env.WHOP_SANDBOX === "true";
 
-let _whop: Whop | null = null;
+const environment = isSandbox
+  ? WhopEnvironment.Sandbox
+  : WhopEnvironment.Production;
 
-export function getWhop(): Whop {
+let _whop: WhopClient | null = null;
+
+export function getWhop(): WhopClient {
   if (!_whop) {
-    _whop = new Whop({
-      apiKey: process.env.WHOP_API_KEY!,
-      webhookKey: process.env.WHOP_WEBHOOK_SECRET
-        ? Buffer.from(process.env.WHOP_WEBHOOK_SECRET).toString("base64")
-        : undefined,
-      ...(isSandbox && { baseURL: "https://sandbox-api.whop.com/api/v1" }),
+    _whop = new WhopClient({
+      token: process.env.WHOP_API_KEY!,
+      environment,
     });
   }
   return _whop;
 }
 
-let _companyWhop: Whop | null = null;
+let _companyWhop: WhopClient | null = null;
 
-export function getCompanyWhop(): Whop {
+export function getCompanyWhop(): WhopClient {
   if (!_companyWhop) {
-    _companyWhop = new Whop({
-      apiKey: process.env.WHOP_COMPANY_API_KEY!,
-      ...(isSandbox && { baseURL: "https://sandbox-api.whop.com/api/v1" }),
+    _companyWhop = new WhopClient({
+      token: process.env.WHOP_COMPANY_API_KEY!,
+      environment,
     });
   }
   return _companyWhop;
@@ -311,8 +312,8 @@ export const WHOP_OAUTH_BASE = isSandbox
 ### Other Libraries
 
 - **`src/lib/prisma.ts`** - PrismaClient singleton with `PrismaPg` adapter and `Pool` from `pg`. Uses `env.DATABASE_URL` (pooled connection). Stored on `globalThis` to prevent connection exhaustion during dev hot reloads.
-- **`src/lib/session.ts`** - iron-session encrypted cookie named `shelfie_session`. Stores `userId`, `whopUserId`, and `accessToken`. Uses `env.SESSION_SECRET`.
-- **`src/lib/auth.ts`** - Three auth levels: `getAuthUser()` returns user or null, `requireAuth()` redirects to `/sign-in`, `requireSeller()` redirects to `/sell` if no KYC-complete SellerProfile. Also exports `completeKycIfNeeded(userId)` for KYC return flow.
+- **`src/lib/session.ts`** - iron-session encrypted cookie named `shelfie_session`. Stores `userId` and `whopUserId`. Uses `env.SESSION_SECRET`.
+- **`src/lib/auth.ts`** - Three auth levels: `getAuthUser()` returns user or null, `requireAuth()` redirects to `/sign-in`, `requireSeller()` redirects to `/sell` if no KYC-complete SellerProfile. Also exports `completeKycIfNeeded(userId)` for the KYC return flow. It reads the connected account with `getCompanyWhop().accounts.retrieve()` and only sets `kycComplete` when `account.verification.individual` or `.business` has status `approved`, because anyone can open the return URL.
 - **`src/lib/utils.ts`** - `cn()` (Tailwind class merge), `formatPrice(cents)` (returns "$X.XX" or "Free"), `generateSlug(title)` and `generateUsername(name)` (append random suffix for uniqueness), `formatFileSize(bytes)`.
 - **`prisma.config.ts`** - Loads `.env.local` via dotenv, uses `DATABASE_URL_UNPOOLED` for CLI operations.
 
@@ -355,6 +356,7 @@ export async function GET() {
   });
 
   const authUrl = `${WHOP_OAUTH_BASE}/oauth/authorize?${params}`;
+
   const response = NextResponse.redirect(authUrl);
 
   response.cookies.set("oauth_code_verifier", codeVerifier, {
@@ -396,7 +398,9 @@ export async function GET(request: NextRequest) {
   const codeVerifier = request.cookies.get("oauth_code_verifier")?.value;
 
   if (!code || !state || state !== storedState || !codeVerifier) {
-    return NextResponse.redirect(`${env.NEXT_PUBLIC_APP_URL}/sign-in?error=invalid_state`);
+    return NextResponse.redirect(
+      `${env.NEXT_PUBLIC_APP_URL}/sign-in?error=invalid_state`
+    );
   }
 
   const tokenRes = await fetch(`${WHOP_OAUTH_BASE}/oauth/token`, {
@@ -413,7 +417,9 @@ export async function GET(request: NextRequest) {
   });
 
   if (!tokenRes.ok) {
-    return NextResponse.redirect(`${env.NEXT_PUBLIC_APP_URL}/sign-in?error=token_exchange`);
+    return NextResponse.redirect(
+      `${env.NEXT_PUBLIC_APP_URL}/sign-in?error=token_exchange`
+    );
   }
 
   const tokens = await tokenRes.json();
@@ -423,26 +429,40 @@ export async function GET(request: NextRequest) {
   });
 
   if (!userInfoRes.ok) {
-    return NextResponse.redirect(`${env.NEXT_PUBLIC_APP_URL}/sign-in?error=userinfo`);
+    return NextResponse.redirect(
+      `${env.NEXT_PUBLIC_APP_URL}/sign-in?error=userinfo`
+    );
   }
 
   const userInfo = await userInfoRes.json();
 
   const user = await prisma.user.upsert({
     where: { whopUserId: userInfo.sub },
-    update: { email: userInfo.email, name: userInfo.name || userInfo.preferred_username, avatar: userInfo.picture },
-    create: { whopUserId: userInfo.sub, email: userInfo.email, name: userInfo.name || userInfo.preferred_username, avatar: userInfo.picture },
+    update: {
+      email: userInfo.email,
+      name: userInfo.name || userInfo.preferred_username,
+      avatar: userInfo.picture,
+    },
+    create: {
+      whopUserId: userInfo.sub,
+      email: userInfo.email,
+      name: userInfo.name || userInfo.preferred_username,
+      avatar: userInfo.picture,
+    },
   });
 
   const session = await getSession();
   session.userId = user.id;
   session.whopUserId = user.whopUserId;
-  session.accessToken = tokens.access_token;
   await session.save();
 
-  const response = NextResponse.redirect(`${env.NEXT_PUBLIC_APP_URL}/dashboard`);
+  const response = NextResponse.redirect(
+    `${env.NEXT_PUBLIC_APP_URL}/dashboard`
+  );
+
   response.cookies.delete("oauth_code_verifier");
   response.cookies.delete("oauth_state");
+
   return response;
 }
 ```
@@ -457,13 +477,13 @@ export async function GET(request: NextRequest) {
 
 ### Onboard Route (`src/app/api/sell/onboard/route.ts`)
 
-Creates a Whop connected account (`companies.create`), generates KYC link (`accountLinks.create`), saves SellerProfile. In sandbox mode, KYC is skipped (set `kycComplete: true` immediately).
+Creates a Whop connected account with `accounts.create` on the company API key (the key's account becomes the parent), generates a KYC link with `accountLinks.create({ account_id, use_case: "account_onboarding" })`, and saves the SellerProfile. In sandbox mode, KYC is skipped (set `kycComplete: true` immediately).
 
 ```ts
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/session";
-import { getWhop } from "@/lib/whop";
+import { getCompanyWhop } from "@/lib/whop";
 import { generateUsername } from "@/lib/utils";
 import { env } from "@/lib/env";
 
@@ -480,7 +500,9 @@ export async function POST() {
     include: { sellerProfile: true },
   });
 
-  if (!user) return NextResponse.json({ error: "User not found" }, { status: 404 });
+  if (!user) {
+    return NextResponse.json({ error: "User not found" }, { status: 404 });
+  }
 
   if (user.sellerProfile?.kycComplete) {
     return NextResponse.json({ redirect: "/sell/dashboard" });
@@ -488,39 +510,53 @@ export async function POST() {
 
   if (user.sellerProfile) {
     if (isSandbox) {
-      await prisma.sellerProfile.update({ where: { id: user.sellerProfile.id }, data: { kycComplete: true } });
+      await prisma.sellerProfile.update({
+        where: { id: user.sellerProfile.id },
+        data: { kycComplete: true },
+      });
       return NextResponse.json({ sandbox: true });
     }
-    const accountLink = await getWhop().accountLinks.create({
-      company_id: user.sellerProfile.whopCompanyId,
+
+    const accountLink = await getCompanyWhop().accountLinks.create({
+      account_id: user.sellerProfile.whopCompanyId,
       use_case: "account_onboarding",
       return_url: `${env.NEXT_PUBLIC_APP_URL}/sell/kyc-return`,
       refresh_url: `${env.NEXT_PUBLIC_APP_URL}/sell?refresh=true`,
     });
+
     return NextResponse.json({ redirect: accountLink.url });
   }
 
-  const company = await getWhop().companies.create({
+  const company = await getCompanyWhop().accounts.create({
     email: user.email,
     title: `${user.name || "Seller"}'s Store`,
-    parent_company_id: env.WHOP_COMPANY_ID,
   });
 
   const username = generateUsername(user.name);
 
   if (isSandbox) {
     await prisma.sellerProfile.create({
-      data: { userId: user.id, username, whopCompanyId: company.id, kycComplete: true },
+      data: {
+        userId: user.id,
+        username,
+        whopCompanyId: company.id,
+        kycComplete: true,
+      },
     });
     return NextResponse.json({ sandbox: true });
   }
 
   await prisma.sellerProfile.create({
-    data: { userId: user.id, username, whopCompanyId: company.id, kycComplete: false },
+    data: {
+      userId: user.id,
+      username,
+      whopCompanyId: company.id,
+      kycComplete: false,
+    },
   });
 
-  const accountLink = await getWhop().accountLinks.create({
-    company_id: company.id,
+  const accountLink = await getCompanyWhop().accountLinks.create({
+    account_id: company.id,
     use_case: "account_onboarding",
     return_url: `${env.NEXT_PUBLIC_APP_URL}/sell/kyc-return`,
     refresh_url: `${env.NEXT_PUBLIC_APP_URL}/sell?refresh=true`,
@@ -533,8 +569,8 @@ export async function POST() {
 ### Other Onboarding Files
 
 - **`src/app/sell/page.tsx`** - Client component wrapped in `Suspense`. Pitches users on selling, POSTs to `/api/sell/onboard`. Shows sandbox success message or KYC incomplete warning (`?kyc=incomplete`). Button text toggles between "Get Started" and "Complete Verification".
-- **`src/app/sell/kyc-return/page.tsx`** - Calls `/api/sell/complete-kyc` to flip `kycComplete = true`, then redirects to dashboard.
-- **`src/app/api/sell/complete-kyc/route.ts`** - POST endpoint that calls `completeKycIfNeeded(userId)`.
+- **`src/app/sell/kyc-return/page.tsx`** - Calls `/api/sell/complete-kyc`, then redirects to the dashboard, or back to `/sell?kyc=incomplete` when Whop hasn't approved the identity check yet.
+- **`src/app/api/sell/complete-kyc/route.ts`** - POST endpoint that calls `completeKycIfNeeded(userId)` and answers 409 until Whop approves the identity check.
 
 ## File Uploads (UploadThing)
 
@@ -596,7 +632,7 @@ export const { useUploadThing } = generateReactHelpers<OurFileRouter>();
 
 ### Publish Route (`src/app/api/sell/products/[productId]/publish/route.ts`)
 
-Creates Whop product on seller's connected account, then creates checkout configuration with platform fee. Uses `getCompanyWhop()` because the app API key lacks `access_pass:create` permission. Important: `company_id` goes on the `plan` object only, NOT top-level.
+Creates Whop product on seller's connected account, then creates checkout configuration with platform fee. Uses `getCompanyWhop()` because the app API key lacks `access_pass:create` permission. `account_id` goes on the `plan` object. `application_fee_amount` is accepted by the API but missing from the SDK types, so the plan is built as a variable first.
 
 ```ts
 import { NextRequest, NextResponse } from "next/server";
@@ -611,28 +647,54 @@ export async function POST(
 ) {
   const { productId } = await params;
   const session = await getSession();
-  if (!session.userId) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-
-  const sellerProfile = await prisma.sellerProfile.findUnique({ where: { userId: session.userId } });
-  if (!sellerProfile || !sellerProfile.kycComplete) {
-    return NextResponse.json({ error: "Complete seller onboarding first" }, { status: 403 });
+  if (!session.userId) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const product = await prisma.product.findUnique({ where: { id: productId }, include: { files: true } });
+  const sellerProfile = await prisma.sellerProfile.findUnique({
+    where: { userId: session.userId },
+  });
+
+  if (!sellerProfile || !sellerProfile.kycComplete) {
+    return NextResponse.json(
+      { error: "Complete seller onboarding first" },
+      { status: 403 }
+    );
+  }
+
+  const product = await prisma.product.findUnique({
+    where: { id: productId },
+    include: { files: true },
+  });
+
   if (!product || product.sellerProfileId !== sellerProfile.id) {
     return NextResponse.json({ error: "Product not found" }, { status: 404 });
   }
+
   if (product.status === "PUBLISHED") {
-    return NextResponse.json({ error: "Product is already published" }, { status: 400 });
+    return NextResponse.json(
+      { error: "Product is already published" },
+      { status: 400 }
+    );
   }
 
-  if (product.files.length === 0 && !product.content && !product.externalUrl) {
-    return NextResponse.json({ error: "Product must have at least one file, text content, or external link" }, { status: 400 });
+  const hasFiles = product.files.length > 0;
+  const hasContent = !!product.content;
+  const hasLink = !!product.externalUrl;
+
+  if (!hasFiles && !hasContent && !hasLink) {
+    return NextResponse.json(
+      {
+        error:
+          "Product must have at least one file, text content, or external link",
+      },
+      { status: 400 }
+    );
   }
 
   try {
     const whopProduct = await getCompanyWhop().products.create({
-      company_id: sellerProfile.whopCompanyId,
+      account_id: sellerProfile.whopCompanyId,
       title: product.title,
       description: product.description,
     });
@@ -642,22 +704,29 @@ export async function POST(
     if (product.price === 0) {
       const updated = await prisma.product.update({
         where: { id: productId },
-        data: { status: "PUBLISHED", whopProductId: whopProduct.id },
+        data: {
+          status: "PUBLISHED",
+          whopProductId: whopProduct.id,
+        },
       });
+
       return NextResponse.json(updated);
     }
 
     const feeAmount = Math.round(product.price * (feePercent / 100));
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const checkoutConfig = await (getCompanyWhop().checkoutConfigurations.create as any)({
-      plan: {
-        company_id: sellerProfile.whopCompanyId,
-        currency: "usd",
-        initial_price: product.price / 100,
-        plan_type: "one_time",
-        application_fee_amount: feeAmount / 100,
-      },
+    // application_fee_amount is accepted by the Whop API but missing from the SDK types,
+    // so we build the plan as a variable first instead of writing it inline.
+    const plan = {
+      account_id: sellerProfile.whopCompanyId,
+      currency: "usd",
+      initial_price: product.price / 100,
+      plan_type: "one_time" as const,
+      application_fee_amount: feeAmount / 100,
+    };
+
+    const checkoutConfig = await getCompanyWhop().checkoutConfigurations.create({
+      plan,
     });
 
     const updated = await prisma.product.update({
@@ -694,12 +763,12 @@ export async function POST(
 
 ### Webhook Handler (`src/app/api/webhooks/whop/route.ts`)
 
-Verifies the webhook signature via `getWhop().webhooks.unwrap()` and rejects the request with a 401 if verification fails. Checks idempotency via `WebhookEvent` table. Creates `Purchase` record via upsert.
+Verifies the webhook signature with `unwrapWebhook` from `@whop/sdk/helpers` and the raw `ws_` secret, and rejects the request with a 401 if verification fails. Reads both payload shapes (nested `plan.id` or flat `plan_id`, a number or a money object for `subtotal`). Checks idempotency via `WebhookEvent` table. Creates `Purchase` record via upsert.
 
 ```ts
 import { NextRequest, NextResponse } from "next/server";
+import { unwrapWebhook } from "@whop/sdk/helpers";
 import { prisma } from "@/lib/prisma";
-import { getWhop } from "@/lib/whop";
 
 type WhopEvent = {
   type: string;
@@ -707,51 +776,96 @@ type WhopEvent = {
   data: Record<string, unknown>;
 };
 
+// Depending on the webhook's API version, Whop sends either nested objects
+// (plan.id) and plain numbers, or flat IDs (plan_id) and money objects
+// ({ amount: "29.00" }). These two helpers read both shapes.
+function nestedId(value: unknown): string | undefined {
+  if (value && typeof value === "object" && "id" in value) {
+    const id = (value as { id: unknown }).id;
+    if (typeof id === "string") return id;
+  }
+  return undefined;
+}
+
+function amountInDollars(value: unknown): number {
+  if (typeof value === "number") return value;
+  if (value && typeof value === "object" && "amount" in value) {
+    const amount = Number((value as { amount: unknown }).amount);
+    if (Number.isFinite(amount)) return amount;
+  }
+  return 0;
+}
+
 export async function POST(request: NextRequest) {
   const bodyText = await request.text();
   const headerObj = Object.fromEntries(request.headers);
-  const whop = getWhop();
 
   let webhookData: WhopEvent;
   try {
-    webhookData = whop.webhooks.unwrap(bodyText, { headers: headerObj }) as unknown as WhopEvent;
+    webhookData = unwrapWebhook<WhopEvent>(bodyText, {
+      headers: headerObj,
+      key: process.env.WHOP_WEBHOOK_SECRET,
+    });
   } catch (err) {
     console.error("Webhook verification failed:", err);
     return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
   }
 
   const eventId = webhookData.id;
-  if (!eventId) return NextResponse.json({ error: "Missing event ID" }, { status: 400 });
+  if (!eventId) {
+    return NextResponse.json({ error: "Missing event ID" }, { status: 400 });
+  }
 
-  const existing = await prisma.webhookEvent.findUnique({ where: { id: eventId } });
-  if (existing) return NextResponse.json({ status: "already_processed" });
+  const existing = await prisma.webhookEvent.findUnique({
+    where: { id: eventId },
+  });
+
+  if (existing) {
+    return NextResponse.json({ status: "already_processed" });
+  }
 
   if (webhookData.type === "payment.succeeded") {
     const payment = webhookData.data;
-    const plan = payment?.plan as Record<string, unknown> | undefined;
-    const user = payment?.user as Record<string, unknown> | undefined;
-    const planId = plan?.id as string | undefined;
-    const whopUserId = user?.id as string | undefined;
+    const planId =
+      typeof payment.plan_id === "string" ? payment.plan_id : nestedId(payment.plan);
+    const whopUserId = nestedId(payment.user);
 
     if (!planId || !whopUserId) {
       console.error("Missing plan or user on payment webhook:", JSON.stringify(webhookData.data, null, 2));
       return NextResponse.json({ error: "Missing data" }, { status: 400 });
     }
 
-    const product = await prisma.product.findFirst({ where: { whopPlanId: planId } });
-    if (!product) return NextResponse.json({ error: "Product not found" }, { status: 404 });
+    const product = await prisma.product.findFirst({
+      where: { whopPlanId: planId },
+    });
 
-    const dbUser = await prisma.user.findUnique({ where: { whopUserId } });
-    if (!dbUser) return NextResponse.json({ error: "User not found" }, { status: 404 });
+    if (!product) {
+      console.error("No product found for plan:", planId);
+      return NextResponse.json({ error: "Product not found" }, { status: 404 });
+    }
+
+    const dbUser = await prisma.user.findUnique({
+      where: { whopUserId },
+    });
+
+    if (!dbUser) {
+      console.error("No user found for Whop user:", whopUserId);
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
+    }
 
     await prisma.purchase.upsert({
-      where: { userId_productId: { userId: dbUser.id, productId: product.id } },
+      where: {
+        userId_productId: {
+          userId: dbUser.id,
+          productId: product.id,
+        },
+      },
       update: {},
       create: {
         userId: dbUser.id,
         productId: product.id,
         whopPaymentId: payment.id as string,
-        pricePaid: Math.round(((payment.subtotal as number) ?? 0) * 100),
+        pricePaid: Math.round(amountInDollars(payment.subtotal) * 100),
       },
     });
 
@@ -777,7 +891,7 @@ export async function POST(request: NextRequest) {
 - **`src/app/api/sell/profile/route.ts`** - PATCH endpoint, validates with Zod (headline max 100, bio max 2000), updates SellerProfile.
 - **`src/app/dashboard/page.tsx`** - Buyer dashboard. Grid of purchased products with thumbnails, seller info, purchase date, and download links.
 - **`src/app/page.tsx`** - Landing page. Hero section with search form (GET to `/products?q=`), trending products (sorted by like count, includes rating calculation), category grid using `CATEGORIES` constant, seller CTA section.
-- **Payouts** - Whop handles payouts via hosted portal. Generate link with `getWhop().accountLinks.create({ company_id, use_case: "payouts_portal", return_url, refresh_url })`.
+- **Payouts** - Whop handles payouts via hosted portal. Generate link with `getCompanyWhop().accountLinks.create({ account_id, use_case: "payouts_portal", return_url, refresh_url })`. Both URLs must be https.
 
 ## Design
 
@@ -790,10 +904,11 @@ export async function POST(request: NextRequest) {
 ## Whop SDK Gotchas
 
 - `application_fee_amount` goes on `checkoutConfigurations.create()` inside the `plan` object, NOT on `plans.create()`
-- `company_id` goes on the `plan` object only, NOT on the top-level `checkoutConfigurations.create()` call
-- The company API key (`WHOP_COMPANY_API_KEY`) is needed for `products.create` and `checkoutConfigurations.create` - the app API key lacks `access_pass:create` permission
-- Webhook verification needs `webhookKey: Buffer.from(secret).toString("base64")` in the SDK constructor
-- Payment webhook data uses nested objects: `payment.plan.id`, `payment.user.id` (not flat fields)
+- `account_id` (not `company_id`) goes on the `plan` object. `application_fee_amount` is missing from the SDK types, so build `plan` as a variable before passing it
+- The company API key (`WHOP_COMPANY_API_KEY`) is needed for `accounts.create`, `accountLinks.create`, `products.create` and `checkoutConfigurations.create` - the app API key lacks `access_pass:create` permission
+- Webhook verification uses `unwrapWebhook(body, { headers, key })` from `@whop/sdk/helpers` with the raw `ws_` secret. Base64-encoding the secret makes every delivery fail
+- Payment webhook data depends on the webhook's API version: unpinned webhooks send nested objects (`plan.id`) and plain numbers, pinned ones send flat ids (`plan_id`) and money objects (`{ amount: "4.99" }`). Read both
 - `payment.subtotal` is in dollars (not cents) - multiply by 100 for storage
-- Sandbox uses `sandbox-api.whop.com` for all endpoints (OAuth, API, webhooks)
+- `new WhopClient({ token, environment })` replaces `new Whop({ apiKey, baseURL })`, and every method takes one object argument
+- Sandbox uses `WhopEnvironment.Sandbox` for the API and `sandbox-api.whop.com` for OAuth
 - OAuth PKCE: store code verifier in httpOnly cookie, not the session (cookies survive cross-domain redirects)

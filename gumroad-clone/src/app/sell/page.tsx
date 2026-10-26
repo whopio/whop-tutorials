@@ -24,6 +24,12 @@ function SellPageContent() {
     setLoading(true);
     try {
       const res = await fetch("/api/sell/onboard", { method: "POST" });
+
+      if (res.status === 401) {
+        router.push("/sign-in");
+        return;
+      }
+
       const data = await res.json();
 
       if (data.sandbox) {

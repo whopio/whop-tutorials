@@ -5,7 +5,6 @@ import { env } from "@/lib/env";
 export interface SessionData {
   userId?: string;
   whopUserId?: string;
-  accessToken?: string;
 }
 
 const sessionOptions: SessionOptions = {

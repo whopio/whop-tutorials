@@ -1,6 +1,6 @@
 # Shelfie (Gumroad Clone)
 
-A multi-seller digital product marketplace where users become sellers, upload files, set prices, and publish to a shared storefront. Buyers browse, purchase, and download products. Built with Next.js 16, Prisma 7, and the Whop SDK.
+A multi-seller digital product marketplace where users become sellers, upload files, set prices, and publish to a shared storefront. Buyers browse, purchase, and download products. Built with Next.js 16, Prisma 7, and the Whop SDK (`@whop/sdk` 2.4.0).
 
 ## Features
 
@@ -11,7 +11,7 @@ A multi-seller digital product marketplace where users become sellers, upload fi
 - **Marketplace** - Search, category filters, pagination, trending products
 - **One-Time Purchases** - Free products (instant) and paid products (Whop hosted checkout)
 - **File Delivery** - Access-gated download page with purchase verification
-- **Cookie Ratings** - Buyers rate products on a 1-5 cookie scale with half-cookie support
+- **Cookie Ratings** - Buyers rate products from 0.5 to 5 cookies in half-cookie steps
 - **Like System** - Optimistic like toggle on products
 - **Seller Dashboard** - Earnings, sales stats, product management, bio editing
 - **Buyer Dashboard** - Purchase history with download links
@@ -27,7 +27,7 @@ A multi-seller digital product marketplace where users become sellers, upload fi
 | [TypeScript](https://www.typescriptlang.org/) | Type safety |
 | [Prisma 7](https://www.prisma.io/) | Database ORM (with driver adapter) |
 | [PostgreSQL](https://www.postgresql.org/) | Database (via Neon) |
-| [Whop SDK](https://dev.whop.com/) | Payments, OAuth, KYC, connected accounts |
+| [Whop SDK](https://docs.whop.com/) | Payments, OAuth, KYC, connected accounts |
 | [UploadThing](https://uploadthing.com/) | File uploads and CDN delivery |
 | [Iron Session](https://github.com/vvo/iron-session) | Encrypted cookie sessions |
 | [Zod](https://zod.dev/) | Request validation |
@@ -37,7 +37,7 @@ A multi-seller digital product marketplace where users become sellers, upload fi
 
 ### Prerequisites
 
-- Node.js 20+
+- Node.js 20.9+
 - PostgreSQL database (Neon recommended)
 - [Whop Developer Account](https://sandbox.whop.com/)
 - [UploadThing Account](https://uploadthing.com/)
@@ -60,7 +60,7 @@ npm install
 Copy the example env file and fill in your values:
 
 ```bash
-cp .env.example .env
+cp .env.example .env.local
 ```
 
 See `.env.example` for all required variables and where to find them.
@@ -171,7 +171,7 @@ npm run build
 npm start
 ```
 
-Requires Node.js 20+ runtime, PostgreSQL database, and all environment variables configured.
+Requires Node.js 20.9+ runtime, PostgreSQL database, and all environment variables configured.
 
 ## Disclaimer
 

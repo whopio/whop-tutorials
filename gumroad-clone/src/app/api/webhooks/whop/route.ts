@@ -1,7 +1,6 @@
-// src/app/api/webhooks/whop/route.ts
 import { NextRequest, NextResponse } from "next/server";
+import { unwrapWebhook } from "@whop/sdk/helpers";
 import { prisma } from "@/lib/prisma";
-import { getWhop } from "@/lib/whop";
 
 type WhopEvent = {
   type: string;
@@ -9,23 +8,41 @@ type WhopEvent = {
   data: Record<string, unknown>;
 };
 
+// Depending on the webhook's API version, Whop sends either nested objects
+// (plan.id) and plain numbers, or flat IDs (plan_id) and money objects
+// ({ amount: "29.00" }). These two helpers read both shapes.
+function nestedId(value: unknown): string | undefined {
+  if (value && typeof value === "object" && "id" in value) {
+    const id = (value as { id: unknown }).id;
+    if (typeof id === "string") return id;
+  }
+  return undefined;
+}
+
+function amountInDollars(value: unknown): number {
+  if (typeof value === "number") return value;
+  if (value && typeof value === "object" && "amount" in value) {
+    const amount = Number((value as { amount: unknown }).amount);
+    if (Number.isFinite(amount)) return amount;
+  }
+  return 0;
+}
+
 export async function POST(request: NextRequest) {
   const bodyText = await request.text();
   const headerObj = Object.fromEntries(request.headers);
 
-  const whop = getWhop();
-
   let webhookData: WhopEvent;
   try {
-    webhookData = whop.webhooks.unwrap(bodyText, {
+    webhookData = unwrapWebhook<WhopEvent>(bodyText, {
       headers: headerObj,
-    }) as unknown as WhopEvent;
+      key: process.env.WHOP_WEBHOOK_SECRET,
+    });
   } catch (err) {
     console.error("Webhook verification failed:", err);
     return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
   }
 
-  // Idempotency check
   const eventId = webhookData.id;
   if (!eventId) {
     return NextResponse.json({ error: "Missing event ID" }, { status: 400 });
@@ -41,10 +58,9 @@ export async function POST(request: NextRequest) {
 
   if (webhookData.type === "payment.succeeded") {
     const payment = webhookData.data;
-    const plan = payment?.plan as Record<string, unknown> | undefined;
-    const user = payment?.user as Record<string, unknown> | undefined;
-    const planId = plan?.id as string | undefined;
-    const whopUserId = user?.id as string | undefined;
+    const planId =
+      typeof payment.plan_id === "string" ? payment.plan_id : nestedId(payment.plan);
+    const whopUserId = nestedId(payment.user);
 
     if (!planId || !whopUserId) {
       console.error("Missing plan or user on payment webhook:", JSON.stringify(webhookData.data, null, 2));
@@ -81,7 +97,7 @@ export async function POST(request: NextRequest) {
         userId: dbUser.id,
         productId: product.id,
         whopPaymentId: payment.id as string,
-        pricePaid: Math.round(((payment.subtotal as number) ?? 0) * 100),
+        pricePaid: Math.round(amountInDollars(payment.subtotal) * 100),
       },
     });
 

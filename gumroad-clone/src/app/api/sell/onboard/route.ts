@@ -1,8 +1,7 @@
-// src/app/api/sell/onboard/route.ts
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/session";
-import { getWhop } from "@/lib/whop";
+import { getCompanyWhop } from "@/lib/whop";
 import { generateUsername } from "@/lib/utils";
 import { env } from "@/lib/env";
 
@@ -23,12 +22,10 @@ export async function POST() {
     return NextResponse.json({ error: "User not found" }, { status: 404 });
   }
 
-  // Already a seller with completed KYC — go to dashboard
   if (user.sellerProfile?.kycComplete) {
     return NextResponse.json({ redirect: "/sell/dashboard" });
   }
 
-  // Started onboarding but didn't finish KYC
   if (user.sellerProfile) {
     if (isSandbox) {
       await prisma.sellerProfile.update({
@@ -38,8 +35,8 @@ export async function POST() {
       return NextResponse.json({ sandbox: true });
     }
 
-    const accountLink = await getWhop().accountLinks.create({
-      company_id: user.sellerProfile.whopCompanyId,
+    const accountLink = await getCompanyWhop().accountLinks.create({
+      account_id: user.sellerProfile.whopCompanyId,
       use_case: "account_onboarding",
       return_url: `${env.NEXT_PUBLIC_APP_URL}/sell/kyc-return`,
       refresh_url: `${env.NEXT_PUBLIC_APP_URL}/sell?refresh=true`,
@@ -48,14 +45,11 @@ export async function POST() {
     return NextResponse.json({ redirect: accountLink.url });
   }
 
-  // New seller — create connected account on Whop
-  const company = await getWhop().companies.create({
+  const company = await getCompanyWhop().accounts.create({
     email: user.email,
     title: `${user.name || "Seller"}'s Store`,
-    parent_company_id: env.WHOP_COMPANY_ID,
   });
 
-  // Create SellerProfile with a unique username
   const username = generateUsername(user.name);
 
   if (isSandbox) {
@@ -79,9 +73,8 @@ export async function POST() {
     },
   });
 
-  // Generate KYC onboarding link
-  const accountLink = await getWhop().accountLinks.create({
-    company_id: company.id,
+  const accountLink = await getCompanyWhop().accountLinks.create({
+    account_id: company.id,
     use_case: "account_onboarding",
     return_url: `${env.NEXT_PUBLIC_APP_URL}/sell/kyc-return`,
     refresh_url: `${env.NEXT_PUBLIC_APP_URL}/sell?refresh=true`,

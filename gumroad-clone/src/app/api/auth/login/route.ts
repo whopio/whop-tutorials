@@ -6,7 +6,6 @@ export async function GET() {
   const clientId = env.WHOP_CLIENT_ID;
   const redirectUri = `${env.NEXT_PUBLIC_APP_URL}/api/auth/callback`;
 
-  // Generate PKCE code verifier and challenge
   const codeVerifier = crypto.randomUUID() + crypto.randomUUID();
   const encoder = new TextEncoder();
   const data = encoder.encode(codeVerifier);
@@ -34,12 +33,11 @@ export async function GET() {
 
   const response = NextResponse.redirect(authUrl);
 
-  // Store PKCE verifier and state in cookies for the callback
   response.cookies.set("oauth_code_verifier", codeVerifier, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
-    maxAge: 600, // 10 minutes
+    maxAge: 600,
     path: "/",
   });
   response.cookies.set("oauth_state", state, {

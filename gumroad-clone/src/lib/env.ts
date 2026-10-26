@@ -11,7 +11,7 @@ const envSchema = z.object({
   WHOP_WEBHOOK_SECRET: z.string().min(1),
   UPLOADTHING_TOKEN: z.string().min(1),
   SESSION_SECRET: z.string().min(32),
-  NEXT_PUBLIC_APP_URL: z.string().url(),
+  NEXT_PUBLIC_APP_URL: z.url(),
   PLATFORM_FEE_PERCENT: z.coerce.number().min(0).max(100).default(5),
   WHOP_SANDBOX: z.string().optional(),
 });

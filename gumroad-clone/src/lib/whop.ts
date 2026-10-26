@@ -1,34 +1,30 @@
-// src/lib/whop.ts
-import Whop from "@whop/sdk";
+import { WhopClient, WhopEnvironment } from "@whop/sdk";
 
 const isSandbox = process.env.WHOP_SANDBOX === "true";
 
-// App API key client — used for general operations (companies, accountLinks).
-let _whop: Whop | null = null;
+const environment = isSandbox
+  ? WhopEnvironment.Sandbox
+  : WhopEnvironment.Production;
 
-export function getWhop(): Whop {
+let _whop: WhopClient | null = null;
+
+export function getWhop(): WhopClient {
   if (!_whop) {
-    _whop = new Whop({
-      apiKey: process.env.WHOP_API_KEY!,
-      webhookKey: process.env.WHOP_WEBHOOK_SECRET
-        ? Buffer.from(process.env.WHOP_WEBHOOK_SECRET).toString("base64")
-        : undefined,
-      ...(isSandbox && { baseURL: "https://sandbox-api.whop.com/api/v1" }),
+    _whop = new WhopClient({
+      token: process.env.WHOP_API_KEY!,
+      environment,
     });
   }
   return _whop;
 }
 
-// Company API key client — used for operations that need company-level permissions
-// (products.create, checkoutConfigurations.create on child companies).
-// No appID — the company key authenticates directly.
-let _companyWhop: Whop | null = null;
+let _companyWhop: WhopClient | null = null;
 
-export function getCompanyWhop(): Whop {
+export function getCompanyWhop(): WhopClient {
   if (!_companyWhop) {
-    _companyWhop = new Whop({
-      apiKey: process.env.WHOP_COMPANY_API_KEY!,
-      ...(isSandbox && { baseURL: "https://sandbox-api.whop.com/api/v1" }),
+    _companyWhop = new WhopClient({
+      token: process.env.WHOP_COMPANY_API_KEY!,
+      environment,
     });
   }
   return _companyWhop;

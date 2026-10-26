@@ -1,4 +1,3 @@
-// src/app/api/sell/products/[productId]/publish/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/session";
@@ -42,7 +41,6 @@ export async function POST(
     );
   }
 
-  // Must have at least one deliverable
   const hasFiles = product.files.length > 0;
   const hasContent = !!product.content;
   const hasLink = !!product.externalUrl;
@@ -58,16 +56,14 @@ export async function POST(
   }
 
   try {
-    // Create Whop product on the seller's connected account
     const whopProduct = await getCompanyWhop().products.create({
-      company_id: sellerProfile.whopCompanyId,
+      account_id: sellerProfile.whopCompanyId,
       title: product.title,
       description: product.description,
     });
 
     const feePercent = env.PLATFORM_FEE_PERCENT;
 
-    // Free products don't need a checkout configuration
     if (product.price === 0) {
       const updated = await prisma.product.update({
         where: { id: productId },
@@ -82,17 +78,18 @@ export async function POST(
 
     const feeAmount = Math.round(product.price * (feePercent / 100));
 
-    // Create a checkout configuration with an inline plan and application fee.
-    // company_id goes on the plan only, NOT on the top-level config.
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const checkoutConfig = await (getCompanyWhop().checkoutConfigurations.create as any)({
-      plan: {
-        company_id: sellerProfile.whopCompanyId,
-        currency: "usd",
-        initial_price: product.price / 100,
-        plan_type: "one_time",
-        application_fee_amount: feeAmount / 100,
-      },
+    // application_fee_amount is accepted by the Whop API but missing from the SDK types,
+    // so we build the plan as a variable first instead of writing it inline.
+    const plan = {
+      account_id: sellerProfile.whopCompanyId,
+      currency: "usd",
+      initial_price: product.price / 100,
+      plan_type: "one_time" as const,
+      application_fee_amount: feeAmount / 100,
+    };
+
+    const checkoutConfig = await getCompanyWhop().checkoutConfigurations.create({
+      plan,
     });
 
     const updated = await prisma.product.update({

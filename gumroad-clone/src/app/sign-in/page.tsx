@@ -1,4 +1,3 @@
-// src/app/sign-in/page.tsx
 import { Store } from "lucide-react";
 
 const ERROR_MESSAGES: Record<string, string> = {

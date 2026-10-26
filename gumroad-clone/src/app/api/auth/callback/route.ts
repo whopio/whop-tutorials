@@ -18,7 +18,6 @@ export async function GET(request: NextRequest) {
     );
   }
 
-  // Exchange code for tokens
   const tokenRes = await fetch(`${WHOP_OAUTH_BASE}/oauth/token`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -40,7 +39,6 @@ export async function GET(request: NextRequest) {
 
   const tokens = await tokenRes.json();
 
-  // Fetch user info
   const userInfoRes = await fetch(`${WHOP_OAUTH_BASE}/oauth/userinfo`, {
     headers: { Authorization: `Bearer ${tokens.access_token}` },
   });
@@ -53,7 +51,6 @@ export async function GET(request: NextRequest) {
 
   const userInfo = await userInfoRes.json();
 
-  // Upsert user in database
   const user = await prisma.user.upsert({
     where: { whopUserId: userInfo.sub },
     update: {
@@ -69,18 +66,15 @@ export async function GET(request: NextRequest) {
     },
   });
 
-  // Create session
   const session = await getSession();
   session.userId = user.id;
   session.whopUserId = user.whopUserId;
-  session.accessToken = tokens.access_token;
   await session.save();
 
   const response = NextResponse.redirect(
     `${env.NEXT_PUBLIC_APP_URL}/dashboard`
   );
 
-  // Clear OAuth cookies
   response.cookies.delete("oauth_code_verifier");
   response.cookies.delete("oauth_state");
 
