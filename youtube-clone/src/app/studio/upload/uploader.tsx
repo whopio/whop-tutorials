@@ -98,7 +98,7 @@ function sanitize(name: string): string {
   return name.replace(/[^a-zA-Z0-9._-]+/g, "-").slice(0, 80) || "video";
 }
 
-export function Uploader() {
+export function Uploader({ channelId }: { channelId: string }) {
   const router = useRouter();
   const [file, setFile] = useState<File | null>(null);
   const [title, setTitle] = useState("");
@@ -161,7 +161,9 @@ export function Uploader() {
     setError(null);
     try {
       const base = sanitize(file.name);
-      const videoBlob = await upload(`videos/${base}`, file, {
+      // Uploads go into our channel's own folder. The token route refuses
+      // any other path, and only files there can be saved or deleted.
+      const videoBlob = await upload(`videos/${channelId}/${base}`, file, {
         access: "public",
         handleUploadUrl: "/api/blob/upload",
         contentType: file.type,
@@ -172,7 +174,7 @@ export function Uploader() {
       const poster = chosenThumb();
       if (poster) {
         const thumb = await upload(
-          `thumbnails/${base}.jpg`,
+          `thumbnails/${channelId}/${base}.jpg`,
           new File([poster], `${base}.jpg`, { type: "image/jpeg" }),
           {
             access: "public",

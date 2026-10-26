@@ -50,7 +50,7 @@ export default async function MonetizationPage() {
           <MembershipsPanel tiers={tiers} />
 
           <div className="max-w-lg rounded-2xl border border-border p-6">
-            <h2 className="text-lg font-bold">Earnings &amp; payouts</h2>
+            <h2 className="text-lg font-bold">Earnings & payouts</h2>
             <div className="mt-4 grid grid-cols-3 gap-3 text-center">
               <div>
                 <p className="text-xl font-bold">

@@ -51,19 +51,19 @@ This file keeps **full code only for the security-sensitive, Whop-specific, and 
 
 **Payment flow**
 
-1. A creator enables monetization in the studio. The server calls `companies.create` with `parent_company_id` — the channel becomes a Whop **connected account** (a child company under the platform) and its id is stored on the Channel row.
+1. A creator enables monetization in the studio. The server calls `accounts.create` with the platform's Company API key — the channel becomes a Whop **connected account** (a child of the platform account, because the key's account becomes the parent) and its id is stored on the Channel row.
 2. The creator adds a membership tier. The first tier lazily creates one shared Whop **product** on the connected account (`products.create`); each tier creates a **renewal plan** (`plans.create`, price in **dollars**, `visibility: "hidden"` so joins can only go through our checkout). Ids are stored on the MembershipTier row.
-3. A viewer clicks Join and picks a tier. The server action calls `checkoutConfigurations.create` with an **inline plan on the creator's company**: `company_id`, `plan_type: "renewal"`, the price, and `application_fee_amount` (our cut) all nested inside `plan`, plus `metadata` (kind, channelId, tierId, viewerUserId, amounts) that the webhook will read back. The client renders `WhopCheckoutEmbed` with the returned session id.
+3. A viewer clicks Join and picks a tier. The server action calls `checkoutConfigurations.create` with an **inline plan on the creator's account**: `account_id`, `plan_type: "renewal"`, the price, and `application_fee_amount` (our cut) all nested inside `plan` (built as a variable, because `application_fee_amount` is accepted by the API but missing from the SDK's types), plus `metadata` (kind, channelId, tierId, viewerUserId, amounts) that the webhook will read back. The client renders `WhopCheckoutEmbed` with the returned session id.
 4. Cheers (tips) are the same shape with `plan_type: "one_time"` and a tip message in the metadata. The video stays free — a tip is never a paywall.
 5. The viewer pays (test card `4242 4242 4242 4242` in sandbox). The charge lands on the **creator's connected balance**; Whop deducts the platform's application fee automatically. The creator is the merchant of record.
-6. Whop calls `/api/webhooks/whop`. The handler verifies the signature (`webhooks.unwrap` with the raw body text), then processes exactly once: the **first write inside every handler's transaction is the WebhookEvent id row**, so a replayed delivery hits the unique constraint and the whole handler rolls back. `membership.activated`/`.deactivated` upsert/deactivate the ChannelMember (the members-only entitlement); a tip `payment.succeeded` writes the Tip, an EarningsLedger row, a highlighted comment, and a creator notification in one transaction; `refund.created` writes a one-per-payment negative ledger offset.
+6. Whop calls `/api/webhooks/whop`. The handler verifies the signature (`unwrapWebhook` from `@whop/sdk/helpers`, with the raw body text and the raw `ws_` signing secret), then processes exactly once: the **first write inside every handler's transaction is the WebhookEvent id row**, so a replayed delivery hits the unique constraint and the whole handler rolls back. `membership.activated`/`.deactivated` upsert/deactivate the ChannelMember (the members-only entitlement); a tip `payment.succeeded` writes the Tip, an EarningsLedger row, a highlighted comment, and a creator notification in one transaction; `refund.created` writes a one-per-payment negative ledger offset.
 7. The creator withdraws on `/studio/monetization` through the embedded `PayoutsSession` portal (KYC happens inline on first withdrawal), authenticated by `/api/payout-token`.
 
 ---
 
 ## Part 1: Foundation, deployment, and authentication
 
-Scaffold with `npx create-next-app@latest wavora --typescript --tailwind --eslint --app --src-dir --turbopack --import-alias "@/*"`, then install: `@whop/sdk @whop/checkout @whop/embedded-components-react-js @whop/embedded-components-vanilla-js @prisma/client @prisma/adapter-pg pg iron-session zod @vercel/blob clsx tailwind-merge lucide-react` and dev deps `prisma @types/pg`. Add `"postinstall": "prisma generate"` to package.json scripts (the generated client is gitignored; Vercel builds need it regenerated).
+Scaffold with `npx create-next-app@latest wavora --typescript --tailwind --eslint --app --src-dir --turbopack --import-alias "@/*"`, then install: `@whop/sdk@2.4.0 @whop/checkout @whop/embedded-components-react-js @whop/embedded-components-vanilla-js @prisma/client @prisma/adapter-pg pg iron-session zod @vercel/blob clsx tailwind-merge lucide-react` and dev deps `prisma@^7.10.0 @types/pg`. Pin the SDK to an exact version, because new SDK releases can change the types the code relies on, and keep Prisma on 7 (its `latest` tag is an 8.0 release candidate). create-next-app writes Tailwind v4 as a Turbopack loader rule in `next.config.ts`, so keep that rule when you replace the file. Add `"postinstall": "prisma generate"` to package.json scripts (the generated client is gitignored; Vercel builds need it regenerated).
 
 Next 16 notes that matter here: the middleware file is `proxy.ts` exporting `proxy()`; `cookies()`, `headers()`, `params`, and `searchParams` are all async; pin `turbopack.root` when parent folders contain stray lockfiles.
 
@@ -108,6 +108,14 @@ const nextConfig: NextConfig = {
   // directory from stray lockfiles higher up the tree.
   turbopack: {
     root: __dirname,
+    // Tailwind v4 runs as a Turbopack loader (what create-next-app writes
+    // today), so there's no postcss.config.mjs.
+    rules: {
+      "*.css": {
+        loaders: ["@tailwindcss/turbopack"],
+        as: "*.css",
+      },
+    },
   },
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
@@ -121,7 +129,7 @@ export default nextConfig;
 
 ### Environment variables
 
-Two Whop API keys with different powers: the **Company API key** (Whop dashboard → Developer → Company API Keys, needs the `access_pass:create` scope) creates products/plans/checkouts/connected accounts/payout tokens; the **App API key** (Developer → your app) does OAuth token exchange and webhook verification. In the Whop dashboard create an app with the `oauth:token_exchange` permission and the `openid profile email` scopes, and register `http://localhost:3000/api/auth/callback` (plus your production URL later) as redirect URIs.
+Two Whop API keys with different powers: the **Company API key** (Whop dashboard → Developer → Company API Keys, needs the `access_pass:create` scope) creates products/plans/checkouts/connected accounts/payout tokens; the app's OAuth **client id and client secret** (Developer → your app → OAuth) do the token exchange, and webhooks are verified with the webhook's **signing secret**. In the Whop dashboard create an app with the `oauth:token_exchange` permission and the `openid profile email` scopes, and register `http://localhost:3000/api/auth/callback` (plus your production URL later) as redirect URIs.
 
 ### `src/lib/env.ts`
 
@@ -1198,7 +1206,7 @@ Described: `/create-channel` renders a form (name, lowercase @handle, optional b
 
 ### Upload a video (Vercel Blob, browser-direct)
 
-Videos never touch the server: the client asks the token route for a signed upload, PUTs the file straight to Blob, captures the duration and poster frames from a local `<video>` element, uploads the chosen poster the same way, then calls the `createVideo` server action, which lands the row directly in `READY` (no transcoding, so no processing webhook).
+Videos never touch the server: the client asks the token route for a signed upload into the channel's own folder (`videos/<channelId>/...` and `thumbnails/<channelId>/...`, and the route refuses any other path), PUTs the file straight to Blob, captures the duration and poster frames from a local `<video>` element, uploads the chosen poster the same way, then calls the `createVideo` server action, which lands the row directly in `READY` (no transcoding, so no processing webhook).
 
 ### `src/app/api/blob/upload/route.ts`
 
@@ -1231,7 +1239,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     const json = await handleUpload({
       body,
       request,
-      onBeforeGenerateToken: async () => {
+      onBeforeGenerateToken: async (pathname) => {
         const user = await getCurrentUser();
         if (!user) throw new Error("You must be signed in to upload.");
         const channel = await prisma.channel.findUnique({
@@ -1239,6 +1247,12 @@ export async function POST(request: Request): Promise<NextResponse> {
           select: { id: true },
         });
         if (!channel) throw new Error("Create a channel before uploading.");
+        // Every upload goes into the channel's own folder, so a file's path
+        // tells the server whose it is (see isChannelBlob in studio/actions.ts).
+        const [folder, owner] = pathname.split("/");
+        if (!["videos", "thumbnails"].includes(folder) || owner !== channel.id) {
+          throw new Error("Uploads must go into your channel's folder.");
+        }
 
         return {
           allowedContentTypes: ALLOWED_CONTENT_TYPES,
@@ -1367,7 +1381,7 @@ function sanitize(name: string): string {
   return name.replace(/[^a-zA-Z0-9._-]+/g, "-").slice(0, 80) || "video";
 }
 
-export function Uploader() {
+export function Uploader({ channelId }: { channelId: string }) {
   const router = useRouter();
   const [file, setFile] = useState<File | null>(null);
   const [title, setTitle] = useState("");
@@ -1430,7 +1444,9 @@ export function Uploader() {
     setError(null);
     try {
       const base = sanitize(file.name);
-      const videoBlob = await upload(`videos/${base}`, file, {
+      // Uploads go into our channel's own folder. The token route refuses
+      // any other path, and only files there can be saved or deleted.
+      const videoBlob = await upload(`videos/${channelId}/${base}`, file, {
         access: "public",
         handleUploadUrl: "/api/blob/upload",
         contentType: file.type,
@@ -1441,7 +1457,7 @@ export function Uploader() {
       const poster = chosenThumb();
       if (poster) {
         const thumb = await upload(
-          `thumbnails/${base}.jpg`,
+          `thumbnails/${channelId}/${base}.jpg`,
           new File([poster], `${base}.jpg`, { type: "image/jpeg" }),
           {
             access: "public",
@@ -1679,7 +1695,9 @@ export function Uploader() {
 }
 ```
 
-The `createVideo` server action (described): requires the signed-in user's channel, validates with `createVideoSchema`, rounds the fractional duration, auto-detects portrait clips ≤ 3 minutes as Waves (`isShort`), coerces `membersOnly` off when the channel has no memberships, and redirects to the studio.
+The upload page (`/studio/upload`) is a server component that calls `requireChannel()` and renders `<Uploader channelId={channel.id} />`, so the uploader knows which folder to upload into.
+
+The `createVideo` server action (described): requires the signed-in user's channel, validates with `createVideoSchema`, checks that `videoUrl` and `thumbnailUrl` are https URLs in this channel's own Blob folder (exact store host, no query, no nested path), rounds the fractional duration, auto-detects portrait clips ≤ 3 minutes as Waves (`isShort`), coerces `membersOnly` off when the channel has no memberships, and redirects to the studio.
 
 ### Watch, feed, channel, search, studio
 
@@ -1689,7 +1707,7 @@ All standard queries + UI — described:
 - **Home feed** (`/`): PUBLIC + READY, newest first, in a responsive card grid; category chips filter server-side via `?chip=` — guard the lookup with `Object.hasOwn` so `?chip=constructor` can't walk the prototype chain into a Prisma error.
 - **Channel page** (`/@handle`): banner, avatar, name/@handle/subs/count, bio, video grid.
 - **Search** (`/results`): case-insensitive contains-match on title, channel name, or handle; wide list rows.
-- **Studio** (`/studio/videos` + `/studio/video/[id]`): owner's content table (thumb, title, visibility, date, views) and an edit form (title/description/category/visibility/thumbnail/Wave flag/members-only) plus delete, which also removes the backing Blob asset (`del(pathname)`) for blob-store URLs.
+- **Studio** (`/studio/videos` + `/studio/video/[id]`): owner's content table (thumb, title, visibility, date, views) and an edit form (title/description/category/visibility/thumbnail/Wave flag/members-only) plus delete, which also removes the backing Blob files with `del()`, but only files in the owner's own channel folder, checked again on the server, so a video saved with someone else's file URL can never delete that file.
 
 ## Part 3: Engagement and library
 
@@ -1866,39 +1884,28 @@ Each creator gets their own connected account (a company under the platform). Ch
 
 ```ts
 import "server-only";
-import Whop from "@whop/sdk";
+import { WhopClient, WhopEnvironment } from "@whop/sdk";
 import { env, isSandbox } from "./env";
 
-// Sandbox override: capital "URL" AND the required /api/v1 suffix. `baseUrl`
-// (lowercase) is silently ignored and every call hits production → 401.
-const sandboxOverride = isSandbox()
-  ? { baseURL: "https://sandbox-api.whop.com/api/v1" }
-  : {};
+// SDK 2.x picks the API host (and the vault host) from `environment`. It reads
+// no env vars of its own, so the sandbox switch has to be passed explicitly.
+const environment = isSandbox()
+  ? WhopEnvironment.Sandbox
+  : WhopEnvironment.Production;
 
 /**
  * Company-key client — products, plans, checkout configurations, connected
  * accounts, payouts. Uses the platform Company API Key (`access_pass:create`
- * scope). The App API Key + webhook client is added when we wire webhooks.
+ * scope). Webhooks don't need a client: the route verifies them with
+ * `unwrapWebhook` from `@whop/sdk/helpers` and the raw signing secret.
  */
-export const whopCompany = new Whop({
-  apiKey: env.WHOP_COMPANY_API_KEY,
-  ...sandboxOverride,
-});
-
-/**
- * App-key client — used to verify inbound webhooks. `webhookKey` must be the
- * base64 of WHOP_WEBHOOK_SECRET (a trailing newline in the secret fails
- * verification silently with 401).
- */
-export const whopsdk = new Whop({
-  apiKey: env.WHOP_CLIENT_SECRET,
-  appID: env.WHOP_CLIENT_ID,
-  webhookKey: Buffer.from(env.WHOP_WEBHOOK_SECRET ?? "").toString("base64"),
-  ...sandboxOverride,
+export const whopCompany = new WhopClient({
+  token: env.WHOP_COMPANY_API_KEY,
+  environment,
 });
 ```
 
-> The SDK option is `baseURL` — capital URL — and the sandbox override must include `/api/v1`. A lowercase `baseUrl` is silently ignored and every call hits production with a confusing 401.
+> SDK 2.x: `new WhopClient({ token, environment })`, with `WhopEnvironment.Sandbox` or `.Production`. It reads no env vars of its own, so the sandbox switch is passed explicitly. The 0.0.x surface (`import Whop`, `apiKey`, `baseURL`, `webhookKey`, positional ids like `files.retrieve(id)`) no longer compiles. Every method takes one object (`files.retrieve({ id })`) and requests use `account_id`, not `company_id`.
 
 ### `src/lib/money.ts`
 
@@ -1932,11 +1939,12 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { getCurrentUser } from "@/lib/session";
 import { whopCompany } from "@/lib/whop";
-import { env, isSandbox } from "@/lib/env";
+import { isSandbox } from "@/lib/env";
 
 /**
  * PAYOUTS-1 (the deferred CHANNEL-1 enrollment): create a Whop connected
- * account (child company) for this channel under our platform company, so the
+ * account for this channel. The platform's API key makes it a child of our
+ * platform account (there's no parent field), so the
  * creator can be charged as merchant of record and withdraw their earnings.
  * Idempotent — once `whopCompanyId` is set we never re-create it.
  */
@@ -1954,10 +1962,9 @@ export async function enableMonetization(): Promise<
   if (channel.whopCompanyId) return { ok: true };
 
   try {
-    const company = await whopCompany.companies.create({
+    const company = await whopCompany.accounts.create({
       title: channel.name,
       email: user.email ?? `${channel.handle}@wavora.app`,
-      parent_company_id: env.WHOP_PLATFORM_COMPANY_ID,
       metadata: { channelId: channel.id, handle: channel.handle },
     });
 
@@ -1973,7 +1980,7 @@ export async function enableMonetization(): Promise<
       },
     });
   } catch (err) {
-    console.error("companies.create failed:", err);
+    console.error("accounts.create failed:", err);
     return { error: "Could not enable monetization. Please try again." };
   }
 
@@ -1982,7 +1989,7 @@ export async function enableMonetization(): Promise<
 }
 ```
 
-> `companies.create` validates the email twice: format (reserved TLDs like `.example` fail) AND deliverability (domains without MX records fail). Real OAuth users always have a deliverable email because the `email` scope is requested at sign-in.
+> `accounts.create` validates the email twice: format (reserved TLDs like `.example` fail) AND deliverability (domains without MX records fail). Real OAuth users always have a deliverable email because the `email` scope is requested at sign-in.
 
 ### Channel memberships (creator side)
 
@@ -2049,7 +2056,7 @@ export async function createTier(input: {
     let productId = existing?.whopProductId ?? null;
     if (!productId) {
       const product = await whopCompany.products.create({
-        company_id: channel.whopCompanyId,
+        account_id: channel.whopCompanyId,
         title: `${channel.name} Memberships`,
         visibility: "visible",
       });
@@ -2061,7 +2068,7 @@ export async function createTier(input: {
     // application fee + the metadata the webhook needs), never a direct
     // purchase from the plan's public Whop page.
     const plan = await whopCompany.plans.create({
-      company_id: channel.whopCompanyId,
+      account_id: channel.whopCompanyId,
       product_id: productId,
       plan_type: "renewal",
       initial_price: dollars,
@@ -2172,6 +2179,20 @@ export async function createMembershipCheckout(
   const feeCents = platformFeeCents(amountCents);
 
   try {
+    // application_fee_amount is accepted by the API but missing from the SDK's
+    // types, so we build the inline plan as a variable instead of in place.
+    const plan = {
+      account_id: tier.channel.whopCompanyId,
+      product_id: tier.whopProductId,
+      plan_type: "renewal" as const,
+      initial_price: toDollars(amountCents),
+      renewal_price: toDollars(amountCents),
+      billing_period: 30,
+      currency: "usd",
+      visibility: "hidden" as const,
+      release_method: "buy_now" as const,
+      application_fee_amount: toDollars(feeCents),
+    };
     const config = await whopCompany.checkoutConfigurations.create({
       mode: "payment",
       metadata: {
@@ -2182,18 +2203,7 @@ export async function createMembershipCheckout(
         amountCents: String(amountCents),
         feeCents: String(feeCents),
       },
-      plan: {
-        company_id: tier.channel.whopCompanyId,
-        product_id: tier.whopProductId,
-        plan_type: "renewal",
-        initial_price: toDollars(amountCents),
-        renewal_price: toDollars(amountCents),
-        billing_period: 30,
-        currency: "usd",
-        visibility: "hidden",
-        release_method: "buy_now",
-        application_fee_amount: toDollars(feeCents),
-      },
+      plan,
     });
     return { sessionId: config.id };
   } catch (err) {
@@ -2245,6 +2255,17 @@ export async function createTipCheckout(
   const feeCents = platformFeeCents(amountCents);
 
   try {
+    // application_fee_amount is accepted by the API but missing from the SDK's
+    // types, so we build the inline plan as a variable instead of in place.
+    const plan = {
+      account_id: video.channel.whopCompanyId,
+      plan_type: "one_time" as const,
+      initial_price: toDollars(amountCents),
+      currency: "usd",
+      visibility: "hidden" as const,
+      release_method: "buy_now" as const,
+      application_fee_amount: toDollars(feeCents),
+    };
     const config = await whopCompany.checkoutConfigurations.create({
       mode: "payment",
       metadata: {
@@ -2256,15 +2277,7 @@ export async function createTipCheckout(
         amountCents: String(amountCents),
         feeCents: String(feeCents),
       },
-      plan: {
-        company_id: video.channel.whopCompanyId,
-        plan_type: "one_time",
-        initial_price: toDollars(amountCents),
-        currency: "usd",
-        visibility: "hidden",
-        release_method: "buy_now",
-        application_fee_amount: toDollars(feeCents),
-      },
+      plan,
     });
     return { sessionId: config.id };
   } catch (err) {
@@ -2452,7 +2465,7 @@ export function JoinMembership({
 
 ### Webhooks
 
-Company-level webhook (not app-level) with **connected account events enabled**, pointing at `/api/webhooks/whop`, subscribed to: `payment.succeeded`, `payment.failed`, `membership.activated`, `membership.deactivated`, `refund.created`. The secret goes in `WHOP_WEBHOOK_SECRET` — no trailing newline, or every verification 401s.
+Company-level webhook (not app-level) with **connected account events enabled**, pointing at `/api/webhooks/whop`, subscribed to: `payment.succeeded`, `payment.failed`, `membership.activated`, `membership.deactivated`, `refund.created`. The secret goes in `WHOP_WEBHOOK_SECRET` exactly as Whop shows it (`ws_...`, no base64 step, the helper encodes it) — no trailing newline, or every verification 401s.
 
 ### `src/lib/webhooks.ts`
 
@@ -2462,7 +2475,7 @@ import { prisma } from "./prisma";
 
 /**
  * PLATFORM-1/2/3: verified-and-idempotent webhook intake. The route verifies the
- * signature (whopsdk.webhooks.unwrap) and calls this. Each handler runs its
+ * signature (unwrapWebhook from @whop/sdk/helpers) and calls this. Each handler runs its
  * writes ATOMICALLY in a single $transaction whose FIRST write is the
  * `WebhookEvent` marker — so a duplicate delivery (concurrent OR repeat) hits the
  * primary-key conflict and the entire transaction rolls back, undoing every side
@@ -2809,7 +2822,7 @@ async function onRefundCreated(
 
 ```ts
 import type { NextRequest } from "next/server";
-import { whopsdk } from "@/lib/whop";
+import { unwrapWebhook } from "@whop/sdk/helpers";
 import { processWebhookEvent } from "@/lib/webhooks";
 import { env } from "@/lib/env";
 
@@ -2829,7 +2842,11 @@ export async function POST(request: NextRequest): Promise<Response> {
 
   let event: { type: string; id: string; data: unknown };
   try {
-    event = whopsdk.webhooks.unwrap(bodyText, { headers }) as typeof event;
+    // The raw ws_ secret, as Whop shows it. The helper base64-encodes it itself.
+    event = unwrapWebhook(bodyText, {
+      headers,
+      key: env.WHOP_WEBHOOK_SECRET,
+    }) as typeof event;
   } catch (err) {
     console.error("Webhook verification failed:", err);
     return new Response("invalid signature", { status: 401 });
@@ -3029,7 +3046,7 @@ export async function GET(): Promise<Response> {
 
   try {
     const res = await whopCompany.accessTokens.create({
-      company_id: channel.whopCompanyId,
+      account_id: channel.whopCompanyId,
     });
     return NextResponse.json({ token: res.token });
   } catch (err) {
@@ -3266,7 +3283,7 @@ export async function uploadImageToWhop(file: File): Promise<string> {
 
   const deadline = Date.now() + POLL_TIMEOUT_MS;
   for (;;) {
-    const current = await whopCompany.files.retrieve(created.id);
+    const current = await whopCompany.files.retrieve({ id: created.id });
     if (current.upload_status === "ready" && current.url) return current.url;
     if (current.upload_status === "failed") {
       throw new Error("Whop files: processing failed.");
@@ -3389,4 +3406,4 @@ export async function POST(request: Request): Promise<NextResponse> {
 ### Shipping
 
 1. **Register the webhook** (sandbox first): company-level webhook → `https://<your-app>.vercel.app/api/webhooks/whop`, the five events above, connected-account events ON; paste the signing secret into `WHOP_WEBHOOK_SECRET`. Test the full money flow with `4242 4242 4242 4242`.
-2. **Switch to production**: create a production Whop app + Company API key, set the production client id/secret/keys, flip `WHOP_SANDBOX=false`, **remove `WHOP_OAUTH_BASE_URL`** (OAuth then uses `api.whop.com`), register the production redirect URI and webhook. The SDK base URL and the checkout/payout `environment` props all key off `WHOP_SANDBOX` — config, not code.
+2. **Switch to production**: create a production Whop app + Company API key, set the production client id/secret/keys, flip `WHOP_SANDBOX=false`, **remove `WHOP_OAUTH_BASE_URL`** (OAuth then uses `api.whop.com`), register the production redirect URI and webhook. The SDK `environment` and the checkout/payout `environment` props all key off `WHOP_SANDBOX` — config, not code.

@@ -14,17 +14,17 @@
     "db:studio": "prisma studio"
   },
   "dependencies": {
-    "@prisma/adapter-pg": "^7.8.0",
-    "@prisma/client": "^7.8.0",
+    "@prisma/adapter-pg": "7.10.1",
+    "@prisma/client": "7.10.1",
     "@vercel/blob": "^2.4.1",
-    "@whop/checkout": "^0.1.0",
-    "@whop/embedded-components-react-js": "^1.0.0",
-    "@whop/embedded-components-vanilla-js": "^1.0.0",
-    "@whop/sdk": "^0.0.40",
+    "@whop/checkout": "0.7.0",
+    "@whop/embedded-components-react-js": "1.2.0",
+    "@whop/embedded-components-vanilla-js": "1.2.0",
+    "@whop/sdk": "2.4.0",
     "clsx": "^2.1.1",
     "iron-session": "^8.0.4",
     "lucide-react": "^1.21.0",
-    "next": "16.2.9",
+    "next": "16.4.3",
     "pg": "^8.21.0",
     "react": "19.2.4",
     "react-dom": "19.2.4",
@@ -32,14 +32,14 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
-    "@tailwindcss/postcss": "^4",
+    "@tailwindcss/turbopack": "^4",
     "@types/node": "^20",
     "@types/pg": "^8.20.0",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
-    "eslint-config-next": "16.2.9",
-    "prisma": "^7.8.0",
+    "eslint-config-next": "16.4.3",
+    "prisma": "7.10.1",
     "tailwindcss": "^4",
     "typescript": "^5"
   }

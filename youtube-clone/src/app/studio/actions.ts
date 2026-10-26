@@ -26,11 +26,37 @@ async function ownedVideo(videoId: string) {
       videoUrl: true,
       thumbnailUrl: true,
       publishedAt: true,
+      channelId: true,
       channel: { select: { userId: true, membershipsEnabled: true } },
     },
   });
   if (!video || video.channel.userId !== user.id) return null;
   return video;
+}
+
+/**
+ * A Blob file belongs to a channel when it sits in that channel's own folder
+ * of our store. The upload route only signs uploads into the uploader's folder,
+ * so this is the ownership check before we save or delete a file.
+ */
+function isChannelBlob(url: string, channelId: string): boolean {
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return false;
+  }
+  const [, folder, owner, name, ...rest] = parsed.pathname.split("/");
+  return (
+    parsed.protocol === "https:" &&
+    parsed.hostname.endsWith(".public.blob.vercel-storage.com") &&
+    !parsed.search &&
+    !parsed.hash &&
+    (folder === "videos" || folder === "thumbnails") &&
+    owner === channelId &&
+    /^[\w.-]+$/.test(name ?? "") &&
+    rest.length === 0
+  );
 }
 
 /**
@@ -56,6 +82,12 @@ export async function createVideo(
     return { error: parsed.error.issues[0]?.message ?? "Invalid video data." };
   }
   const d = parsed.data;
+  if (
+    !isChannelBlob(d.videoUrl, channel.id) ||
+    (d.thumbnailUrl && !isChannelBlob(d.thumbnailUrl, channel.id))
+  ) {
+    return { error: "That file wasn't uploaded to your channel." };
+  }
 
   const video = await prisma.video.create({
     data: {
@@ -148,8 +180,9 @@ export async function updateVideo(
 
 /**
  * VIDEO-8: delete a video (owner-only). Removes the DB row and the backing
- * Blob assets. Demo videos point at external sample URLs, so we only call the
- * Blob delete API for URLs that actually live in our blob store.
+ * Blob assets. We only delete files in this channel's own Blob folder, so a
+ * video saved with someone else's file URL can never delete that file. Older
+ * uploads from before the per-channel folders stay in the store.
  */
 export async function deleteVideo(formData: FormData): Promise<void> {
   const id = String(formData.get("id") ?? "");
@@ -157,7 +190,7 @@ export async function deleteVideo(formData: FormData): Promise<void> {
   if (!owned) return;
 
   const blobUrls = [owned.videoUrl, owned.thumbnailUrl].filter(
-    (u): u is string => !!u && u.includes(".blob.vercel-storage.com"),
+    (u): u is string => !!u && isChannelBlob(u, owned.channelId),
   );
   if (blobUrls.length > 0) {
     try {

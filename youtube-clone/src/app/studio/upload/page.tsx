@@ -7,7 +7,7 @@ export const metadata = { title: "Upload - Wavora Studio" };
 
 export default async function UploadPage() {
   // Redirects to /sign-in or /create-channel as needed.
-  await requireChannel();
+  const { channel } = await requireChannel();
 
   return (
     <div>
@@ -19,7 +19,7 @@ export default async function UploadPage() {
         Back to content
       </Link>
       <h1 className="mb-8 text-2xl font-bold">Upload video</h1>
-      <Uploader />
+      <Uploader channelId={channel.id} />
     </div>
   );
 }

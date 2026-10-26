@@ -1,5 +1,5 @@
 import type { NextRequest } from "next/server";
-import { whopsdk } from "@/lib/whop";
+import { unwrapWebhook } from "@whop/sdk/helpers";
 import { processWebhookEvent } from "@/lib/webhooks";
 import { env } from "@/lib/env";
 
@@ -19,7 +19,11 @@ export async function POST(request: NextRequest): Promise<Response> {
 
   let event: { type: string; id: string; data: unknown };
   try {
-    event = whopsdk.webhooks.unwrap(bodyText, { headers }) as typeof event;
+    // The raw ws_ secret, as Whop shows it. The helper base64-encodes it itself.
+    event = unwrapWebhook(bodyText, {
+      headers,
+      key: env.WHOP_WEBHOOK_SECRET,
+    }) as typeof event;
   } catch (err) {
     console.error("Webhook verification failed:", err);
     return new Response("invalid signature", { status: 401 });

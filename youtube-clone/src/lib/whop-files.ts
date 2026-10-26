@@ -43,7 +43,7 @@ export async function uploadImageToWhop(file: File): Promise<string> {
 
   const deadline = Date.now() + POLL_TIMEOUT_MS;
   for (;;) {
-    const current = await whopCompany.files.retrieve(created.id);
+    const current = await whopCompany.files.retrieve({ id: created.id });
     if (current.upload_status === "ready" && current.url) return current.url;
     if (current.upload_status === "failed") {
       throw new Error("Whop files: processing failed.");

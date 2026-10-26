@@ -26,7 +26,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     const json = await handleUpload({
       body,
       request,
-      onBeforeGenerateToken: async () => {
+      onBeforeGenerateToken: async (pathname) => {
         const user = await getCurrentUser();
         if (!user) throw new Error("You must be signed in to upload.");
         const channel = await prisma.channel.findUnique({
@@ -34,6 +34,12 @@ export async function POST(request: Request): Promise<NextResponse> {
           select: { id: true },
         });
         if (!channel) throw new Error("Create a channel before uploading.");
+        // Every upload goes into the channel's own folder, so a file's path
+        // tells the server whose it is (see isChannelBlob in studio/actions.ts).
+        const [folder, owner] = pathname.split("/");
+        if (!["videos", "thumbnails"].includes(folder) || owner !== channel.id) {
+          throw new Error("Uploads must go into your channel's folder.");
+        }
 
         return {
           allowedContentTypes: ALLOWED_CONTENT_TYPES,

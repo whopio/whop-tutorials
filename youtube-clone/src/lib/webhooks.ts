@@ -3,7 +3,7 @@ import { prisma } from "./prisma";
 
 /**
  * PLATFORM-1/2/3: verified-and-idempotent webhook intake. The route verifies the
- * signature (whopsdk.webhooks.unwrap) and calls this. Each handler runs its
+ * signature (unwrapWebhook from @whop/sdk/helpers) and calls this. Each handler runs its
  * writes ATOMICALLY in a single $transaction whose FIRST write is the
  * `WebhookEvent` marker — so a duplicate delivery (concurrent OR repeat) hits the
  * primary-key conflict and the entire transaction rolls back, undoing every side

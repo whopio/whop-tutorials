@@ -22,7 +22,7 @@ export async function GET(): Promise<Response> {
 
   try {
     const res = await whopCompany.accessTokens.create({
-      company_id: channel.whopCompanyId,
+      account_id: channel.whopCompanyId,
     });
     return NextResponse.json({ token: res.token });
   } catch (err) {

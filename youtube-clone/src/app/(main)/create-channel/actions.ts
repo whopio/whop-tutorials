@@ -11,8 +11,8 @@ export type CreateChannelState = { error?: string };
  * CHANNEL-1 / CHANNEL-2: create the signed-in user's channel (one per user)
  * with a unique, validated @handle.
  *
- * NOTE: enrolling the channel as a Whop *connected account* (companies.create
- * under our platform company) is deferred to Phase 4 / PAYOUTS-1, where it is
+ * NOTE: enrolling the channel as a Whop *connected account* (accounts.create
+ * under our platform account) is deferred to Phase 4 / PAYOUTS-1, where it is
  * first exercised. `Channel.whopCompanyId` stays null until then.
  */
 export async function createChannel(

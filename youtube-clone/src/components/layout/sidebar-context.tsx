@@ -22,7 +22,7 @@ export function SidebarProvider({ children }: { children: ReactNode }) {
     <SidebarContext.Provider
       value={{
         pinned,
-        toggle: () => setPinned((p) => !p),
+        toggle: () => setPinned((c) => !c),
         mobileOpen,
         setMobileOpen,
       }}

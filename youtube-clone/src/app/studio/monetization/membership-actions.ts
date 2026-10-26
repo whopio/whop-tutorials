@@ -58,7 +58,7 @@ export async function createTier(input: {
     let productId = existing?.whopProductId ?? null;
     if (!productId) {
       const product = await whopCompany.products.create({
-        company_id: channel.whopCompanyId,
+        account_id: channel.whopCompanyId,
         title: `${channel.name} Memberships`,
         visibility: "visible",
       });
@@ -70,7 +70,7 @@ export async function createTier(input: {
     // application fee + the metadata the webhook needs), never a direct
     // purchase from the plan's public Whop page.
     const plan = await whopCompany.plans.create({
-      company_id: channel.whopCompanyId,
+      account_id: channel.whopCompanyId,
       product_id: productId,
       plan_type: "renewal",
       initial_price: dollars,

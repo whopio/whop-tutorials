@@ -10,7 +10,8 @@ export default async function ShortsPage({
 }: {
   searchParams: Promise<{ v?: string | string[] }>;
 }) {
-  const { v } = await searchParams;
+  const { v: rawV } = await searchParams;
+  const v = Array.isArray(rawV) ? rawV[0] : rawV;
   const user = await getCurrentUser();
   const shorts = await getShortsFeed(
     user?.id ?? null,

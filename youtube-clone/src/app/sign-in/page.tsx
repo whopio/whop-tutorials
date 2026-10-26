@@ -7,7 +7,7 @@ const ERRORS: Record<string, string> = {
   missing_pkce: "Your sign-in session expired. Please try again.",
   missing_code: "Sign-in didn't complete. Please try again.",
   bad_pkce: "Your sign-in session expired. Please try again.",
-  access_denied: "Sign-in was cancelled.",
+  access_denied: "Sign-in was canceled.",
 };
 
 export default async function SignInPage({

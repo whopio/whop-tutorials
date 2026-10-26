@@ -36,6 +36,14 @@ const nextConfig: NextConfig = {
   // directory from stray lockfiles higher up the tree.
   turbopack: {
     root: __dirname,
+    // Tailwind v4 runs as a Turbopack loader (what create-next-app writes
+    // today), so there's no postcss.config.mjs.
+    rules: {
+      "*.css": {
+        loaders: ["@tailwindcss/turbopack"],
+        as: "*.css",
+      },
+    },
   },
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];

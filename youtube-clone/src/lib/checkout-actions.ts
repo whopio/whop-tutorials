@@ -62,6 +62,20 @@ export async function createMembershipCheckout(
   const feeCents = platformFeeCents(amountCents);
 
   try {
+    // application_fee_amount is accepted by the API but missing from the SDK's
+    // types, so we build the inline plan as a variable instead of in place.
+    const plan = {
+      account_id: tier.channel.whopCompanyId,
+      product_id: tier.whopProductId,
+      plan_type: "renewal" as const,
+      initial_price: toDollars(amountCents),
+      renewal_price: toDollars(amountCents),
+      billing_period: 30,
+      currency: "usd",
+      visibility: "hidden" as const,
+      release_method: "buy_now" as const,
+      application_fee_amount: toDollars(feeCents),
+    };
     const config = await whopCompany.checkoutConfigurations.create({
       mode: "payment",
       metadata: {
@@ -72,18 +86,7 @@ export async function createMembershipCheckout(
         amountCents: String(amountCents),
         feeCents: String(feeCents),
       },
-      plan: {
-        company_id: tier.channel.whopCompanyId,
-        product_id: tier.whopProductId,
-        plan_type: "renewal",
-        initial_price: toDollars(amountCents),
-        renewal_price: toDollars(amountCents),
-        billing_period: 30,
-        currency: "usd",
-        visibility: "hidden",
-        release_method: "buy_now",
-        application_fee_amount: toDollars(feeCents),
-      },
+      plan,
     });
     return { sessionId: config.id };
   } catch (err) {
@@ -135,6 +138,17 @@ export async function createTipCheckout(
   const feeCents = platformFeeCents(amountCents);
 
   try {
+    // application_fee_amount is accepted by the API but missing from the SDK's
+    // types, so we build the inline plan as a variable instead of in place.
+    const plan = {
+      account_id: video.channel.whopCompanyId,
+      plan_type: "one_time" as const,
+      initial_price: toDollars(amountCents),
+      currency: "usd",
+      visibility: "hidden" as const,
+      release_method: "buy_now" as const,
+      application_fee_amount: toDollars(feeCents),
+    };
     const config = await whopCompany.checkoutConfigurations.create({
       mode: "payment",
       metadata: {
@@ -146,15 +160,7 @@ export async function createTipCheckout(
         amountCents: String(amountCents),
         feeCents: String(feeCents),
       },
-      plan: {
-        company_id: video.channel.whopCompanyId,
-        plan_type: "one_time",
-        initial_price: toDollars(amountCents),
-        currency: "usd",
-        visibility: "hidden",
-        release_method: "buy_now",
-        application_fee_amount: toDollars(feeCents),
-      },
+      plan,
     });
     return { sessionId: config.id };
   } catch (err) {

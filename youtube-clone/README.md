@@ -31,7 +31,7 @@ A video platform where anyone signs in with Whop, starts a channel, and uploads 
 | [Prisma 7](https://www.prisma.io/) | ORM (`prisma.config.ts`, `@prisma/adapter-pg` driver adapter) |
 | [PostgreSQL](https://www.postgresql.org/) | Database (Neon, Supabase, Railway, or local) |
 | [Vercel Blob](https://vercel.com/docs/storage/vercel-blob) | Video + thumbnail storage (browser-direct uploads) |
-| [Whop SDK](https://dev.whop.com/) | Payments, OAuth, KYC, connected accounts, webhooks |
+| [Whop SDK](https://dev.whop.com/) 2.4.0 | Payments, KYC, connected accounts, webhook verification (`@whop/sdk/helpers`) |
 | [@whop/checkout](https://dev.whop.com/) | Embedded checkout (`WhopCheckoutEmbed`) |
 | [Whop Embedded Components](https://dev.whop.com/) | `PayoutsSession` for the embedded payout portal |
 | [iron-session](https://github.com/vvo/iron-session) | Encrypted cookie sessions (no session store) |
@@ -42,7 +42,7 @@ A video platform where anyone signs in with Whop, starts a channel, and uploads 
 
 ### Prerequisites
 
-- Node.js 18+
+- Node.js 20.9+ (the minimum for Next.js 16)
 - A PostgreSQL database (Neon, Supabase, Railway, or local)
 - A Vercel account with a Blob store (for video uploads)
 - A [Whop developer account](https://whop.com/developer) - use the [sandbox](https://sandbox.whop.com) while developing
@@ -117,7 +117,7 @@ Webhook delivery needs a public URL, so the full money flow comes alive on your 
 https://<your-app>.vercel.app/api/webhooks/whop
 ```
 
-Subscribe to `payment.succeeded`, `payment.failed`, `membership.activated`, `membership.deactivated`, and `refund.created`, and **enable connected account events** so payments to creators' sub-companies fire it. Paste the signing secret into `WHOP_WEBHOOK_SECRET` (no trailing newline).
+Subscribe to `payment.succeeded`, `payment.failed`, `membership.activated`, `membership.deactivated`, and `refund.created`, and **enable connected account events** so payments to creators' sub-companies fire it. Paste the signing secret into `WHOP_WEBHOOK_SECRET` exactly as Whop shows it (no base64 step, no trailing newline).
 
 In sandbox, test the whole flow with card `4242 4242 4242 4242`.
 
@@ -153,14 +153,14 @@ youtube-clone/
 │   ├── hooks/                   # useEscape
 │   └── lib/                     # env, prisma, session, auth, whop SDK, webhooks,
 │                                #   checkout/social/library/playlist actions, validators
-├── next.config.ts               # CSP + security headers, turbopack root
+├── next.config.ts               # CSP + security headers, Turbopack root, Tailwind loader
 ├── prisma.config.ts             # Prisma 7 config
 └── vercel.json                  # Framework pin
 ```
 
 ## How the Money Flows
 
-1. A creator enables monetization → `companies.create` makes their channel a Whop **connected account** under the platform.
+1. A creator enables monetization → `accounts.create` makes their channel a Whop **connected account** under the platform.
 2. Tiers are Whop **renewal plans** (hidden visibility) on that account; joins go through `checkoutConfigurations.create` with the price and `application_fee_amount` inline, rendered by `WhopCheckoutEmbed`.
 3. Cheers are `one_time` direct charges, same shape, with the tip message in metadata.
 4. Whop credits the creator's balance (minus the platform fee) and calls the webhook; handlers grant/revoke `ChannelMember` entitlements and record tips + ledger rows exactly once.
