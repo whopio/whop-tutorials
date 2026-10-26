@@ -4,7 +4,7 @@ config({ path: ".env.local" });
 import { PrismaClient } from "../src/generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { Pool } from "pg";
-import Whop from "@whop/sdk";
+import { WhopClient, WhopEnvironment } from "@whop/sdk";
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL_UNPOOLED || process.env.DATABASE_URL,
@@ -14,11 +14,11 @@ const prisma = new PrismaClient({ adapter });
 
 const isSandbox = process.env.WHOP_SANDBOX === "true";
 
-const whop = new Whop({
-  apiKey: process.env.WHOP_API_KEY!,
-  baseURL: isSandbox
-    ? "https://sandbox-api.whop.com/api/v1"
-    : "https://api.whop.com/api/v1",
+const whop = new WhopClient({
+  token: process.env.WHOP_API_KEY!,
+  environment: isSandbox
+    ? WhopEnvironment.Sandbox
+    : WhopEnvironment.Production,
 });
 
 async function main() {
@@ -27,18 +27,20 @@ async function main() {
 
   console.log("Creating 'Pencraft Pro' product on Whop...");
   const product = await whop.products.create({
-    company_id: companyId,
+    account_id: companyId,
     title: "Pencraft Pro",
     description: "All 8 writing templates and unlimited generations.",
   });
 
   console.log("Creating monthly $20 plan...");
   const plan = await whop.plans.create({
-    company_id: companyId,
+    account_id: companyId,
     product_id: product.id,
     billing_period: 30,
     currency: "usd",
-    initial_price: 20,
+    // On a renewal plan, initial_price is charged on top of the first renewal_price.
+    // 0 keeps the first charge at the monthly price.
+    initial_price: 0,
     renewal_price: 20,
   });
 

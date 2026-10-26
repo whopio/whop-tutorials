@@ -114,7 +114,8 @@ export function AppShell({
     }, 3000);
   }, [router]);
 
-  const isAtLimit = state.generationsRemaining <= 0;
+  // -1 means unlimited (Pro), so only a free user at 0 is at the limit
+  const isAtLimit = state.generationsRemaining === 0;
 
   const ctx: AppContextType = {
     ...state,

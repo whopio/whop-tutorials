@@ -26,7 +26,7 @@ An AI writing studio where users sign in via Whop OAuth, pick a writing template
 | [TypeScript](https://www.typescriptlang.org/) | Type safety |
 | [Prisma 7](https://www.prisma.io/) | Database ORM (with driver adapter) |
 | [PostgreSQL](https://www.postgresql.org/) | Database (via Neon) |
-| [Whop SDK](https://dev.whop.com/) | OAuth, Payments, webhooks |
+| [Whop SDK](https://docs.whop.com/) (`@whop/sdk` 2.4.0) | Product and plan creation, webhook verification |
 | [Vercel AI SDK](https://ai-sdk.dev/) | Streaming text generation and UI chat protocol |
 | [@ai-sdk/anthropic](https://ai-sdk.dev/providers/ai-sdk-providers/anthropic) | Claude model provider |
 | [@ai-sdk/openai](https://ai-sdk.dev/providers/ai-sdk-providers/openai) | GPT model provider |
@@ -38,7 +38,7 @@ An AI writing studio where users sign in via Whop OAuth, pick a writing template
 
 ### Prerequisites
 
-- Node.js 18+
+- Node.js 20.9+ (Next.js 16 needs it)
 - PostgreSQL database (Neon recommended)
 - [Whop Developer Account](https://sandbox.whop.com/)
 - [Anthropic API key](https://console.anthropic.com/)
@@ -62,7 +62,7 @@ npm install
 Copy the example env file and fill in your values:
 
 ```bash
-cp .env.example .env
+cp .env.example .env.local
 ```
 
 See `.env.example` for all required variables and where to find them.
@@ -85,7 +85,7 @@ The Pro tier is represented by a real Whop product + plan. Run the helper script
 npx tsx prisma/create-pro-plan.ts
 ```
 
-This requires `WHOP_API_KEY` and `WHOP_COMPANY_ID` to be set in `.env`.
+This requires `WHOP_API_KEY` and `WHOP_COMPANY_ID` to be set in `.env.local` (the script and `prisma.config.ts` read that file).
 
 ### 6. Run the development server
 
@@ -175,7 +175,7 @@ Free users have no `Membership` row. Pro users have exactly one, keyed by `userI
 | **Sandbox** | sandbox.whop.com | sandbox-api.whop.com | Test cards only |
 | **Production** | whop.com | api.whop.com | Real payments |
 
-Set `WHOP_SANDBOX=true` for development. Remove it (or set to anything else) for production.
+Set `WHOP_SANDBOX=true` for development and `WHOP_SANDBOX=false` for production. Removing it keeps the app on the sandbox, because `src/lib/env.ts` defaults it to `"true"`.
 
 ### Test Cards (Sandbox)
 
@@ -188,8 +188,8 @@ Set `WHOP_SANDBOX=true` for development. Remove it (or set to anything else) for
 
 1. Push to GitHub
 2. Import project in [Vercel](https://vercel.com)
-3. Set the **Build Command** to `npx prisma generate && next build` in Project Settings
-4. Add all environment variables (remove `WHOP_SANDBOX` for production)
+3. Keep `vercel.ts`. It sets the build command to `npx prisma generate && next build`, because the generated Prisma client is not committed
+4. Add all environment variables (set `WHOP_SANDBOX` to `false` for production)
 5. Set the Whop webhook URL to `https://your-app.vercel.app/api/webhooks/whop`
 6. Set the OAuth redirect URL to `https://your-app.vercel.app/api/auth/callback`
 7. Deploy
@@ -202,7 +202,7 @@ npm run build
 npm start
 ```
 
-Requires Node.js 18+ runtime, PostgreSQL database, and all environment variables configured.
+Requires a Node.js 20.9+ runtime, a PostgreSQL database, and all environment variables configured.
 
 ## Disclaimer
 

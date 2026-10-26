@@ -82,5 +82,8 @@ export async function GET(request: NextRequest) {
   session.userId = user.id;
   await session.save();
 
-  return NextResponse.redirect(new URL(redirectTo, env.NEXT_PUBLIC_APP_URL));
+  // Check the origin again, so the cookie can only send the user somewhere on this app
+  const home = new URL(env.NEXT_PUBLIC_APP_URL);
+  const target = new URL(redirectTo, home);
+  return NextResponse.redirect(target.origin === home.origin ? target : new URL("/studio", home));
 }

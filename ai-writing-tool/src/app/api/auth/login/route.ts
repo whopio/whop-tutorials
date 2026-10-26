@@ -24,7 +24,9 @@ async function sha256(str: string): Promise<string> {
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
-  const redirectTo = url.searchParams.get("redirect") || "/studio";
+  // Only same-site paths: "/studio?upgrade=true" passes, "//evil.example" and "https://..." don't
+  const requested = url.searchParams.get("redirect");
+  const redirectTo = requested && /^\/(?![/\\])/.test(requested) ? requested : "/studio";
 
   const codeVerifier = randomString(32);
   const codeChallenge = await sha256(codeVerifier);

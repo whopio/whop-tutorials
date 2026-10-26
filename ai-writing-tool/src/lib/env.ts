@@ -11,8 +11,6 @@ const envSchema = z.object({
   SESSION_SECRET: z.string().min(32),
   NEXT_PUBLIC_APP_URL: z.string().url(),
   WHOP_WEBHOOK_SECRET: z.string(),
-  ANTHROPIC_API_KEY: z.string(),
-  OPENAI_API_KEY: z.string(),
 });
 
 type Env = z.infer<typeof envSchema>;

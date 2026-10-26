@@ -1,8 +1,12 @@
-import Whop from "@whop/sdk";
+import { WhopClient, WhopEnvironment } from "@whop/sdk";
 import { env } from "./env";
 
-export const whop = new Whop({
-  apiKey: env.WHOP_API_KEY,
+export const whop = new WhopClient({
+  token: env.WHOP_API_KEY,
+  environment:
+    env.WHOP_SANDBOX === "true"
+      ? WhopEnvironment.Sandbox
+      : WhopEnvironment.Production,
 });
 
 export function getWhopBaseUrl() {

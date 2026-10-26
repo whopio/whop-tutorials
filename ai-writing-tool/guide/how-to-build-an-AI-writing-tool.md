@@ -42,7 +42,7 @@ Condensed reference for building Pencraft, an AI writing studio on Whop. Use thi
 - `POST /api/auth/logout` — destroys session, redirects to `/`.
 - `POST /api/generate` — runs `generateText`, persists a Generation record, prunes old rows.
 - `POST /api/chat` — runs `streamText` over a generation's conversation, returns a UI message stream.
-- `POST /api/webhooks/whop` — verifies signature with `whop.webhooks.unwrap`, handles membership events.
+- `POST /api/webhooks/whop` — verifies the signature with `unwrapWebhook` from `@whop/sdk/helpers`, handles membership events.
 
 **Flow**
 
@@ -60,17 +60,17 @@ Condensed reference for building Pencraft, an AI writing studio on Whop. Use thi
 ### Scaffold
 
 ```bash
-npx create-next-app@latest pencraft --typescript --tailwind --app --src-dir --import-alias "@/*"
+npx create-next-app@latest pencraft --typescript --tailwind --eslint --app --src-dir --no-import-alias --no-cache-components
 cd pencraft
 ```
 
 ### Dependencies
 
 ```bash
-npm install @whop/sdk iron-session zod pg @prisma/adapter-pg
-npm install ai @ai-sdk/anthropic @ai-sdk/openai @ai-sdk/react
-npm install react-markdown remark-gfm
-npm install -D prisma @prisma/client tsx dotenv @types/pg
+npm install @whop/sdk@2.4.0 @whop/checkout@0.7.0 iron-session zod prisma@7.10.0 @prisma/client@7.10.0 @prisma/adapter-pg@7.10.0 pg
+npm install -D @types/pg dotenv
+npm install ai @ai-sdk/anthropic @ai-sdk/openai @ai-sdk/react react-markdown remark-gfm
+npm install -D tsx
 ```
 
 ### Environment variables (added incrementally across parts)
@@ -301,11 +301,15 @@ export const env = createEnvProxy();
 Sandbox-aware dual endpoint. `WHOP_SANDBOX === "true"` uses `sandbox-api.whop.com`:
 
 ```ts
-import Whop from "@whop/sdk";
+import { WhopClient, WhopEnvironment } from "@whop/sdk";
 import { env } from "./env";
 
-export const whop = new Whop({
-  apiKey: env.WHOP_API_KEY,
+export const whop = new WhopClient({
+  token: env.WHOP_API_KEY,
+  environment:
+    env.WHOP_SANDBOX === "true"
+      ? WhopEnvironment.Sandbox
+      : WhopEnvironment.Production,
 });
 
 export function getWhopBaseUrl() {
@@ -711,19 +715,14 @@ Streams text back via `useChat`'s UI message protocol. Persists each turn as a M
 
 ```ts
 import { NextRequest, NextResponse } from "next/server";
-import { streamText } from "ai";
+import { streamText, convertToModelMessages, safeValidateUIMessages } from "ai";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/session";
 import { getModel } from "@/lib/ai";
 
 const requestSchema = z.object({
-  messages: z.array(
-    z.object({
-      role: z.enum(["user", "assistant"]),
-      content: z.string(),
-    })
-  ),
+  messages: z.array(z.unknown()),
   generationId: z.string(),
 });
 
@@ -739,7 +738,14 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Invalid request" }, { status: 400 });
   }
 
-  const { messages, generationId } = parsed.data;
+  // useChat sends UI messages, whose text lives in parts rather than a content string
+  const validated = await safeValidateUIMessages({ messages: parsed.data.messages });
+  if (!validated.success) {
+    return NextResponse.json({ error: "Invalid request" }, { status: 400 });
+  }
+
+  const messages = validated.data;
+  const { generationId } = parsed.data;
 
   const generation = await prisma.generation.findUnique({
     where: { id: generationId },
@@ -756,7 +762,9 @@ export async function POST(request: NextRequest) {
       data: {
         generationId,
         role: "USER",
-        content: lastUserMessage.content,
+        content: lastUserMessage.parts
+          .map((part) => (part.type === "text" ? part.text : ""))
+          .join(""),
       },
     });
   }
@@ -772,7 +780,7 @@ The user will ask you to revise the content. Maintain the same format and style 
   const result = streamText({
     model: getModel(generation.template.model),
     system: systemPrompt,
-    messages,
+    messages: await convertToModelMessages(messages),
     onFinish: async ({ text }) => {
       await prisma.message.create({
         data: {
@@ -843,7 +851,7 @@ config({ path: ".env.local" });
 import { PrismaClient } from "../src/generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
 import { Pool } from "pg";
-import Whop from "@whop/sdk";
+import { WhopClient, WhopEnvironment } from "@whop/sdk";
 
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL_UNPOOLED || process.env.DATABASE_URL,
@@ -853,29 +861,33 @@ const prisma = new PrismaClient({ adapter });
 
 const isSandbox = process.env.WHOP_SANDBOX === "true";
 
-const whop = new Whop({
-  apiKey: process.env.WHOP_API_KEY!,
-  baseURL: isSandbox
-    ? "https://sandbox-api.whop.com/api/v1"
-    : "https://api.whop.com/api/v1",
+const whop = new WhopClient({
+  token: process.env.WHOP_API_KEY!,
+  environment: isSandbox
+    ? WhopEnvironment.Sandbox
+    : WhopEnvironment.Production,
 });
 
 async function main() {
   const companyId = process.env.WHOP_COMPANY_ID;
   if (!companyId) throw new Error("WHOP_COMPANY_ID is not set");
 
+  console.log("Creating 'Pencraft Pro' product on Whop...");
   const product = await whop.products.create({
-    company_id: companyId,
+    account_id: companyId,
     title: "Pencraft Pro",
     description: "All 8 writing templates and unlimited generations.",
   });
 
+  console.log("Creating monthly $20 plan...");
   const plan = await whop.plans.create({
-    company_id: companyId,
+    account_id: companyId,
     product_id: product.id,
     billing_period: 30,
     currency: "usd",
-    initial_price: 20,
+    // On a renewal plan, initial_price is charged on top of the first renewal_price.
+    // 0 keeps the first charge at the monthly price.
+    initial_price: 0,
     renewal_price: 20,
   });
 
@@ -902,6 +914,11 @@ async function main() {
       isActive: true,
     },
   });
+
+  console.log("Done.");
+  console.log("  Product ID:", product.id);
+  console.log("  Plan ID:   ", plan.id);
+  console.log("  Checkout:  ", checkoutUrl);
 }
 
 main()
@@ -920,14 +937,26 @@ Run with `npx tsx prisma/create-pro-plan.ts`.
 
 ```ts
 import { NextRequest } from "next/server";
-import Whop from "@whop/sdk";
+import { unwrapWebhook } from "@whop/sdk/helpers";
 import { prisma } from "@/lib/prisma";
 import { env } from "@/lib/env";
 
-const whopWebhook = new Whop({
-  apiKey: env.WHOP_API_KEY,
-  webhookKey: btoa(env.WHOP_WEBHOOK_SECRET),
-});
+// Webhooks pinned to a recent API version send flat ids (user_id, plan_id).
+// Unpinned webhooks nest them (user.id, plan.id). We accept both.
+function readId(
+  data: Record<string, unknown>,
+  flatKey: string,
+  nestedKey: string
+): string | null {
+  const flat = data[flatKey];
+  if (typeof flat === "string") return flat;
+  const nested = data[nestedKey];
+  if (nested && typeof nested === "object") {
+    const id = (nested as { id?: unknown }).id;
+    if (typeof id === "string") return id;
+  }
+  return null;
+}
 
 export async function POST(request: NextRequest) {
   const body = await request.text();
@@ -935,10 +964,10 @@ export async function POST(request: NextRequest) {
 
   let webhookData: { type: string; data: Record<string, unknown> };
   try {
-    webhookData = whopWebhook.webhooks.unwrap(body, { headers }) as unknown as {
+    webhookData = unwrapWebhook<{
       type: string;
       data: Record<string, unknown>;
-    };
+    }>(body, { headers, key: env.WHOP_WEBHOOK_SECRET });
   } catch {
     return new Response("Invalid signature", { status: 401 });
   }
@@ -948,8 +977,9 @@ export async function POST(request: NextRequest) {
   switch (type) {
     case "membership.activated": {
       const membershipId = data.id as string;
-      const userId = (data.user as { id: string }).id;
-      const planId = (data.plan as { id: string }).id;
+      const userId = readId(data, "user_id", "user");
+      const planId = readId(data, "plan_id", "plan");
+      if (!userId || !planId) break;
 
       const existing = await prisma.membership.findUnique({
         where: { whopMembershipId: membershipId },
@@ -1039,10 +1069,11 @@ export async function POST(request: NextRequest) {
 1. **Sandbox endpoints** use `sandbox-api.whop.com` for all OAuth and API calls. Gate with `WHOP_SANDBOX === "true"`.
 2. **OAuth 2.1 requires PKCE.** Store the code verifier in an httpOnly cookie, not the session. `client_secret` is still required in the token exchange even with PKCE (Whop-specific).
 3. **`openid` scope requires a `nonce` parameter** on the auth request.
-4. **Webhook signing key is base64-encoded** when instantiating the Whop SDK client: `webhookKey: btoa(env.WHOP_WEBHOOK_SECRET)`.
-5. **Webhook verification:** call `whop.webhooks.unwrap(bodyText, { headers })`. Pass the raw body text, not parsed JSON. Convert headers with `Object.fromEntries(request.headers)`.
-6. **Webhook payload nesting:** membership events use nested objects: `data.user.id` (not `data.user_id`), `data.plan.id` (not `data.plan_id`). The membership ID is at `data.id`.
-7. **`products.create`** takes `company_id`, `title`, `description`. `plans.create` takes `company_id`, `product_id`, `billing_period` (days), `currency`, `initial_price`, `renewal_price`. Embedded checkout uses `planId` prop on `WhopCheckoutEmbed` with `environment: "sandbox" | "production"`.
+4. **Whop SDK 2.4.0 client:** `new WhopClient({ token, environment })` from `@whop/sdk`, with `WhopEnvironment.Sandbox` or `WhopEnvironment.Production`. The 0.0.x `new Whop({ apiKey, baseURL })` no longer compiles.
+5. **Webhook verification:** call `unwrapWebhook(bodyText, { headers, key: env.WHOP_WEBHOOK_SECRET })` from `@whop/sdk/helpers` with the raw `ws_` secret. Base64-encoding it first makes verification fail. Pass the raw body text, not parsed JSON. Convert headers with `Object.fromEntries(request.headers)`.
+6. **Webhook payload shape:** webhooks pinned to a recent API version send flat ids (`data.user_id`, `data.plan_id`). Unpinned webhooks nest them (`data.user.id`, `data.plan.id`). Read both. The membership ID is at `data.id`.
+7. **`products.create`** takes `account_id`, `title`, `description`. `plans.create` takes `account_id`, `product_id`, `billing_period` (days), `currency`, `initial_price`, `renewal_price`. On a renewal plan Whop charges `initial_price` on top of the first `renewal_price`, so `initial_price: 0` keeps the first charge at the monthly price. Embedded checkout uses `planId` prop on `WhopCheckoutEmbed` with `environment: "sandbox" | "production"`.
 8. **Prisma 7:** generator is `"prisma-client"` (no `-js`), output path is explicit, `url` is NOT in `schema.prisma` (comes from the `PrismaPg` adapter at runtime). CLI uses `DATABASE_URL_UNPOOLED` via `prisma.config.ts`.
 9. **Vercel AI SDK provider routing:** the provider packages (`@ai-sdk/anthropic`, `@ai-sdk/openai`) are called as factories: `anthropic("claude-haiku-4-5-20251001")`, `openai("gpt-4o-mini")`. They return a `LanguageModel` passed to `generateText` or `streamText`.
-10. **`streamText` chat protocol:** return `result.toUIMessageStreamResponse()` to speak the `useChat` UI message protocol. Persist with the `onFinish` callback so the DB write only happens after the full stream completes.
+10. **`streamText` chat protocol:** `useChat` posts UI messages whose text is in `parts`, not a `content` string. Validate them with `safeValidateUIMessages`, pass `await convertToModelMessages(messages)` to `streamText`, and return `result.toUIMessageStreamResponse()`. Persist with the `onFinish` callback so the DB write only happens after the full stream completes.
+11. **Unlimited is -1:** `checkGenerationLimit` returns `remaining: -1` for Pro users. A client-side limit check must be `generationsRemaining === 0`, because `<= 0` locks every Pro user out.

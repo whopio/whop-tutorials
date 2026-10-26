@@ -1,12 +1,24 @@
 import { NextRequest } from "next/server";
-import Whop from "@whop/sdk";
+import { unwrapWebhook } from "@whop/sdk/helpers";
 import { prisma } from "@/lib/prisma";
 import { env } from "@/lib/env";
 
-const whopWebhook = new Whop({
-  apiKey: env.WHOP_API_KEY,
-  webhookKey: btoa(env.WHOP_WEBHOOK_SECRET),
-});
+// Webhooks pinned to a recent API version send flat ids (user_id, plan_id).
+// Unpinned webhooks nest them (user.id, plan.id). We accept both.
+function readId(
+  data: Record<string, unknown>,
+  flatKey: string,
+  nestedKey: string
+): string | null {
+  const flat = data[flatKey];
+  if (typeof flat === "string") return flat;
+  const nested = data[nestedKey];
+  if (nested && typeof nested === "object") {
+    const id = (nested as { id?: unknown }).id;
+    if (typeof id === "string") return id;
+  }
+  return null;
+}
 
 export async function POST(request: NextRequest) {
   const body = await request.text();
@@ -14,10 +26,10 @@ export async function POST(request: NextRequest) {
 
   let webhookData: { type: string; data: Record<string, unknown> };
   try {
-    webhookData = whopWebhook.webhooks.unwrap(body, { headers }) as unknown as {
+    webhookData = unwrapWebhook<{
       type: string;
       data: Record<string, unknown>;
-    };
+    }>(body, { headers, key: env.WHOP_WEBHOOK_SECRET });
   } catch {
     return new Response("Invalid signature", { status: 401 });
   }
@@ -27,16 +39,15 @@ export async function POST(request: NextRequest) {
   switch (type) {
     case "membership.activated": {
       const membershipId = data.id as string;
-      const userId = (data.user as { id: string }).id;
-      const planId = (data.plan as { id: string }).id;
+      const userId = readId(data, "user_id", "user");
+      const planId = readId(data, "plan_id", "plan");
+      if (!userId || !planId) break;
 
-      // Idempotency: check if we already processed this event
       const existing = await prisma.membership.findUnique({
         where: { whopMembershipId: membershipId },
       });
       if (existing?.lastWebhookEventId === membershipId) break;
 
-      // Find the user and plan in our database
       const user = await prisma.user.findUnique({
         where: { whopUserId: userId },
       });
