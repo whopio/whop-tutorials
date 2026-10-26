@@ -17,7 +17,7 @@ export async function GET() {
   }
 
   const token = await whop.accessTokens.create({
-    company_id: creator.whopCompanyId,
+    account_id: creator.whopCompanyId,
   });
 
   return NextResponse.json({ token: token.token });

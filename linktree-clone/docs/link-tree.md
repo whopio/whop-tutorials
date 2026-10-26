@@ -17,7 +17,7 @@ This file keeps **full code only for the security-sensitive and Whop-specific pa
 
 - Next.js 16 (App Router), React 19, TypeScript (strict)
 - Tailwind CSS v4
-- Whop OAuth + Whop Payments Network (`@whop/sdk`, `@whop/embedded-components-react-js`, `@whop/embedded-components-vanilla-js`)
+- Whop OAuth + Whop Payments Network (`@whop/sdk` 2.4.0, `@whop/embedded-components-react-js`, `@whop/embedded-components-vanilla-js`)
 - PostgreSQL via Prisma 5
 - iron-session 8 (encrypted cookie sessions)
 - Zod 4 for validation
@@ -37,17 +37,17 @@ This file keeps **full code only for the security-sensitive and Whop-specific pa
 - `/api/auth/callback` — Token exchange + user upsert. Verifies `state` (rejects empty cookie) and `id_token.nonce` against `oauth_nonce`, then deletes all three OAuth cookies.
 - `/api/auth/logout` — `session.destroy()` then redirect home.
 - `/api/avatar` — `POST` uploads an avatar to Vercel Blob (magic-byte validated, rate limited); `DELETE` clears it.
-- `/api/earnings/complete` — KYC return handler; calls `whop.payoutMethods.list` to confirm a method exists before flipping `payoutEnabled`.
+- `/api/earnings/complete` — KYC return handler; calls `whop.payoutMethods.listPayoutMethod` to confirm a method exists before flipping `payoutEnabled`.
 - `/api/checkout/verify` — Post-checkout redirect handler. Retrieves the payment, flips the unlock to `PAID`, sets a **signed httpOnly unlock cookie**, then forwards the buyer to `/u/[handle]`.
 - `/api/payout-token` — Mints a short-lived Whop access token for the embedded payout portal.
 - `/api/webhooks/whop` — `payment.succeeded` / `payment.failed` with `WebhookEvent` idempotency.
 
 **Payment flow**
 
-1. Creator clicks "Enable Earnings". In **sandbox** the click intercepts to a confirmation modal that flips `payoutEnabled` directly (Whop's hosted KYC auto-completes with placeholder data in sandbox anyway). In **production**, the action calls `whop.companies.create` (sub-company under `WHOP_PARENT_COMPANY_ID`) then `whop.accountLinks.create` for hosted KYC.
-2. Production KYC returns to `/api/earnings/complete`, which calls `whop.payoutMethods.list` and only flips `payoutEnabled = true` if a method with a `destination` is on file.
+1. Creator clicks "Enable Earnings". In **sandbox** the click intercepts to a confirmation modal that flips `payoutEnabled` directly (Whop's hosted KYC auto-completes with placeholder data in sandbox anyway). In **production**, the action calls `whop.accounts.create` (a connected account under the platform that owns the API key) then `whop.accountLinks.create` for hosted KYC.
+2. Production KYC returns to `/api/earnings/complete`, which calls `whop.payoutMethods.listPayoutMethod` and only flips `payoutEnabled = true` if a method with a `destination` is on file.
 3. Visitor clicks "Unlock premium for $X" → `createCheckout` (rate limited) creates a `PENDING` `Unlock` row, then calls `whop.checkoutConfigurations.create` targeting the creator's `whopCompanyId` with an `application_fee_amount` for the platform.
-4. Visitor pays on Whop's hosted checkout and is redirected back to `/api/checkout/verify?handle=...&unlock_id=...&payment_id=...&checkout_status=success`. The route calls `whop.payments.retrieve`, flips the unlock to `PAID`, **sets a signed httpOnly cookie `unlock_<creatorId>` = `<unlockId>.<hmac>`**, then redirects to `/u/[handle]` (no unlock ID in the URL).
+4. Visitor pays on Whop's hosted checkout and is redirected back to `/api/checkout/verify?handle=...&unlock_id=...&payment_id=...&checkout_status=success`. The route calls `whop.payments.retrieve`, checks that the payment is paid and that its `metadata.unlock_id` is this unlock, flips the unlock to `PAID`, **sets a signed httpOnly cookie `unlock_<creatorId>` = `<unlockId>.<hmac>`**, then redirects to `/u/[handle]` (no unlock ID in the URL).
 5. The public profile page reads that cookie server-side with `verifyUnlock()`, then double-checks the unlock is `PAID` and belongs to the creator before revealing premium links. Because the cookie is httpOnly and never appears in a shareable URL, a buyer can't copy their access to someone who didn't pay.
 6. `payment.succeeded` webhook is the fallback if the redirect didn't complete (closed tab, dropped network). Idempotent via the `WebhookEvent` table (insert event ID; `P2002` violation = duplicate, skip).
 7. Creator withdraws through the embedded payout portal on the dashboard.
@@ -57,17 +57,17 @@ This file keeps **full code only for the security-sensitive and Whop-specific pa
 ## Step 1: Project setup
 
 ```bash
-npx create-next-app@latest whop-linktree-clone --typescript --tailwind --app --src-dir
+npx create-next-app@latest whop-linktree-clone --typescript --tailwind --app --src-dir --no-cache-components
 cd whop-linktree-clone
-npm install -D prisma
-npm install @prisma/client iron-session zod
-npm install @whop/sdk @whop/embedded-components-react-js @whop/embedded-components-vanilla-js
+npm install -D prisma@5.22.0
+npm install @prisma/client@5.22.0 iron-session zod
+npm install @whop/sdk@2.4.0 @whop/embedded-components-react-js @whop/embedded-components-vanilla-js
 npm install @dnd-kit/core @dnd-kit/sortable @dnd-kit/utilities
 npm install simple-icons @vercel/blob
 npx prisma init
 ```
 
-Pin `next`, `react`, and `react-dom` to current versions (`next@16.2.7`, `react@19.2.7`, `react-dom@19.2.7`, `eslint-config-next@16.2.7`).
+Pin `next`, `react`, and `react-dom` to current versions (`next@16.4.3`, `react@19.2.7`, `react-dom@19.2.7`, `eslint-config-next@16.4.3`). 16.2.x carries a critical Next.js advisory.
 
 ### Database schema (Prisma)
 
@@ -235,7 +235,7 @@ Use the printed `https://*.ngrok-free.app` URL for `NEXT_PUBLIC_APP_URL`, `WHOP_
 
 ## Step 2: Setting up Whop
 
-Create an app at [whop.com/developer](https://whop.com/developer). Set the OAuth redirect URI to `https://<ngrok>/api/auth/callback` (must match `WHOP_REDIRECT_URI` exactly, including trailing slashes). Create a Company API Key with all permissions. Add a webhook at `https://<ngrok>/api/webhooks/whop` for `payment.succeeded` and `payment.failed`, and **enable "Connected account events"** so it fires on payments to creators' sub-companies.
+Create an app at [whop.com/developer](https://whop.com/developer). Set the OAuth redirect URI to `https://<ngrok>/api/auth/callback` (must match `WHOP_REDIRECT_URI` exactly, including trailing slashes). Create a Company API Key with all permissions. Add a webhook at `https://<ngrok>/api/webhooks/whop` for `payment.succeeded` and `payment.failed`, and **enable "Connected account events"** so it fires on payments to creators' connected accounts.
 
 **Env vars** (`.env`)
 
@@ -246,10 +246,10 @@ Create an app at [whop.com/developer](https://whop.com/developer). Set the OAuth
 | `WHOP_CLIENT_ID` / `WHOP_CLIENT_SECRET` | OAuth app credentials (`WHOP_CLIENT_ID` = the App ID) |
 | `WHOP_REDIRECT_URI` | `https://<ngrok>/api/auth/callback` in dev; prod URL in prod |
 | `WHOP_API_KEY` | Company API key with all permissions |
-| `WHOP_PARENT_COMPANY_ID` | Starts with `biz_`. Creators' sub-companies are created under it. |
+| `WHOP_PARENT_COMPANY_ID` | Starts with `biz_`. Your platform account. Creators' connected accounts are created under the account that owns `WHOP_API_KEY`, so the code doesn't need to send it. |
 | `WHOP_OAUTH_BASE` | `https://sandbox-api.whop.com` for sandbox; **omit** in prod |
 | `WHOP_BASE_URL` | `https://sandbox-api.whop.com/api/v1` for sandbox; **omit** in prod |
-| `WHOP_WEBHOOK_SECRET` | Webhook signing secret |
+| `WHOP_WEBHOOK_SECRET` | Webhook signing secret, the raw `ws_` value from the dashboard |
 | `NEXT_PUBLIC_WHOP_ENV` | `"sandbox"` or `"production"` — drives embedded components and the sandbox-bypass branch |
 | `SESSION_SECRET` | `openssl rand -base64 32`. Also signs the unlock cookie HMAC. |
 | `NEXT_PUBLIC_APP_URL` | ngrok URL in dev; real domain in prod |
@@ -262,47 +262,32 @@ Create an app at [whop.com/developer](https://whop.com/developer). Set the OAuth
 ### `src/lib/whop.ts`
 
 ```ts
-import Whop from "@whop/sdk";
+import { WhopClient } from "@whop/sdk";
 
-// Whop platform-level client.
-//
-// Used for:
-//   - Creating connected-account companies under our parent company
-//   - Generating account links for KYC onboarding
-//   - Creating checkout configurations
-//   - Verifying webhook signatures
-//   - Minting access tokens for the embedded payout portal
-//
-// The webhook secret must be base64-encoded before being handed to the SDK,
-// because Whop's internal `standardwebhooks` library base64-decodes it back
-// to derive the HMAC key. Skipping this step makes signature verification
-// silently fail on every webhook delivery.
-const globalForWhop = globalThis as unknown as { whop: Whop };
+const globalForWhop = globalThis as unknown as { whop: WhopClient };
 
 export const whop =
   globalForWhop.whop ??
-  new Whop({
-    apiKey: process.env.WHOP_API_KEY!,
-    appID: process.env.WHOP_APP_ID,
-    webhookKey: Buffer.from(process.env.WHOP_WEBHOOK_SECRET ?? "").toString(
-      "base64"
-    ),
+  new WhopClient({
+    token: process.env.WHOP_API_KEY!,
+    baseUrl: process.env.WHOP_BASE_URL,
   });
 
 if (process.env.NODE_ENV !== "production") globalForWhop.whop = whop;
 
-// Short-lived user-scoped client for calls made on behalf of a specific user
-// using their OAuth access token.
-export function whopAsUser(oauthToken: string): Whop {
-  return new Whop({ apiKey: `Bearer ${oauthToken}` });
+export function whopAsUser(oauthToken: string): WhopClient {
+  return new WhopClient({
+    token: oauthToken,
+    baseUrl: process.env.WHOP_BASE_URL,
+  });
 }
 ```
 
 `whop` is the platform-scoped client. `whopAsUser(token)` is for calls made on behalf of a logged-in creator's OAuth token.
 
-> **`webhookKey` is base64-encoded.** Pass `Buffer.from(secret).toString("base64")` — the raw string makes `webhooks.unwrap` reject every signature.
+> **SDK 2.4.0.** Install `@whop/sdk@2.4.0`. The client is `WhopClient` with a `token`, every method takes one object (`payments.retrieve({ id })`), and accounts are addressed with `account_id`.
 >
-> **Sandbox.** The SDK reads `WHOP_BASE_URL` automatically. Set `WHOP_BASE_URL=https://sandbox-api.whop.com/api/v1` in dev; omit in prod.
+> **Sandbox.** The SDK reads no environment variables, so `whop.ts` passes `baseUrl: process.env.WHOP_BASE_URL` itself. Set `WHOP_BASE_URL=https://sandbox-api.whop.com/api/v1` in dev and omit it in prod (the SDK then uses production).
 
 ---
 
@@ -1423,7 +1408,7 @@ export async function DELETE() {
 
 ## Step 8: Enroll creators as connected accounts
 
-The first call creates a **sub-company** (Whop's "connected account") under your platform's `parent_company_id`. The sandbox bypass keeps the demo testable without forcing every reader through KYC.
+The first call creates a **connected account** with `whop.accounts.create`. The API key's own account becomes its parent, so there is no parent field to pass. The sandbox bypass keeps the demo testable without forcing every reader through KYC.
 
 ### `src/app/actions/earnings.ts`
 
@@ -1466,10 +1451,10 @@ export async function enableEarnings(): Promise<EnableEarningsResult> {
       };
     }
 
-    // Create a connected account company under the platform
-    const company = await whop.companies.create({
+    // Create a connected account under the platform. The API key's own
+    // account becomes the parent, so there is no parent field to pass.
+    const company = await whop.accounts.create({
       title: creator.title || creator.handle,
-      parent_company_id: process.env.WHOP_PARENT_COMPANY_ID!,
       email: creator.user.email,
     });
 
@@ -1498,7 +1483,7 @@ export async function enableEarnings(): Promise<EnableEarningsResult> {
 
   // Production flow: send the creator to Whop's hosted KYC onboarding.
   const accountLink = await whop.accountLinks.create({
-    company_id: companyId,
+    account_id: companyId,
     use_case: "account_onboarding",
     return_url: `${APP_URL}/api/earnings/complete`,
     refresh_url: `${APP_URL}/dashboard?refresh=true`,
@@ -1508,7 +1493,7 @@ export async function enableEarnings(): Promise<EnableEarningsResult> {
 }
 ```
 
-> First call creates the sub-company; subsequent calls reuse `whopCompanyId` and just mint a fresh `accountLinks` URL. It's safe to call `accountLinks.create` repeatedly (e.g., to update bank/KYC details) — don't create a new company per click.
+> First call creates the connected account; subsequent calls reuse `whopCompanyId` and just mint a fresh `accountLinks` URL. It's safe to call `accountLinks.create` repeatedly (e.g., to update bank/KYC details) — don't create a new account per click.
 
 ### `src/app/dashboard/EarningsButton.tsx`
 
@@ -1536,8 +1521,8 @@ export async function GET() {
 
   let payoutReady = false;
   try {
-    const methods = await whop.payoutMethods.list({
-      company_id: creator.whopCompanyId,
+    const methods = await whop.payoutMethods.listPayoutMethod({
+      account_id: creator.whopCompanyId,
     });
     for await (const method of methods) {
       if (method.destination) {
@@ -1561,7 +1546,7 @@ export async function GET() {
 }
 ```
 
-> `whop.payoutMethods.list` returns an **async iterator** (not an array). Use `for await ... of` and break on the first method with a `destination`. Don't trust the return path alone — a logged-in user can navigate to `/api/earnings/complete` directly; the `payoutMethods` lookup is what actually decides whether to flip `payoutEnabled = true`.
+> `whop.payoutMethods.listPayoutMethod` returns a **page** (not an array). Await the call, then use `for await ... of` and break on the first method with a `destination`. Don't trust the return path alone — a logged-in user can navigate to `/api/earnings/complete` directly; the `payoutMethods` lookup is what actually decides whether to flip `payoutEnabled = true`.
 
 ---
 
@@ -1722,19 +1707,25 @@ export async function createCheckout(
     },
   });
 
+  // application_fee_amount is accepted by the API but missing from the SDK's
+  // types, so we build the inline plan as a variable instead of in place.
+  const plan = {
+    account_id: creator.whopCompanyId,         // creator's connected account
+    currency: "usd",
+    plan_type: "one_time" as const,
+    initial_price: priceInDollars,
+    application_fee_amount: feeInDollars,     // platform cut
+  };
+
   const checkout = await whop.checkoutConfigurations.create({
-    plan: {
-      company_id: creator.whopCompanyId,
-      currency: "usd",
-      plan_type: "one_time",
-      initial_price: priceInDollars,
-      application_fee_amount: feeInDollars,
-    },
+    plan,
     redirect_url: `${APP_URL}/api/checkout/verify?handle=${encodeURIComponent(
       creator.handle
     )}&unlock_id=${unlock.id}`,
     metadata: { unlock_id: unlock.id, creator_id: creator.id },
   });
+
+  if (!checkout.purchase_url) return { error: "Checkout could not be created" };
 
   redirect(checkout.purchase_url);
 }
@@ -1746,7 +1737,7 @@ export async function createCheckout(
 
 ### `src/app/api/checkout/verify/route.ts`
 
-The redirect handler. It retrieves the payment, flips the unlock to `PAID`, and — instead of forwarding an unlock ID in the URL — **sets a signed httpOnly cookie `unlock_<creatorId>`** and redirects to the bare profile URL. Failed verification falls through; the webhook is the authoritative catch-up.
+The redirect handler. It retrieves the payment, checks that its `metadata.unlock_id` matches the `unlock_id` in the URL (so a paid payment from another checkout can't be replayed), flips the unlock to `PAID`, and — instead of forwarding an unlock ID in the URL — **sets a signed httpOnly cookie `unlock_<creatorId>`** and redirects to the bare profile URL. Failed verification falls through; the webhook is the authoritative catch-up.
 
 ```ts
 import { NextRequest, NextResponse } from "next/server";
@@ -1780,8 +1771,12 @@ export async function GET(req: NextRequest) {
 
   let unlockedCreatorId: string | null = null;
   try {
-    const payment = await whop.payments.retrieve(paymentId);
-    if (payment.status === "paid") {
+    const payment = await whop.payments.retrieve({ id: paymentId });
+    // The checkout carried our unlock_id in its metadata, and Whop copies it onto
+    // the payment. Only that payment can unlock this row, so a paid payment ID
+    // from another checkout can't be replayed here.
+    const metadata = payment.metadata as Record<string, string> | null;
+    if (payment.status === "paid" && metadata?.unlock_id === unlockId) {
       const unlock = await prisma.unlock.findUnique({
         where: { id: unlockId },
         include: { creator: true },
@@ -1866,6 +1861,7 @@ export function UnlockButton({
 
 ```ts
 import { NextRequest, NextResponse } from "next/server";
+import { unwrapWebhook } from "@whop/sdk/helpers";
 import { whop } from "@/lib/whop";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
@@ -1882,18 +1878,20 @@ type WhopEventEnvelope = {
 export async function POST(req: NextRequest) {
   const rawBody = await req.text();
 
-  // Convert Next.js headers to a plain object for the SDK's unwrap()
+  // Convert Next.js headers to a plain object for unwrapWebhook()
   const headers: Record<string, string> = {};
   req.headers.forEach((value, key) => {
     headers[key] = value;
   });
 
-  // Verify signature and parse event (throws if invalid)
+  // Verify signature and parse event (throws if invalid). The helper takes the
+  // raw ws_ secret as is, with no base64 step.
   let event: WhopEventEnvelope;
   try {
-    event = whop.webhooks.unwrap(rawBody, {
+    event = unwrapWebhook<WhopEventEnvelope>(rawBody, {
       headers,
-    }) as unknown as WhopEventEnvelope;
+      key: process.env.WHOP_WEBHOOK_SECRET,
+    });
   } catch (err) {
     console.error("[webhook] signature verification failed:", err);
     return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
@@ -1951,7 +1949,7 @@ async function handlePaymentSucceeded(paymentId: string) {
 
   // No unlock matched by payment ID yet. Find a PENDING unlock without a payment ID.
   // This handles the case where the redirect didn't fire
-  const payment = await whop.payments.retrieve(paymentId);
+  const payment = await whop.payments.retrieve({ id: paymentId });
   const unlockId = (payment.metadata as Record<string, string> | null)
     ?.unlock_id;
 
@@ -1989,7 +1987,7 @@ async function handlePaymentFailed(paymentId: string) {
 
 ### Webhook setup in the Whop dashboard
 
-Endpoint `https://<ngrok>/api/webhooks/whop`, events `payment.succeeded` + `payment.failed`, and **enable "Connected account events"** so the webhook fires for payments to creators' sub-companies, not just your parent company.
+Endpoint `https://<ngrok>/api/webhooks/whop`, events `payment.succeeded` + `payment.failed`, and **enable "Connected account events"** so the webhook fires for payments to creators' connected accounts, not just your platform account.
 
 ---
 
@@ -2002,24 +2000,18 @@ The CSP is sandbox-aware *and* environment-aware: `'unsafe-eval'` is now emitted
 ```ts
 import type { NextConfig } from "next";
 
-const isSandbox = process.env.NEXT_PUBLIC_WHOP_ENV === "sandbox";
 // 'unsafe-eval' is only needed for the dev bundler's HMR. Keep it out of the
 // production CSP so it can't be abused there.
 const isDev = process.env.NODE_ENV !== "production";
 
 // Whop's embedded components and hosted checkout pages need explicit allowance
-// in the Content-Security-Policy. Sandbox traffic loads from the sandbox host
-// equivalents.
-const whopFrame = isSandbox
-  ? "https://*.whop.com https://sandbox-js.whop.com"
-  : "https://*.whop.com";
-const whopScript = isSandbox
-  ? "https://js.whop.com https://sandbox-js.whop.com"
-  : "https://js.whop.com";
+// in the Content-Security-Policy. The same hosts serve sandbox and production.
+const whopFrame = "https://*.whop.com";
+const whopScript = "https://js.whop.com";
 
 const csp = [
   "default-src 'self'",
-  `script-src 'self' 'unsafe-inline' ${isDev ? "'unsafe-eval' " : ""}${whopScript}`,
+  `script-src 'self' 'unsafe-inline' ${isDev ? "'unsafe-eval' " : ""}${whopScript} https://*.elements.whop.com`,
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: https:",
   "font-src 'self' data:",
@@ -2053,7 +2045,7 @@ const nextConfig: NextConfig = {
 export default nextConfig;
 ```
 
-> `sandbox-js.whop.com` is needed in dev for the embedded portal to load; copying the production list to dev makes the iframe silently fail. `img-src ... https:` allows the Vercel Blob avatar URLs.
+> The embedded payout components load their script from `apollo.elements.whop.com`, so `script-src` needs `https://*.elements.whop.com` or the portal silently fails. The same hosts serve sandbox and production. `img-src ... https:` allows the Vercel Blob avatar URLs.
 
 ---
 
@@ -2081,7 +2073,7 @@ export async function GET() {
   }
 
   const token = await whop.accessTokens.create({
-    company_id: creator.whopCompanyId,
+    account_id: creator.whopCompanyId,
   });
 
   return NextResponse.json({ token: token.token });
@@ -2165,8 +2157,8 @@ Push to GitHub, import into Vercel, set all env vars (omit `WHOP_OAUTH_BASE` / `
 
 ## Whop SDK + security gotchas
 
-1. **Raw body before parse.** `whop.webhooks.unwrap` needs the raw text body to verify the HMAC — call `await req.text()` first and `export const dynamic = "force-dynamic"`.
-2. **`webhookKey` is base64-encoded.** Pass `Buffer.from(secret).toString("base64")` to the SDK constructor, not the raw secret.
+1. **Raw body before parse.** `unwrapWebhook` from `@whop/sdk/helpers` needs the raw text body to verify the HMAC — call `await req.text()` first and `export const dynamic = "force-dynamic"`.
+2. **Pass the raw `ws_` secret.** Give `WHOP_WEBHOOK_SECRET` to `unwrapWebhook` as `key` exactly as the dashboard shows it. The helper base64-encodes it internally, so encoding it yourself makes every delivery fail.
 3. **Two-layer webhook idempotency.** `WebhookEvent` row on the event ID (`P2002` trick) for retries; `Unlock.whopPaymentId @unique` for the redirect-vs-webhook race. Use both.
 4. **Sandbox base URLs.** Dev: `WHOP_OAUTH_BASE=https://sandbox-api.whop.com`, `WHOP_BASE_URL=https://sandbox-api.whop.com/api/v1`. Prod: omit both.
 5. **OAuth redirect URI must match exactly** across the Whop dashboard, `WHOP_REDIRECT_URI`, and the authorize URL — trailing slashes included.
@@ -2176,10 +2168,10 @@ Push to GitHub, import into Vercel, set all env vars (omit `WHOP_OAUTH_BASE` / `
 9. **Validate uploads by content (v2).** Sniff magic bytes in `/api/avatar`; never trust `file.type` / `file.name`. Reject SVG (script-carrying) and spoofed types. Rate limit it.
 10. **`'unsafe-eval'` is dev-only in the CSP (v2).** It's needed for HMR; keep it out of production.
 11. **Application fee + price are dollars.** `initial_price` and `application_fee_amount` take dollar amounts; divide stored cents by 100.
-12. **Sub-company creation via `parent_company_id`.** `whop.companies.create({ parent_company_id, title, email })` — skip it and you can't take an `application_fee_amount`. `accountLinks.create` is reusable for re-running KYC.
-13. **`payoutMethods.list` is an async iterator.** `for await ... of`, break on the first `destination`. Always re-check on KYC return — don't trust the redirect alone.
+12. **Connected accounts via `accounts.create`.** `whop.accounts.create({ title, email })` with the platform's API key, whose account becomes the parent. Skip it and you can't take an `application_fee_amount`. `accountLinks.create({ account_id, ... })` is reusable for re-running KYC.
+13. **`payoutMethods.listPayoutMethod({ account_id })` returns a page.** Await it, then `for await ... of`, break on the first `destination`. Always re-check on KYC return — don't trust the redirect alone.
 14. **Sandbox KYC bypass.** Hosted KYC auto-completes with placeholder data in sandbox; the dashboard intercepts with a confirmation modal and flips `payoutEnabled` directly when `NEXT_PUBLIC_WHOP_ENV === "sandbox"`.
 15. **Embedded components need the env hint + token function.** `loadWhopElements({ environment })` reads `NEXT_PUBLIC_WHOP_ENV`; `<PayoutsSession token={fetchPayoutToken}>` takes the async function so the SDK can refresh `accessTokens.create`.
-16. **CSP must allowlist `js.whop.com` (+ `sandbox-js.whop.com` in dev)** for `script-src` and `frame-src`, and `img-src https:` for Blob avatar URLs, or the portal/avatars silently fail.
-17. **"Connected account events" toggle.** Enable it on the webhook or payments to creators' sub-companies never reach your handler.
+16. **CSP must allowlist `js.whop.com` and `https://*.elements.whop.com`** for `script-src`, `https://*.whop.com` for `frame-src`, and `img-src https:` for Blob avatar URLs, or the portal/avatars silently fail.
+17. **"Connected account events" toggle.** Enable it on the webhook or payments to creators' connected accounts never reach your handler.
 18. **`redirect_url` and `payment_id`.** Whop appends `payment_id` and `checkout_status=success` automatically — no `{PAYMENT_ID}` template token needed. Include your own params (`handle`, `unlock_id`) and read them alongside.

@@ -36,10 +36,10 @@ export async function enableEarnings(): Promise<EnableEarningsResult> {
       };
     }
 
-    // Create a connected account company under the platform
-    const company = await whop.companies.create({
+    // Create a connected account under the platform. The API key's own
+    // account becomes the parent, so there is no parent field to pass.
+    const company = await whop.accounts.create({
       title: creator.title || creator.handle,
-      parent_company_id: process.env.WHOP_PARENT_COMPANY_ID!,
       email: creator.user.email,
     });
 
@@ -68,7 +68,7 @@ export async function enableEarnings(): Promise<EnableEarningsResult> {
 
   // Production flow: send the creator to Whop's hosted KYC onboarding.
   const accountLink = await whop.accountLinks.create({
-    company_id: companyId,
+    account_id: companyId,
     use_case: "account_onboarding",
     return_url: `${APP_URL}/api/earnings/complete`,
     refresh_url: `${APP_URL}/dashboard?refresh=true`,

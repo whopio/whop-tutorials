@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { unwrapWebhook } from "@whop/sdk/helpers";
 import { whop } from "@/lib/whop";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
@@ -15,18 +16,20 @@ type WhopEventEnvelope = {
 export async function POST(req: NextRequest) {
   const rawBody = await req.text();
 
-  // Convert Next.js headers to a plain object for the SDK's unwrap()
+  // Convert Next.js headers to a plain object for unwrapWebhook()
   const headers: Record<string, string> = {};
   req.headers.forEach((value, key) => {
     headers[key] = value;
   });
 
-  // Verify signature and parse event (throws if invalid)
+  // Verify signature and parse event (throws if invalid). The helper takes the
+  // raw ws_ secret as is, with no base64 step.
   let event: WhopEventEnvelope;
   try {
-    event = whop.webhooks.unwrap(rawBody, {
+    event = unwrapWebhook<WhopEventEnvelope>(rawBody, {
       headers,
-    }) as unknown as WhopEventEnvelope;
+      key: process.env.WHOP_WEBHOOK_SECRET,
+    });
   } catch (err) {
     console.error("[webhook] signature verification failed:", err);
     return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
@@ -84,7 +87,7 @@ async function handlePaymentSucceeded(paymentId: string) {
 
   // No unlock matched by payment ID yet. Find a PENDING unlock without a payment ID.
   // This handles the case where the redirect didn't fire
-  const payment = await whop.payments.retrieve(paymentId);
+  const payment = await whop.payments.retrieve({ id: paymentId });
   const unlockId = (payment.metadata as Record<string, string> | null)
     ?.unlock_id;
 

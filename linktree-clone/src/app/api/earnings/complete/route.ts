@@ -20,8 +20,8 @@ export async function GET() {
   // payouts without ever going through onboarding.
   let payoutReady = false;
   try {
-    const methods = await whop.payoutMethods.list({
-      company_id: creator.whopCompanyId,
+    const methods = await whop.payoutMethods.listPayoutMethod({
+      account_id: creator.whopCompanyId,
     });
     for await (const method of methods) {
       if (method.destination) {

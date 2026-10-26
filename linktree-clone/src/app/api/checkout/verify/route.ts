@@ -29,8 +29,12 @@ export async function GET(req: NextRequest) {
 
   let unlockedCreatorId: string | null = null;
   try {
-    const payment = await whop.payments.retrieve(paymentId);
-    if (payment.status === "paid") {
+    const payment = await whop.payments.retrieve({ id: paymentId });
+    // The checkout carried our unlock_id in its metadata, and Whop copies it onto
+    // the payment. Only that payment can unlock this row, so a paid payment ID
+    // from another checkout can't be replayed here.
+    const metadata = payment.metadata as Record<string, string> | null;
+    if (payment.status === "paid" && metadata?.unlock_id === unlockId) {
       const unlock = await prisma.unlock.findUnique({
         where: { id: unlockId },
         include: { creator: true },

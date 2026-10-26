@@ -32,19 +32,25 @@ export async function createCheckout(
     },
   });
 
+  // application_fee_amount is accepted by the API but missing from the SDK's
+  // types, so we build the inline plan as a variable instead of in place.
+  const plan = {
+    account_id: creator.whopCompanyId,         // creator's connected account
+    currency: "usd",
+    plan_type: "one_time" as const,
+    initial_price: priceInDollars,
+    application_fee_amount: feeInDollars,     // platform cut
+  };
+
   const checkout = await whop.checkoutConfigurations.create({
-    plan: {
-      company_id: creator.whopCompanyId,
-      currency: "usd",
-      plan_type: "one_time",
-      initial_price: priceInDollars,
-      application_fee_amount: feeInDollars,
-    },
+    plan,
     redirect_url: `${APP_URL}/api/checkout/verify?handle=${encodeURIComponent(
       creator.handle
     )}&unlock_id=${unlock.id}`,
     metadata: { unlock_id: unlock.id, creator_id: creator.id },
   });
+
+  if (!checkout.purchase_url) return { error: "Checkout could not be created" };
 
   redirect(checkout.purchase_url);
 }

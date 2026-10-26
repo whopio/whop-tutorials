@@ -1,23 +1,17 @@
 import type { NextConfig } from "next";
 
-const isSandbox = process.env.NEXT_PUBLIC_WHOP_ENV === "sandbox";
 // 'unsafe-eval' is only needed for the dev bundler's HMR. Keep it out of the
 // production CSP so it can't be abused there.
 const isDev = process.env.NODE_ENV !== "production";
 
 // Whop's embedded components and hosted checkout pages need explicit allowance
-// in the Content-Security-Policy. Sandbox traffic loads from the sandbox host
-// equivalents.
-const whopFrame = isSandbox
-  ? "https://*.whop.com https://sandbox-js.whop.com"
-  : "https://*.whop.com";
-const whopScript = isSandbox
-  ? "https://js.whop.com https://sandbox-js.whop.com"
-  : "https://js.whop.com";
+// in the Content-Security-Policy. The same hosts serve sandbox and production.
+const whopFrame = "https://*.whop.com";
+const whopScript = "https://js.whop.com";
 
 const csp = [
   "default-src 'self'",
-  `script-src 'self' 'unsafe-inline' ${isDev ? "'unsafe-eval' " : ""}${whopScript}`,
+  `script-src 'self' 'unsafe-inline' ${isDev ? "'unsafe-eval' " : ""}${whopScript} https://*.elements.whop.com`,
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: https:",
   "font-src 'self' data:",
