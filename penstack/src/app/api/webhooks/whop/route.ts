@@ -1,24 +1,30 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { whop } from "@/lib/whop";
+import { unwrapWebhook } from "@whop/sdk/helpers";
 
 export async function POST(request: NextRequest) {
   const rawBody = await request.text();
   const headers = Object.fromEntries(request.headers);
 
-  // Verify signature and parse payload using Whop SDK
+  // Webhooks pinned to API version 2026-09-02-1 or later send account_id, membership_id
+  // and current_period_end. Unpinned ones send company_id, membership.id and renewal_period_end.
   let webhookData: {
     type: string;
     data: Record<string, unknown>;
     id?: string;
     company_id?: string | null;
+    account_id?: string | null;
   };
   try {
-    webhookData = (await whop.webhooks.unwrap(rawBody, { headers })) as unknown as {
+    webhookData = unwrapWebhook(rawBody, {
+      headers,
+      key: process.env.WHOP_WEBHOOK_SECRET,
+    }) as unknown as {
       type: string;
       data: Record<string, unknown>;
       id?: string;
       company_id?: string | null;
+      account_id?: string | null;
     };
   } catch (err) {
     console.error("Webhook unwrap error:", err);
@@ -32,7 +38,6 @@ export async function POST(request: NextRequest) {
   const event = webhookData.type;
   const data = webhookData.data;
 
-  // Idempotency check
   const existing = await prisma.webhookEvent.findUnique({
     where: { id: eventId },
   });
@@ -55,14 +60,12 @@ export async function POST(request: NextRequest) {
         await handleMembershipDeactivated(data);
         break;
       case "verification.succeeded":
-        await handleVerificationSucceeded(webhookData.company_id);
+        await handleVerificationSucceeded(webhookData.account_id ?? webhookData.company_id);
         break;
       default:
-        // Unknown event type — ignore
         break;
     }
 
-    // Record processed event
     await prisma.webhookEvent.create({
       data: { id: eventId, eventType: event },
     });
@@ -78,7 +81,8 @@ export async function POST(request: NextRequest) {
 }
 
 async function handlePaymentSucceeded(data: Record<string, unknown>) {
-  const membershipId = data.membership_id as string | undefined;
+  const membershipId = (data.membership_id ??
+    (data.membership as { id?: string } | null | undefined)?.id) as string | undefined;
   if (!membershipId) return;
 
   const subscription = await prisma.subscription.findUnique({
@@ -92,7 +96,6 @@ async function handlePaymentSucceeded(data: Record<string, unknown>) {
     data: { status: "ACTIVE" },
   });
 
-  // Notify writer of payment
   await prisma.notification.create({
     data: {
       userId: subscription.writer.userId,
@@ -105,7 +108,8 @@ async function handlePaymentSucceeded(data: Record<string, unknown>) {
 }
 
 async function handlePaymentFailed(data: Record<string, unknown>) {
-  const membershipId = data.membership_id as string | undefined;
+  const membershipId = (data.membership_id ??
+    (data.membership as { id?: string } | null | undefined)?.id) as string | undefined;
   if (!membershipId) return;
 
   const subscription = await prisma.subscription.findUnique({
@@ -119,7 +123,6 @@ async function handlePaymentFailed(data: Record<string, unknown>) {
     data: { status: "PAST_DUE" },
   });
 
-  // Notify writer of failed payment
   await prisma.notification.create({
     data: {
       userId: subscription.writer.userId,
@@ -139,7 +142,9 @@ async function handleMembershipActivated(data: Record<string, unknown>) {
   const writerId = (data.metadata as Record<string, unknown>)?.writerId as
     | string
     | undefined;
-  const currentPeriodEnd = data.current_period_end as string | undefined;
+  const currentPeriodEnd = (data.current_period_end ?? data.renewal_period_end) as
+    | string
+    | undefined;
 
   if (!userId || !writerId) return;
 
@@ -164,7 +169,6 @@ async function handleMembershipActivated(data: Record<string, unknown>) {
     },
   });
 
-  // Notify writer of new subscriber
   const writer = await prisma.writer.findUnique({ where: { id: writerId } });
   if (writer) {
     await prisma.notification.create({
@@ -200,9 +204,6 @@ async function handleMembershipDeactivated(data: Record<string, unknown>) {
 
 async function handleVerificationSucceeded(companyId: string | null | undefined) {
   if (!companyId) return;
-
-  // verification.succeeded carries the connected account's company_id at the top
-  // level. Flip kycCompleted so the writer can accept payments.
   await prisma.writer.updateMany({
     where: { whopCompanyId: companyId },
     data: { kycCompleted: true },

@@ -1,30 +1,27 @@
 import "dotenv/config";
 import { PrismaClient, PublicationCategory, PostVisibility } from "../src/generated/prisma/client";
 import { PrismaPg } from "@prisma/adapter-pg";
-import Whop from "@whop/sdk";
+import { WhopClient, WhopEnvironment } from "@whop/sdk";
 
 const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
 const prisma = new PrismaClient({ adapter });
 
-// Initialize Whop SDK for creating sandbox companies
-function getWhopClient(): Whop | null {
-  const { WHOP_APP_ID, WHOP_API_KEY, WHOP_WEBHOOK_SECRET, WHOP_SANDBOX } = process.env;
-  if (!WHOP_APP_ID || !WHOP_API_KEY || !WHOP_WEBHOOK_SECRET) {
+// Initialize Whop SDK for creating sandbox connected accounts
+function getWhopClient(): WhopClient | null {
+  const { WHOP_API_KEY, WHOP_SANDBOX } = process.env;
+  if (!WHOP_API_KEY) {
     console.log("  ⚠ Whop credentials not found — seeding without company IDs (demo subscribe only)");
     return null;
   }
-  return new Whop({
-    appID: WHOP_APP_ID,
-    apiKey: WHOP_API_KEY,
-    webhookKey: btoa(WHOP_WEBHOOK_SECRET),
-    ...(WHOP_SANDBOX === "true" && {
-      baseURL: "https://sandbox-api.whop.com/api/v1",
-    }),
+  return new WhopClient({
+    token: WHOP_API_KEY,
+    environment:
+      WHOP_SANDBOX === "true" ? WhopEnvironment.Sandbox : WhopEnvironment.Production,
   });
 }
 
 async function createWhopCompany(
-  whopClient: Whop | null,
+  whopClient: WhopClient | null,
   writerName: string,
 ): Promise<string | null> {
   if (!whopClient) return null;
@@ -34,9 +31,9 @@ async function createWhopCompany(
     return null;
   }
   try {
-    const company = await whopClient.companies.create({
+    // The API key's own account becomes the parent of the connected account.
+    const company = await whopClient.accounts.create({
       title: writerName,
-      parent_company_id: process.env.WHOP_COMPANY_ID!,
       email: seedEmail,
     });
     return company.id;
@@ -119,7 +116,7 @@ const DEMO_WRITERS = [
     name: "Broke the Build",
     bio: "Software opinions from someone who has shipped too many bad deploys to be polite about it.",
     category: "TECHNOLOGY" as PublicationCategory,
-    email: "nora@example.com",
+    email: "user@example.com",
     displayName: "Nora Trent",
     posts: [
       // TECH POST 1 — Opinion/hot take — ~700 words — FREE
@@ -225,7 +222,7 @@ const DEMO_WRITERS = [
     name: "The Long Take",
     bio: "Trying to figure out what the culture is doing and why, one overly long essay at a time.",
     category: "CULTURE" as PublicationCategory,
-    email: "rowan@example.com",
+    email: "someone@example.com",
     displayName: "Rowan Achebe",
     posts: [
       // CULTURE POST 1 — Essayistic think-piece — ~1,100 words — FREE
@@ -309,7 +306,7 @@ const DEMO_WRITERS = [
     name: "Raw Material",
     bio: "Art seen up close. What it looks like, what it does, why it sticks with you or doesn't.",
     category: "ART" as PublicationCategory,
-    email: "tomas@example.com",
+    email: "name@example.com",
     displayName: "Tomás Vega",
     posts: [
       // ART POST 1 — Gallery review/personal essay — ~1,000 words — FREE
@@ -362,7 +359,7 @@ const DEMO_WRITERS = [
     name: "Off the Route",
     bio: "Travel writing about the parts they leave out of the guidebook. Mostly the weird parts.",
     category: "TRAVEL" as PublicationCategory,
-    email: "mika@example.com",
+    email: "test@example.com",
     displayName: "Mika Sørensen",
     posts: [
       // TRAVEL POST 1 — Observational essay — ~1,000 words — FREE

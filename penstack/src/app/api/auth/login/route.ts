@@ -11,9 +11,12 @@ function randomHex(bytes: number): string {
 
 export async function GET(request: NextRequest) {
   const returnTo = request.nextUrl.searchParams.get("returnTo");
-  // Validate returnTo is a safe relative path (prevents open redirect)
+  // Keep returnTo only if it resolves to a page on our own site (prevents open redirect).
+  // A startsWith("//") check alone lets "/\evil.com" and "/<tab>/evil.com" through.
   const safeReturnTo =
-    returnTo && returnTo.startsWith("/") && !returnTo.startsWith("//")
+    returnTo &&
+    returnTo.startsWith("/") &&
+    new URL(returnTo, request.url).origin === request.nextUrl.origin
       ? returnTo
       : null;
 

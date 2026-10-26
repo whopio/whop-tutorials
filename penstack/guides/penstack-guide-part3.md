@@ -66,10 +66,9 @@ export async function POST(
   let companyId = writer.whopCompanyId;
 
   if (!companyId) {
-    const company = await whop.companies.create({
+    const company = await whop.accounts.create({
       title: writer.name,
-      parent_company_id: process.env.WHOP_COMPANY_ID!,
-      email: writer.user.email,
+      email: writer.user.email ?? undefined,
     });
 
     companyId = company.id;
@@ -81,7 +80,7 @@ export async function POST(
   }
 
   const accountLink = await whop.accountLinks.create({
-    company_id: companyId,
+    account_id: companyId,
     refresh_url: `${process.env.NEXT_PUBLIC_APP_URL}/settings`,
     return_url: `${process.env.NEXT_PUBLIC_APP_URL}/settings`,
     use_case: "account_onboarding",
@@ -170,20 +169,24 @@ export async function POST(request: NextRequest) {
   const priceInDollars = priceInCents / 100;
   const applicationFee = Math.round(priceInCents * PLATFORM_FEE_PERCENT) / 10000;
 
-  const checkout = await whop.checkoutConfigurations.create({
-    plan: {
-      company_id: writer.whopCompanyId,
-      currency: "usd",
-      renewal_price: priceInDollars,
-      billing_period: 30,
-      plan_type: "renewal",
-      release_method: "buy_now",
-      application_fee_amount: applicationFee,
-      product: {
-        external_identifier: `penstack-writer-${writer.id}`,
-        title: `${writer.name} Subscription`,
-      },
+  // The SDK's types don't list application_fee_amount or product on an inline plan,
+  // so we build the plan as a variable first and then pass it in.
+  const plan = {
+    account_id: writer.whopCompanyId,
+    currency: "usd",
+    renewal_price: priceInDollars,
+    billing_period: 30,
+    plan_type: "renewal" as const,
+    release_method: "buy_now" as const,
+    application_fee_amount: applicationFee,
+    product: {
+      external_identifier: `penstack-writer-${writer.id}`,
+      title: `${writer.name} Subscription`,
     },
+  };
+
+  const checkout = await whop.checkoutConfigurations.create({
+    plan,
     redirect_url: `${process.env.NEXT_PUBLIC_APP_URL}/${writer.handle}`,
     metadata: {
       userId: user.id,
@@ -196,16 +199,15 @@ export async function POST(request: NextRequest) {
 ```
 ## Updating the SDK constructor
 
-Before writing the webhook handler, update the `getWhop()` function in `src/lib/whop.ts` to include the webhook secret by adding `webhookKey` to the constructor:
+Before writing the webhook handler, check the `getWhop()` function in `src/lib/whop.ts`. The webhook secret doesn't go into the SDK client, because the handler passes `WHOP_WEBHOOK_SECRET` to the SDK's `unwrapWebhook` helper instead, so the constructor stays exactly as below:
 
 ```ts
-_whop = new Whop({
-  appID: process.env.WHOP_APP_ID!,
-  apiKey: process.env.WHOP_API_KEY!,
-  webhookKey: btoa(process.env.WHOP_WEBHOOK_SECRET!),
-  ...(process.env.WHOP_SANDBOX === "true" && {
-    baseURL: "https://sandbox-api.whop.com/api/v1",
-  }),
+_whop = new WhopClient({
+  token: process.env.WHOP_API_KEY!,
+  environment:
+    process.env.WHOP_SANDBOX === "true"
+      ? WhopEnvironment.Sandbox
+      : WhopEnvironment.Production,
 });
 ```
 
@@ -218,24 +220,31 @@ Go to `src/app/api/webhooks/whop` and create a file called `route.ts` with the c
 ```ts
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { whop } from "@/lib/whop";
+import { unwrapWebhook } from "@whop/sdk/helpers";
 
 export async function POST(request: NextRequest) {
   const rawBody = await request.text();
   const headers = Object.fromEntries(request.headers);
 
+  // Webhooks pinned to API version 2026-09-02-1 or later send account_id, membership_id
+  // and current_period_end. Unpinned ones send company_id, membership.id and renewal_period_end.
   let webhookData: {
     type: string;
     data: Record<string, unknown>;
     id?: string;
     company_id?: string | null;
+    account_id?: string | null;
   };
   try {
-    webhookData = (await whop.webhooks.unwrap(rawBody, { headers })) as unknown as {
+    webhookData = unwrapWebhook(rawBody, {
+      headers,
+      key: process.env.WHOP_WEBHOOK_SECRET,
+    }) as unknown as {
       type: string;
       data: Record<string, unknown>;
       id?: string;
       company_id?: string | null;
+      account_id?: string | null;
     };
   } catch (err) {
     console.error("Webhook unwrap error:", err);
@@ -271,7 +280,7 @@ export async function POST(request: NextRequest) {
         await handleMembershipDeactivated(data);
         break;
       case "verification.succeeded":
-        await handleVerificationSucceeded(webhookData.company_id);
+        await handleVerificationSucceeded(webhookData.account_id ?? webhookData.company_id);
         break;
       default:
         break;
@@ -292,7 +301,8 @@ export async function POST(request: NextRequest) {
 }
 
 async function handlePaymentSucceeded(data: Record<string, unknown>) {
-  const membershipId = data.membership_id as string | undefined;
+  const membershipId = (data.membership_id ??
+    (data.membership as { id?: string } | null | undefined)?.id) as string | undefined;
   if (!membershipId) return;
 
   const subscription = await prisma.subscription.findUnique({
@@ -318,7 +328,8 @@ async function handlePaymentSucceeded(data: Record<string, unknown>) {
 }
 
 async function handlePaymentFailed(data: Record<string, unknown>) {
-  const membershipId = data.membership_id as string | undefined;
+  const membershipId = (data.membership_id ??
+    (data.membership as { id?: string } | null | undefined)?.id) as string | undefined;
   if (!membershipId) return;
 
   const subscription = await prisma.subscription.findUnique({
@@ -351,7 +362,9 @@ async function handleMembershipActivated(data: Record<string, unknown>) {
   const writerId = (data.metadata as Record<string, unknown>)?.writerId as
     | string
     | undefined;
-  const currentPeriodEnd = data.current_period_end as string | undefined;
+  const currentPeriodEnd = (data.current_period_end ?? data.renewal_period_end) as
+    | string
+    | undefined;
 
   if (!userId || !writerId) return;
 
@@ -412,8 +425,9 @@ async function handleMembershipDeactivated(data: Record<string, unknown>) {
 async function handleVerificationSucceeded(companyId: string | null | undefined) {
   if (!companyId) return;
 
-  // verification.succeeded carries the connected account's company_id at the top
-  // level. Flip kycCompleted so the writer can accept payments.
+  // verification.succeeded carries the connected account's id at the top level
+  // (account_id when pinned, company_id when not). Flip kycCompleted so the writer
+  // can accept payments.
   await prisma.writer.updateMany({
     where: { whopCompanyId: companyId },
     data: { kycCompleted: true },

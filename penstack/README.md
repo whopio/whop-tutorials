@@ -24,7 +24,7 @@ A full-stack newsletter and publishing platform where writers monetize content t
 | [TypeScript](https://www.typescriptlang.org/) | Type safety |
 | [Prisma 7](https://www.prisma.io/) | Database ORM (with driver adapter) |
 | [PostgreSQL](https://www.postgresql.org/) | Database (via Neon) |
-| [Whop SDK](https://dev.whop.com/) | Payments, subscriptions, OAuth, KYC |
+| [Whop SDK](https://docs.whop.com/) (`@whop/sdk` 2.4.0) | Payments, subscriptions, OAuth, KYC |
 | [Tiptap](https://tiptap.dev/) | Rich text editor |
 | [UploadThing](https://uploadthing.com/) | File uploads |
 | [Iron Session](https://github.com/vvo/iron-session) | Encrypted cookie sessions |
@@ -35,7 +35,7 @@ A full-stack newsletter and publishing platform where writers monetize content t
 
 ### Prerequisites
 
-- Node.js 18+
+- Node.js 20.9+ (Next.js 16 needs it)
 - PostgreSQL database (Neon recommended)
 - [Whop Developer Account](https://sandbox.whop.com/)
 - [UploadThing Account](https://uploadthing.com/)
@@ -97,7 +97,12 @@ https://your-domain.com/api/webhooks/whop
 
 Subscribe to these events:
 - `payment.succeeded`
+- `payment.failed`
 - `membership.activated`
+- `membership.deactivated`
+- `verification.succeeded`
+
+Turn on connected account events for the webhook and grant it the `webhook_receive:verifications` permission. `verification.succeeded` arrives from your writers' connected accounts, and it is what marks a writer's KYC as complete. Copy the webhook secret into `WHOP_WEBHOOK_SECRET` as it is (it starts with `ws_`). The handler passes it to `unwrapWebhook` from `@whop/sdk/helpers`, which verifies the signature.
 
 ## Project Structure
 
@@ -182,7 +187,7 @@ npm run build
 npm start
 ```
 
-Requires Node.js 18+ runtime, PostgreSQL database, and all environment variables configured.
+Requires a Node.js 20.9+ runtime, PostgreSQL database, and all environment variables configured.
 
 ## Disclaimer
 

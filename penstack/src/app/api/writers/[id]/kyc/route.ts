@@ -49,36 +49,28 @@ export async function POST(
     return NextResponse.json({ success: true, demo: true });
   }
 
-  // Real mode: create Whop connected account (company under our platform)
-  try {
-    let companyId = writer.whopCompanyId;
+  let companyId = writer.whopCompanyId;
 
-    if (!companyId) {
-      const company = await whop.companies.create({
-        title: writer.name,
-        parent_company_id: process.env.WHOP_COMPANY_ID!,
-        email: writer.user.email,
-      });
-
-      companyId = company.id;
-
-      await prisma.writer.update({
-        where: { id },
-        data: { whopCompanyId: companyId },
-      });
-    }
-
-    const accountLink = await whop.accountLinks.create({
-      company_id: companyId,
-      refresh_url: `${process.env.NEXT_PUBLIC_APP_URL}/settings`,
-      return_url: `${process.env.NEXT_PUBLIC_APP_URL}/settings`,
-      use_case: "account_onboarding",
+  if (!companyId) {
+    const company = await whop.accounts.create({
+      title: writer.name,
+      email: writer.user.email ?? undefined,
     });
 
-    return NextResponse.json({ url: accountLink.url });
-  } catch (err) {
-    console.error("KYC Whop SDK error:", err);
-    const message = err instanceof Error ? err.message : "Whop API error";
-    return NextResponse.json({ error: message }, { status: 502 });
+    companyId = company.id;
+
+    await prisma.writer.update({
+      where: { id },
+      data: { whopCompanyId: companyId },
+    });
   }
+
+  const accountLink = await whop.accountLinks.create({
+    account_id: companyId,
+    refresh_url: `${process.env.NEXT_PUBLIC_APP_URL}/settings`,
+    return_url: `${process.env.NEXT_PUBLIC_APP_URL}/settings`,
+    use_case: "account_onboarding",
+  });
+
+  return NextResponse.json({ url: accountLink.url });
 }

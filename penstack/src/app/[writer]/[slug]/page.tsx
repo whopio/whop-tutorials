@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { requireAuth } from "@/lib/auth";
-import { getPostBySlug, isLikedByUser } from "@/services/post-service";
+import { getPostBySlug } from "@/services/post-service";
 import { canAccessPaidContent } from "@/services/subscription-service";
+import { isLikedByUser } from "@/services/post-service";
 import { PostContent } from "@/components/post/post-content";
 import { LikeButton } from "@/components/post/like-button";
 import { PaywallGate } from "@/components/post/paywall-gate";
@@ -53,11 +54,7 @@ export default async function ArticlePage({ params }: ArticlePageProps) {
       hasAccess = await canAccessPaidContent(user.id, post.writerId);
     }
 
-    if (
-      !hasAccess &&
-      post.visibility === "PREVIEW" &&
-      post.paywallIndex != null
-    ) {
+    if (!hasAccess && post.visibility === "PREVIEW" && post.paywallIndex != null) {
       paywallIndex = post.paywallIndex;
     }
   }

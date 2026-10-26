@@ -59,7 +59,6 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // Check existing subscription
   const existingSub = await prisma.subscription.findUnique({
     where: { userId_writerId: { userId: user.id, writerId } },
   });
@@ -74,21 +73,24 @@ export async function POST(request: NextRequest) {
   const priceInDollars = priceInCents / 100;
   const applicationFee = Math.round(priceInCents * PLATFORM_FEE_PERCENT) / 10000;
 
-  // Create checkout configuration with inline plan (Direct Charge)
-  const checkout = await whop.checkoutConfigurations.create({
-    plan: {
-      company_id: writer.whopCompanyId,
-      currency: "usd",
-      renewal_price: priceInDollars,
-      billing_period: 30,
-      plan_type: "renewal",
-      release_method: "buy_now",
-      application_fee_amount: applicationFee,
-      product: {
-        external_identifier: `penstack-writer-${writer.id}`,
-        title: `${writer.name} Subscription`,
-      },
+  // The SDK's types don't list application_fee_amount or product on an inline plan,
+  // so we build the plan as a variable first and then pass it in.
+  const plan = {
+    account_id: writer.whopCompanyId,
+    currency: "usd",
+    renewal_price: priceInDollars,
+    billing_period: 30,
+    plan_type: "renewal" as const,
+    release_method: "buy_now" as const,
+    application_fee_amount: applicationFee,
+    product: {
+      external_identifier: `penstack-writer-${writer.id}`,
+      title: `${writer.name} Subscription`,
     },
+  };
+
+  const checkout = await whop.checkoutConfigurations.create({
+    plan,
     redirect_url: `${process.env.NEXT_PUBLIC_APP_URL}/${writer.handle}`,
     metadata: {
       userId: user.id,

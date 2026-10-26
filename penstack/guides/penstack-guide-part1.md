@@ -71,12 +71,12 @@ In this tutorial, we will start by laying the foundations in Vercel and then beg
 ### Create the project
 Let's use the command below to scaffold a new Next.js app. We'll call our project "Penstack":
 ```bash
-npx create-next-app@latest penstack --typescript --tailwind --eslint --app --src-dir --use-npm
+npx create-next-app@latest penstack --typescript --tailwind --eslint --app --src-dir --use-npm --no-cache-components
 cd penstack
 ```
 Then, install the dependencies we'll use throughout the project:
 ```bash
-npm install @whop/sdk @whop/embedded-components-react-js @whop/embedded-components-vanilla-js iron-session zod prisma @prisma/client @prisma/adapter-pg uploadthing @uploadthing/react @tiptap/core @tiptap/react @tiptap/starter-kit @tiptap/extension-image @tiptap/extension-placeholder @tiptap/extension-underline @tiptap/extension-link @tiptap/pm lucide-react
+npm install @whop/sdk@2.4.0 @whop/embedded-components-react-js @whop/embedded-components-vanilla-js iron-session zod prisma@7.10.1 @prisma/client@7.10.1 @prisma/adapter-pg@7.10.1 uploadthing @uploadthing/react @tiptap/core @tiptap/react @tiptap/starter-kit @tiptap/extension-image @tiptap/extension-placeholder @tiptap/extension-underline @tiptap/extension-link @tiptap/pm lucide-react
 ```
 ### Deploy before building
 New Next.js projects will build without requiring any configuration, so you should transfer your project to a GitHub repository (use a private repo if you don't want your project to be open source) and connect it to Vercel. Then add the project's URL as an environment variable in Vercel:
@@ -201,6 +201,7 @@ Now, let's push the schema using the command:
 
 ```bash
 npx prisma db push
+npx prisma generate
 ```
 
 Then create the Prisma client singleton at `src/lib` with a file called `prisma.ts` with the content below. Without the singleton pattern, Next.js hot-reloads would create a new database connection on each reload and exhaust the connection pool.
@@ -270,23 +271,23 @@ export async function getSession() {
 ### Whop SDK and PKCE generation
 Go to `src/lib` and create a file called `whop.ts` with the content:
 ```ts
-import Whop from "@whop/sdk";
+import { WhopClient, WhopEnvironment } from "@whop/sdk";
 
-let _whop: Whop | null = null;
-export function getWhop(): Whop {
+let _whop: WhopClient | null = null;
+export function getWhop(): WhopClient {
   if (!_whop) {
-    _whop = new Whop({
-      appID: process.env.WHOP_APP_ID!,
-      apiKey: process.env.WHOP_API_KEY!,
-      ...(process.env.WHOP_SANDBOX === "true" && {
-        baseURL: "https://sandbox-api.whop.com/api/v1",
-      }),
+    _whop = new WhopClient({
+      token: process.env.WHOP_API_KEY!,
+      environment:
+        process.env.WHOP_SANDBOX === "true"
+          ? WhopEnvironment.Sandbox
+          : WhopEnvironment.Production,
     });
   }
   return _whop;
 }
 
-export const whop = new Proxy({} as Whop, {
+export const whop = new Proxy({} as WhopClient, {
   get(_target, prop, receiver) {
     return Reflect.get(getWhop(), prop, receiver);
   },
@@ -406,9 +407,12 @@ function randomHex(bytes: number): string {
 
 export async function GET(request: NextRequest) {
   const returnTo = request.nextUrl.searchParams.get("returnTo");
-  // Validate returnTo is a safe relative path (prevents open redirect)
+  // Keep returnTo only if it resolves to a page on our own site (prevents open redirect).
+  // A startsWith("//") check alone lets "/\evil.com" and "/<tab>/evil.com" through.
   const safeReturnTo =
-    returnTo && returnTo.startsWith("/") && !returnTo.startsWith("//")
+    returnTo &&
+    returnTo.startsWith("/") &&
+    new URL(returnTo, request.url).origin === request.nextUrl.origin
       ? returnTo
       : null;
 
@@ -499,8 +503,8 @@ export async function GET(request: NextRequest) {
 
   const tokenResponse = await fetch(WHOP_OAUTH.tokenUrl, {
     method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
       grant_type: "authorization_code",
       code,
       redirect_uri: WHOP_OAUTH.redirectUri,
@@ -559,11 +563,12 @@ export async function GET(request: NextRequest) {
   session.accessToken = accessToken;
   await session.save();
 
-  const redirectPath =
-    returnTo && returnTo.startsWith("/") && !returnTo.startsWith("//")
-      ? returnTo
-      : "/";
-  const response = NextResponse.redirect(new URL(redirectPath, request.url));
+  const home = new URL("/", request.url);
+  const target =
+    returnTo && returnTo.startsWith("/") ? new URL(returnTo, request.url) : home;
+  const response = NextResponse.redirect(
+    target.origin === home.origin ? target : home
+  );
   response.cookies.delete("oauth_pkce");
   return response;
 }

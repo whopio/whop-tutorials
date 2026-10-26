@@ -3,7 +3,7 @@ import { z } from "zod";
 const envSchema = z.object({
   // Whop
   WHOP_APP_ID: z.string().startsWith("app_"),
-  WHOP_API_KEY: z.string().startsWith("apik_"),
+  WHOP_API_KEY: z.string().min(1),
   WHOP_COMPANY_ID: z.string().startsWith("biz_"),
   WHOP_WEBHOOK_SECRET: z.string().min(1),
   WHOP_CLIENT_ID: z.string().min(1),

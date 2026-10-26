@@ -206,6 +206,7 @@ model WebhookEvent {
 Then push the updated schema using the command:
 ```bash
 npx prisma db push
+npx prisma generate
 ```
 ### Uploadthing for file uploads
 We're going to use Uploadthing for avatars, banners, and cover images instead of running our own file storage. Uploadthing lets us use type-safe file routes with built-in React upload components, which means less custom code.
@@ -520,8 +521,9 @@ export function Editor({
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const editor = useEditor({
+    immediatelyRender: false,
     extensions: [
-      StarterKit,
+      StarterKit.configure({ link: false, underline: false }),
       UnderlineExt,
       LinkExt.configure({ openOnClick: false }),
       ImageExt,

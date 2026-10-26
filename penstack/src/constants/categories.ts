@@ -1,4 +1,4 @@
-import { PublicationCategory } from "@/generated/prisma/browser";
+import { PublicationCategory } from "@/generated/prisma/client";
 
 export const CATEGORY_LABELS: Record<PublicationCategory, string> = {
   TECHNOLOGY: "Technology",

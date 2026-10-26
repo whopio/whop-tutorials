@@ -5,6 +5,7 @@ export interface SessionData {
   userId?: string;
   whopUserId?: string;
   accessToken?: string;
+  codeVerifier?: string;
 }
 
 const sessionOptions: SessionOptions = {

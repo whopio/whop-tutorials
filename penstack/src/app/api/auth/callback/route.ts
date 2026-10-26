@@ -48,8 +48,8 @@ export async function GET(request: NextRequest) {
   // Exchange authorization code for access token
   const tokenResponse = await fetch(WHOP_OAUTH.tokenUrl, {
     method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
       grant_type: "authorization_code",
       code,
       redirect_uri: WHOP_OAUTH.redirectUri,
@@ -111,12 +111,13 @@ export async function GET(request: NextRequest) {
   session.accessToken = accessToken;
   await session.save();
 
-  // Clean up the PKCE cookie and redirect to returnTo or home
-  const redirectPath =
-    returnTo && returnTo.startsWith("/") && !returnTo.startsWith("//")
-      ? returnTo
-      : "/";
-  const response = NextResponse.redirect(new URL(redirectPath, request.url));
+  // Clean up the PKCE cookie and redirect to returnTo or home, never off our own site
+  const home = new URL("/", request.url);
+  const target =
+    returnTo && returnTo.startsWith("/") ? new URL(returnTo, request.url) : home;
+  const response = NextResponse.redirect(
+    target.origin === home.origin ? target : home
+  );
   response.cookies.delete("oauth_pkce");
   return response;
 }
