@@ -45,13 +45,20 @@ if (!WHOP_API_KEY) {
 }
 
 async function main() {
-  const Whop = (await import('@whop/sdk')).default;
-  const whop = new Whop({ apiKey: WHOP_API_KEY });
+  const { WhopClient, WhopEnvironment } = await import('@whop/sdk');
+  const whop = new WhopClient({
+    token: WHOP_API_KEY,
+    environment:
+      process.env.NEXT_PUBLIC_WHOP_ENVIRONMENT === 'production'
+        ? WhopEnvironment.Production
+        : WhopEnvironment.Sandbox,
+  });
 
   if (WHOP_OAUTH_CLIENT_ID) {
     // Update existing app: set redirect URIs (and optional base_url)
     console.log('Updating existing app:', WHOP_OAUTH_CLIENT_ID);
-    const app = await whop.apps.update(WHOP_OAUTH_CLIENT_ID, {
+    const app = await whop.apps.update({
+      id: WHOP_OAUTH_CLIENT_ID,
       redirect_uris: redirectUris,
       base_url: NEXT_PUBLIC_APP_URL.replace(/\/$/, '') || null,
     });
@@ -67,7 +74,7 @@ async function main() {
     return;
   }
 
-  // Create new app (requires company_id)
+  // Create new app (requires account_id)
   if (!WHOP_PLATFORM_COMPANY_ID) {
     console.error('For create: set WHOP_PLATFORM_COMPANY_ID in .env.local (biz_xxx company to create app under).');
     console.error('Or set WHOP_OAUTH_CLIENT_ID to update an existing app instead.');
@@ -75,7 +82,7 @@ async function main() {
   }
 
   const app = await whop.apps.create({
-    company_id: WHOP_PLATFORM_COMPANY_ID,
+    account_id: WHOP_PLATFORM_COMPANY_ID,
     name: 'GigFlow OAuth',
     redirect_uris: redirectUris,
     base_url: NEXT_PUBLIC_APP_URL.replace(/\/$/, '') || null,

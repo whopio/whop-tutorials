@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient as createSupabaseAdmin } from '@supabase/supabase-js';
-import Whop from '@whop/sdk';
+import { WhopClient, WhopEnvironment } from '@whop/sdk';
 import { createClient } from '@/lib/supabase/server';
 
 export async function POST(request: NextRequest) {
@@ -18,29 +18,33 @@ export async function POST(request: NextRequest) {
     const { data: { user } } = await supabase.auth.getUser();
 
     const body = await request.json();
+    // The client also sends totalCents for display. It is ignored here: the
+    // price is always computed from the database below.
     const {
       gigId,
       gigTitle,
       packageId,
       packageTitle,
-      quantity,
+      quantity = 1,
       extras = [],
-      totalCents,
     } = body as {
       gigId: string;
       gigTitle: string;
       packageId: string;
       packageTitle: string;
-      quantity: number;
-      extras: Array<{ id: string; title: string; price_cents: number }>;
-      totalCents: number;
+      quantity?: number;
+      extras?: Array<{ id: string; title: string; price_cents: number }>;
     };
 
-    if (!gigId || !packageId || totalCents == null) {
+    if (!gigId || !packageId) {
       return NextResponse.json(
-        { error: 'Missing required fields: gigId, packageId, totalCents' },
+        { error: 'Missing required fields: gigId, packageId' },
         { status: 400 }
       );
+    }
+
+    if (!Number.isInteger(quantity) || quantity < 1 || quantity > 50) {
+      return NextResponse.json({ error: 'Invalid quantity' }, { status: 400 });
     }
 
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(gigId);
@@ -69,32 +73,78 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Price the order from the database, never from the request body, so a
+    // buyer can't change what they pay. The package must belong to this gig,
+    // and every extra must be one of the gig's active extras.
+    const { data: pkg } = await supabaseAdmin
+      .from('gig_packages')
+      .select('id, price_cents')
+      .eq('id', packageId)
+      .eq('gig_id', gig.id)
+      .single();
+
+    if (!pkg) {
+      return NextResponse.json({ error: 'Package not found' }, { status: 404 });
+    }
+
+    const extraIds = [...new Set(extras.map((e) => e.id))];
+    let extrasCents = 0;
+    if (extraIds.length > 0) {
+      const { data: gigExtras } = await supabaseAdmin
+        .from('gig_extras')
+        .select('id, price_cents')
+        .eq('gig_id', gig.id)
+        .eq('active', true)
+        .in('id', extraIds);
+
+      if (!gigExtras || gigExtras.length !== extraIds.length) {
+        return NextResponse.json({ error: 'Invalid extras' }, { status: 400 });
+      }
+      extrasCents = gigExtras.reduce((sum, e) => sum + e.price_cents, 0);
+    }
+
+    const totalCents = (pkg.price_cents + extrasCents) * quantity;
+
+    // Calculate the platform fee. PLATFORM_FEE_BPS is in basis points (1000 = 10%).
     const totalDollars = totalCents / 100;
+    const platformFeeBps = parseInt(process.env.PLATFORM_FEE_BPS || '1000', 10);
+    const applicationFee = Math.round((totalCents * platformFeeBps) / 10000) / 100;
+
     const rawTitle = quantity > 1
       ? `${gigTitle} – ${packageTitle} × ${quantity}`
       : `${gigTitle} – ${packageTitle}`;
     const productTitle = rawTitle.length > 30 ? rawTitle.slice(0, 27) + '...' : rawTitle;
 
-    const client = new Whop({ apiKey });
+    const client = new WhopClient({
+      token: apiKey,
+      environment:
+        process.env.NEXT_PUBLIC_WHOP_ENVIRONMENT === 'production'
+          ? WhopEnvironment.Production
+          : WhopEnvironment.Sandbox,
+    });
+
+    // Create the checkout configuration on the seller's connected account.
+    // The application_fee_amount is routed to your platform account, and Whop
+    // requires it to be positive, so it is only sent when the rate is above 0.
+    // The Whop API accepts it, but the SDK types don't list it, so we build the
+    // plan as a variable first instead of writing it inline.
+    const plan = {
+      account_id: seller.whop_company_id,
+      currency: 'usd',
+      initial_price: totalDollars,
+      plan_type: 'one_time' as const,
+      ...(applicationFee > 0 ? { application_fee_amount: applicationFee } : {}),
+      title: productTitle,
+    };
 
     const checkoutConfig = await client.checkoutConfigurations.create({
       mode: 'payment',
-      plan: {
-        company_id: seller.whop_company_id,
-        currency: 'usd',
-        initial_price: totalDollars,
-        plan_type: 'one_time',
-        title: productTitle,
-        product: {
-          external_identifier: `gig_${gig.id}_pkg_${packageId}`,
-          title: productTitle,
-        },
-      },
+      plan,
       metadata: {
         gig_id: gig.id,
-        package_id: packageId,
-        quantity: String(quantity ?? 1),
-        extras_ids: extras.map((e: { id: string }) => e.id).join(','),
+        package_id: pkg.id,
+        quantity: String(quantity),
+        extras_ids: extraIds.join(','),
         buyer_user_id: user?.id ?? '',
       },
     });

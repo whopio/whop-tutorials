@@ -70,7 +70,11 @@ export async function GET() {
     code_challenge_method: 'S256',
   });
 
-  const authUrl = `https://api.whop.com/oauth/authorize?${params}`;
+  const whopHost =
+    process.env.NEXT_PUBLIC_WHOP_ENVIRONMENT === 'production'
+      ? 'https://api.whop.com'
+      : 'https://sandbox-api.whop.com';
+  const authUrl = `${whopHost}/oauth/authorize?${params}`;
   const response = NextResponse.redirect(authUrl);
   response.cookies.set(STORAGE_KEY, JSON.stringify(pkce), {
     httpOnly: true,

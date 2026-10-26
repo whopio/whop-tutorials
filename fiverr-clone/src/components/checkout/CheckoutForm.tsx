@@ -69,6 +69,9 @@ export function CheckoutForm({
           <div className="mt-6">
             <WhopCheckoutEmbed
               planId={planId}
+              environment={
+                process.env.NEXT_PUBLIC_WHOP_ENVIRONMENT === 'production' ? 'production' : 'sandbox'
+              }
               returnUrl={returnUrl}
               onComplete={onComplete}
               theme="light"

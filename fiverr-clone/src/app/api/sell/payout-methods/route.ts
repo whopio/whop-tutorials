@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import Whop from '@whop/sdk';
+import { WhopClient, WhopEnvironment } from '@whop/sdk';
 import { createClient } from '@/lib/supabase/server';
 
 export async function GET() {
@@ -25,7 +25,13 @@ export async function GET() {
       return NextResponse.json({ payoutMethods: [], message: 'Complete verification first' });
     }
 
-    const whop = new Whop({ apiKey });
+    const whop = new WhopClient({
+      token: apiKey,
+      environment:
+        process.env.NEXT_PUBLIC_WHOP_ENVIRONMENT === 'production'
+          ? WhopEnvironment.Production
+          : WhopEnvironment.Sandbox,
+    });
     const methods: Array<{
       id: string;
       account_reference: string | null;
@@ -37,7 +43,7 @@ export async function GET() {
       name?: string;
     }> = [];
 
-    for await (const pm of whop.payoutMethods.list({ company_id: seller.whop_company_id, first: 20 })) {
+    for await (const pm of await whop.payoutMethods.listPayoutMethod({ account_id: seller.whop_company_id, first: 20 })) {
       const dest = pm.destination as { category?: string; name?: string } | null;
       methods.push({
         id: pm.id,

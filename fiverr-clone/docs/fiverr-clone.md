@@ -26,7 +26,7 @@ Next.js 16 (App Router), React 19, Tailwind CSS v4, Supabase (Postgres + Row Lev
 - `/api/sell/onboard` — Create the seller's connected company under your platform
 - `/api/sell/kyc/sync` — Pull verification status from Whop into `seller_accounts`
 - `/api/sell/payouts-token` — Short-lived access token for embedded KYC/payouts
-- `/api/sell/withdraw` — Trigger a Whop withdrawal to the seller's payout method
+- `/api/sell/withdraw` — Trigger a Whop payout to the seller's payout method
 - `/api/checkout/create` — Create a Whop checkout configuration with the platform fee
 - `/api/checkout/confirm` — Confirm the order from the buyer's browser after payment
 - `/api/orders/[id]/requirements` — Buyer submits the project brief
@@ -40,10 +40,10 @@ Next.js 16 (App Router), React 19, Tailwind CSS v4, Supabase (Postgres + Row Lev
 
 ## Payment flow
 
-1. Buyer clicks Purchase on a gig, picks a package and extras. The slide-out panel POSTs to `/api/checkout/create`, which calls `whop.checkoutConfigurations.create` on the seller's connected company with `application_fee_amount` set
+1. Buyer clicks Purchase on a gig, picks a package and extras. The slide-out panel POSTs to `/api/checkout/create`, which prices the order from the database and calls `whop.checkoutConfigurations.create` on the seller's connected account with `application_fee_amount` set
 2. Buyer pays through the Whop checkout embed inside the slide-out — they never leave your domain
-3. `onComplete` calls `/api/checkout/confirm`, which creates the local `orders` row immediately so the buyer sees a confirmation page (UX convenience only)
-4. Whop fires a `payment_succeeded` webhook to `/api/webhooks/whop`. The handler verifies the signature, stores the event idempotently, and reconciles `whop_payments` → `orders` (this is the source of truth)
+3. `onComplete` calls `/api/checkout/confirm`, which checks with Whop that the checkout was paid and then creates the local `orders` row, so the buyer sees a confirmation page right away
+4. Whop fires a `payment.succeeded` webhook to `/api/webhooks/whop`. The handler verifies the signature, stores the event idempotently, and reconciles `whop_payments` → `orders` (this is the source of truth)
 5. Whop credits the seller's connected company with the payment minus the platform fee. The seller links a payout method through the embedded payouts UI and withdraws via `/api/sell/withdraw`
 
 ## Why Whop
@@ -55,8 +55,8 @@ Next.js 16 (App Router), React 19, Tailwind CSS v4, Supabase (Postgres + Row Lev
 ## Setup
 
 ```bash
-git clone https://github.com/whopio/whop-tutorials.git
-cd whop-tutorials/fiverr-clone
+npx degit whopio/whop-tutorials/fiverr-clone gigflow
+cd gigflow
 npm install
 ```
 
@@ -79,11 +79,11 @@ npm install
 
 ### Whop sandbox setup
 
-Use `sandbox.whop.com` for development. Create a Whop, then go to **Developer → Apps → OAuth**, register `http://localhost:3000/api/auth/callback/whop` and your production callback URL, copy the client ID + secret. Create an API key under **Developer → API Keys**. Sandbox uses `sandbox-api.whop.com` for all SDK endpoints — set `NEXT_PUBLIC_WHOP_ENVIRONMENT=sandbox` to point the embedded components at it.
+Use `sandbox.whop.com` for development. Create a Whop, then go to **Developer → Apps → OAuth**, register `http://localhost:3000/api/auth/callback/whop` and your production callback URL, copy the client ID + secret. Create an API key under **Developer → API Keys**. Sandbox uses `sandbox-api.whop.com` for all SDK endpoints — set `NEXT_PUBLIC_WHOP_ENVIRONMENT=sandbox` to point the SDK client, the OAuth URLs and the embedded components at it.
 
 ### Webhook setup
 
-In sandbox.whop.com → **Developer → Webhooks**, create a webhook pointing to `https://your-app.vercel.app/api/webhooks/whop`. Subscribe to: `payment_succeeded`, `payment_failed`, `payment_pending`, `refund_created`, `refund_updated`, `dispute_created`, `dispute_updated`, `dispute_alert_created`, `verification_succeeded`, `payout_method_created`, `withdrawal_created`, `withdrawal_updated`. Copy the webhook secret into `WHOP_WEBHOOK_SECRET`.
+In sandbox.whop.com → **Developer → Webhooks**, create a webhook pointing to `https://your-app.vercel.app/api/webhooks/whop`. Subscribe to: `payment_succeeded`, `refund_created`, `refund_updated`, `dispute_created`, `dispute_updated`, `verification_succeeded` (the events this app's webhook handler acts on). Copy the webhook secret into `WHOP_WEBHOOK_SECRET`.
 
 ### Supabase setup
 
@@ -422,7 +422,11 @@ export async function GET() {
     code_challenge_method: 'S256',
   });
 
-  const authUrl = `https://api.whop.com/oauth/authorize?${params}`;
+  const whopHost =
+    process.env.NEXT_PUBLIC_WHOP_ENVIRONMENT === 'production'
+      ? 'https://api.whop.com'
+      : 'https://sandbox-api.whop.com';
+  const authUrl = `${whopHost}/oauth/authorize?${params}`;
   const response = NextResponse.redirect(authUrl);
 
   response.cookies.set('whop_oauth_pkce', JSON.stringify(pkce), {
@@ -470,8 +474,13 @@ export async function GET(request: NextRequest) {
   const clientId = process.env.WHOP_OAUTH_CLIENT_ID!;
   const clientSecret = process.env.WHOP_OAUTH_CLIENT_SECRET!;
   const redirectUri = process.env.NEXT_PUBLIC_WHOP_OAUTH_REDIRECT_URI!;
+  const whopHost =
+    process.env.NEXT_PUBLIC_WHOP_ENVIRONMENT === 'production'
+      ? 'https://api.whop.com'
+      : 'https://sandbox-api.whop.com';
 
-  const tokenRes = await fetch('https://api.whop.com/oauth/token', {
+  // Exchange the authorization code for tokens
+  const tokenRes = await fetch(`${whopHost}/oauth/token`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -491,7 +500,8 @@ export async function GET(request: NextRequest) {
 
   const tokens = await tokenRes.json();
 
-  const userRes = await fetch('https://api.whop.com/oauth/userinfo', {
+  // Fetch the user's Whop profile
+  const userRes = await fetch(`${whopHost}/oauth/userinfo`, {
     headers: { Authorization: `Bearer ${tokens.access_token}` },
   });
 
@@ -502,20 +512,25 @@ export async function GET(request: NextRequest) {
   const whopUser = await userRes.json();
   const supabaseAdmin = createAdminClient();
 
-  const { data: existingUsers } = await supabaseAdmin.auth.admin.listUsers();
-  const existingUser = existingUsers?.users.find(u => u.email === whopUser.email);
+  // Match an existing user by email in profiles (listUsers only returns the
+  // first page, so it misses users at scale).
+  const { data: existingUser } = await supabaseAdmin
+    .from('profiles')
+    .select('user_id')
+    .ilike('email', whopUser.email)
+    .maybeSingle();
 
   let supabaseUserId: string;
 
   if (existingUser) {
-    supabaseUserId = existingUser.id;
+    supabaseUserId = existingUser.user_id;
   } else {
     const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
       email: whopUser.email,
       email_confirm: true,
       user_metadata: {
         full_name: whopUser.name,
-        whop_user_id: whopUser.id,
+        whop_user_id: whopUser.sub,
       },
     });
 
@@ -529,12 +544,27 @@ export async function GET(request: NextRequest) {
   await supabaseAdmin
     .from('profiles')
     .update({
-      whop_user_id: whopUser.id,
+      whop_user_id: whopUser.sub,
       whop_refresh_token: tokens.refresh_token,
     })
     .eq('user_id', supabaseUserId);
 
-  const response = NextResponse.redirect(`${baseUrl}/account`);
+  // Establish a Supabase session: generate a one-time token and hand it to the
+  // /auth/whop/complete page, which calls supabase.auth.verifyOtp to set the
+  // session cookie. Redirecting to /account without this never logs the user in.
+  const { data: linkData } = await supabaseAdmin.auth.admin.generateLink({
+    type: 'magiclink',
+    email: whopUser.email,
+    options: { redirectTo: `${baseUrl}/` },
+  });
+  const emailOtp = (linkData?.properties as { email_otp?: string })?.email_otp;
+  if (!emailOtp) {
+    return NextResponse.redirect(`${baseUrl}/login?error=session_creation_failed`);
+  }
+
+  const response = NextResponse.redirect(
+    `${baseUrl}/auth/whop/complete?token=${encodeURIComponent(emailOtp)}&email=${encodeURIComponent(whopUser.email)}`
+  );
   response.cookies.set('whop_oauth_pkce', '', { maxAge: 0, path: '/' });
   return response;
 }
@@ -546,11 +576,11 @@ A seller becomes one in two steps: backend creates a Whop connected company, fro
 
 ### Onboard route (`src/app/api/sell/onboard/route.ts`)
 
-`whop.companies.create({ parent_company_id, metadata.internal_user_id })` makes the seller's sub-merchant account. Idempotent: returns the existing company if the seller already has one.
+`whop.accounts.create({ email, title, metadata.internal_user_id })` makes the seller's connected account. The API key's own account becomes its parent. Idempotent: returns the existing company if the seller already has one.
 
 ```ts
 import { NextResponse } from 'next/server';
-import Whop from '@whop/sdk';
+import { WhopClient, WhopEnvironment } from '@whop/sdk';
 import { createClient, createAdminClient } from '@/lib/supabase/server';
 
 export async function GET() {
@@ -568,7 +598,13 @@ export async function GET() {
     return NextResponse.json({ error: 'Whop is not configured' }, { status: 500 });
   }
 
-  const whop = new Whop({ apiKey });
+  const whop = new WhopClient({
+    token: apiKey,
+    environment:
+      process.env.NEXT_PUBLIC_WHOP_ENVIRONMENT === 'production'
+        ? WhopEnvironment.Production
+        : WhopEnvironment.Sandbox,
+  });
 
   const { data: existingSeller } = await supabaseAdmin
     .from('seller_accounts')
@@ -589,11 +625,13 @@ export async function GET() {
     .eq('user_id', user.id)
     .single();
 
-  const company = await whop.companies.create({
+  // Create a new connected company under the platform
+  const company = await whop.accounts.create({
     email: user.email!,
     title: profile?.display_name || user.email?.split('@')[0] || 'Seller',
-    parent_company_id: platformCompanyId,
-    metadata: { internal_user_id: user.id },
+    metadata: {
+      internal_user_id: user.id,
+    },
   });
 
   await supabaseAdmin.from('seller_accounts').insert({
@@ -614,7 +652,7 @@ export async function GET() {
 Reads the seller's verification status from Whop's Ledger API. Whop returns `'verified'` or `'approved'` for completed KYC.
 
 ```ts
-import Whop from '@whop/sdk';
+import { WhopClient, WhopEnvironment } from '@whop/sdk';
 
 export interface VerificationResult {
   verified: boolean;
@@ -627,8 +665,14 @@ export async function getWhopVerificationStatus(
   apiKey: string
 ): Promise<VerificationResult> {
   try {
-    const whop = new Whop({ apiKey });
-    const ledger = await whop.ledgerAccounts.retrieve(whopCompanyId);
+    const whop = new WhopClient({
+      token: apiKey,
+      environment:
+        process.env.NEXT_PUBLIC_WHOP_ENVIRONMENT === 'production'
+          ? WhopEnvironment.Production
+          : WhopEnvironment.Sandbox,
+    });
+    const ledger = await whop.ledgerAccounts.retrieve({ id: whopCompanyId });
     const payout = ledger.payout_account_details;
 
     if (!payout?.latest_verification) {
@@ -710,7 +754,7 @@ Mints a short-lived Whop access token scoped to the seller's connected company. 
 
 ```ts
 import { NextResponse } from 'next/server';
-import Whop from '@whop/sdk';
+import { WhopClient, WhopEnvironment } from '@whop/sdk';
 import { createClient } from '@/lib/supabase/server';
 import { getAppBaseUrl } from '@/lib/app-url';
 
@@ -739,9 +783,15 @@ export async function GET() {
     return NextResponse.json({ error: 'WHOP_API_KEY is not set' }, { status: 500 });
   }
 
-  const whop = new Whop({ apiKey });
+  const whop = new WhopClient({
+    token: apiKey,
+    environment:
+      process.env.NEXT_PUBLIC_WHOP_ENVIRONMENT === 'production'
+        ? WhopEnvironment.Production
+        : WhopEnvironment.Sandbox,
+  });
   const { token } = await whop.accessTokens.create({
-    company_id: seller.whop_company_id,
+    account_id: seller.whop_company_id,
   });
 
   return NextResponse.json({
@@ -759,8 +809,9 @@ Mounts `<VerifyElement>` inside `<Elements>` + `<PayoutsSession>`. The `getToken
 ```tsx
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { loadWhopElements } from '@whop/embedded-components-vanilla-js';
+import { getAppBaseUrl } from '@/lib/app-url';
 import {
   Elements,
   PayoutsSession,
@@ -779,6 +830,14 @@ export function WhopVerificationEmbed({
   onClose,
 }: WhopVerificationEmbedProps) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const elements = useMemo(
+    () =>
+      loadWhopElements({
+        environment:
+          process.env.NEXT_PUBLIC_WHOP_ENVIRONMENT === 'production' ? 'production' : 'sandbox',
+      }),
+    []
+  );
 
   useEffect(() => {
     const style = document.createElement('style');
@@ -789,7 +848,9 @@ export function WhopVerificationEmbed({
       }
     `;
     document.head.appendChild(style);
-    return () => document.head.removeChild(style);
+    return () => {
+      document.head.removeChild(style);
+    };
   }, []);
 
   const getToken = async (): Promise<string> => {
@@ -801,15 +862,22 @@ export function WhopVerificationEmbed({
 
   return (
     <div ref={containerRef} className="w-full min-h-[500px]">
-      <Elements loader={loadWhopElements}>
-        <PayoutsSession companyId={companyId} getToken={getToken}>
+      <Elements elements={elements}>
+        <PayoutsSession
+          token={getToken}
+          companyId={companyId}
+          redirectUrl={`${getAppBaseUrl()}/sell/dashboard`}
+        >
           <VerifyElement
-            includeControls
-            onVerificationSubmitted={async () => {
-              await fetch('/api/sell/kyc/sync', { method: 'POST' });
-              onComplete?.();
+            options={{
+              includeControls: true,
+              onVerificationSubmitted: async () => {
+                // Sync the KYC status to the database immediately
+                await fetch('/api/sell/kyc/sync', { method: 'POST' });
+                onComplete?.();
+              },
+              onClose: () => onClose?.(),
             }}
-            onClose={onClose}
           />
         </PayoutsSession>
       </Elements>
@@ -824,11 +892,11 @@ The checkout has three phases: create the Whop checkout session on the server, r
 
 ### Create checkout route (`src/app/api/checkout/create/route.ts`)
 
-Looks up the gig's seller, calculates the platform fee from `PLATFORM_FEE_BPS`, and creates the checkout configuration on the seller's connected company. The plan is inline (not pre-created) and carries `application_fee_amount` so Whop routes the fee to your platform automatically. Metadata includes `gig_id`, `package_id`, and `buyer_user_id` — the confirm endpoint and webhook handler both read this back.
+Looks up the gig's seller, prices the order from `gig_packages` and `gig_extras` (never from the request body, so a buyer can't change what they pay), calculates the platform fee from `PLATFORM_FEE_BPS`, and creates the checkout configuration on the seller's connected company. The plan is inline (not pre-created) and carries `application_fee_amount` so Whop routes the fee to your platform automatically. Metadata includes `gig_id`, `package_id`, and `buyer_user_id` — the confirm endpoint and webhook handler both read this back.
 
 ```ts
 import { NextRequest, NextResponse } from 'next/server';
-import Whop from '@whop/sdk';
+import { WhopClient, WhopEnvironment } from '@whop/sdk';
 import { createClient, createAdminClient } from '@/lib/supabase/server';
 
 export async function POST(request: NextRequest) {
@@ -847,7 +915,6 @@ export async function POST(request: NextRequest) {
     packageTitle: string;
     quantity?: number;
     extras?: Array<{ id: string; title: string; price_cents: number }>;
-    totalCents: number;
   };
 
   try {
@@ -856,9 +923,14 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid request body' }, { status: 400 });
   }
 
-  const { gigId, gigTitle, packageId, packageTitle, quantity = 1, extras = [], totalCents } = body;
-  if (!gigId || !packageId || !totalCents) {
-    return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+  const { gigId, gigTitle, packageId, packageTitle, quantity = 1, extras = [] } = body;
+
+  if (!gigId || !packageId) {
+    return NextResponse.json({ error: 'Missing required fields: gigId, packageId' }, { status: 400 });
+  }
+
+  if (!Number.isInteger(quantity) || quantity < 1 || quantity > 50) {
+    return NextResponse.json({ error: 'Invalid quantity' }, { status: 400 });
   }
 
   const { data: gig, error: gigError } = await supabase
@@ -882,32 +954,73 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Seller has not connected a Whop account' }, { status: 400 });
   }
 
+  // Price the order from the database, never from the request body, so a
+  // buyer can't change what they pay. The package must belong to this gig,
+  // and every extra must be one of the gig's active extras.
+  const { data: pkg } = await supabaseAdmin
+    .from('gig_packages')
+    .select('id, price_cents')
+    .eq('id', packageId)
+    .eq('gig_id', gig.id)
+    .single();
+
+  if (!pkg) {
+    return NextResponse.json({ error: 'Package not found' }, { status: 404 });
+  }
+
+  const extraIds = [...new Set(extras.map((e) => e.id))];
+  let extrasCents = 0;
+  if (extraIds.length > 0) {
+    const { data: gigExtras } = await supabaseAdmin
+      .from('gig_extras')
+      .select('id, price_cents')
+      .eq('gig_id', gig.id)
+      .eq('active', true)
+      .in('id', extraIds);
+
+    if (!gigExtras || gigExtras.length !== extraIds.length) {
+      return NextResponse.json({ error: 'Invalid extras' }, { status: 400 });
+    }
+    extrasCents = gigExtras.reduce((sum, e) => sum + e.price_cents, 0);
+  }
+
+  const totalCents = (pkg.price_cents + extrasCents) * quantity;
+
+  // Calculate the platform fee
   const totalDollars = totalCents / 100;
   const platformFeeBps = parseInt(process.env.PLATFORM_FEE_BPS || '1000', 10);
   const applicationFee = Math.round((totalCents * platformFeeBps) / 10000) / 100;
 
-  const client = new Whop({ apiKey });
+  const client = new WhopClient({
+    token: apiKey,
+    environment:
+      process.env.NEXT_PUBLIC_WHOP_ENVIRONMENT === 'production'
+        ? WhopEnvironment.Production
+        : WhopEnvironment.Sandbox,
+  });
+
+  // Create the checkout configuration on the seller's connected company.
+  // The application_fee_amount is automatically routed to your platform company.
+  // The Whop API accepts it, but the SDK types don't list it, so we build the
+  // plan as a variable first instead of writing it inline.
+  const plan = {
+    account_id: seller.whop_company_id,
+    currency: 'usd',
+    initial_price: totalDollars,
+    plan_type: 'one_time' as const,
+    application_fee_amount: applicationFee,
+    title: gigTitle,
+  };
 
   const checkoutConfig = await client.checkoutConfigurations.create({
     mode: 'payment',
-    plan: {
-      company_id: seller.whop_company_id,
-      currency: 'usd',
-      initial_price: totalDollars,
-      plan_type: 'one_time',
-      application_fee_amount: applicationFee,
-      title: gigTitle,
-      product: {
-        external_identifier: `gig_${gig.id}_pkg_${packageId}`,
-        title: gigTitle,
-      },
-    },
+    plan,
     metadata: {
       gig_id: gig.id,
       package_id: packageId,
       package_title: packageTitle,
       quantity: String(quantity),
-      extras_ids: extras.map((e) => e.id).join(','),
+      extras_ids: extraIds.join(','),
       buyer_user_id: user?.id ?? '',
     },
   });
@@ -925,11 +1038,11 @@ Client component with two internal steps managed by a `Step = 'options' | 'check
 
 ### Confirm checkout route (`src/app/api/checkout/confirm/route.ts`)
 
-Called from `onComplete` of the embed. Retrieves the checkout configuration from Whop, reads metadata, looks up the gig, creates the local `orders` row idempotently (keyed by `whop_checkout_config_id`), and inserts notifications for both buyer and seller. Treats this as a UX convenience — webhooks are the real source of truth.
+Called from `onComplete` of the embed. Retrieves the checkout configuration from Whop, reads metadata, looks up the gig, asks Whop for a paid payment made through this checkout configuration (402 if there is none, because anyone can call this route with a checkout ID), creates the local `orders` row idempotently (keyed by `whop_checkout_config_id`), and inserts notifications for both buyer and seller. Treats this as a UX convenience — webhooks are the real source of truth.
 
 ```ts
 import { NextRequest, NextResponse } from 'next/server';
-import Whop from '@whop/sdk';
+import { WhopClient, WhopEnvironment } from '@whop/sdk';
 import { createAdminClient } from '@/lib/supabase/server';
 
 export async function POST(request: NextRequest) {
@@ -945,17 +1058,23 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Invalid request body' }, { status: 400 });
   }
 
-  const { session_id } = body;
+  const { session_id, receipt_id } = body;
   if (!session_id) {
     return NextResponse.json({ error: 'session_id is required' }, { status: 400 });
   }
 
-  const client = new Whop({ apiKey });
+  const client = new WhopClient({
+    token: apiKey,
+    environment:
+      process.env.NEXT_PUBLIC_WHOP_ENVIRONMENT === 'production'
+        ? WhopEnvironment.Production
+        : WhopEnvironment.Sandbox,
+  });
   const supabaseAdmin = createAdminClient();
 
   let config;
   try {
-    config = await client.checkoutConfigurations.retrieve(session_id);
+    config = await client.checkoutConfigurations.retrieve({ id: session_id });
   } catch (err) {
     return NextResponse.json({ error: 'Checkout session not found' }, { status: 404 });
   }
@@ -989,6 +1108,41 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ orderId: existingOrder.id });
   }
 
+  // Only a paid checkout becomes an order. Anyone can call this route with a
+  // checkout ID, so we ask Whop for the payment instead of trusting the request.
+  const { data: seller } = await supabaseAdmin
+    .from('seller_accounts')
+    .select('whop_company_id')
+    .eq('user_id', gig.seller_user_id)
+    .single();
+
+  let paymentId: string | null = null;
+  if (receipt_id?.startsWith('pay_')) {
+    // The embed's onComplete passes the payment ID
+    const payment = await client.payments.retrieve({ id: receipt_id });
+    if (payment.checkout_configuration_id === session_id && payment.status === 'paid') {
+      paymentId = payment.id;
+    }
+  } else if (config.plan?.id) {
+    // The return URL redirect doesn't, so look through the plan's paid payments
+    const payments = await client.payments.list({
+      account_id: seller?.whop_company_id ?? undefined,
+      plan_id: config.plan.id,
+      status: 'paid',
+    });
+    for await (const payment of payments) {
+      if (payment.checkout_configuration_id === session_id) {
+        paymentId = payment.id;
+        break;
+      }
+    }
+  }
+
+  if (!paymentId) {
+    return NextResponse.json({ error: 'Payment not completed' }, { status: 402 });
+  }
+
+  // Create the order
   const { data: order, error: orderError } = await supabaseAdmin
     .from('orders')
     .insert({
@@ -1007,6 +1161,14 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Failed to create order' }, { status: 500 });
   }
 
+  // The payment webhook may have arrived before this order existed
+  await supabaseAdmin
+    .from('whop_payments')
+    .update({ order_id: order.id })
+    .eq('whop_payment_id', paymentId)
+    .is('order_id', null);
+
+  // Notify the seller
   await supabaseAdmin.from('notifications').insert([
     {
       user_id: gig.seller_user_id,
@@ -1139,37 +1301,40 @@ The webhook handler is the source of truth — the confirm endpoint is just for 
 
 ### Webhook handler (`src/app/api/webhooks/whop/route.ts`)
 
-`whop.webhooks.unwrap(bodyText, { headers })` does signature verification. The SDK constructor needs `webhookKey: btoa(WHOP_WEBHOOK_SECRET)`. Store every event in `webhook_events` with a unique constraint on `webhook_id` to dedupe retries.
+`unwrapWebhook(bodyText, { headers, key: process.env.WHOP_WEBHOOK_SECRET })` from `@whop/sdk/helpers` does signature verification with the raw `ws_` secret, with no base64 step. Payments link to their order through `checkout_configuration_id`, because the checkout metadata has no order ID. Store every event in `webhook_events` with a unique constraint on `webhook_id` to dedupe retries.
 
 ```ts
 import { NextRequest, NextResponse } from 'next/server';
-import Whop from '@whop/sdk';
+import { unwrapWebhook } from '@whop/sdk/helpers';
 import { createAdminClient } from '@/lib/supabase/server';
-
-const whop = new Whop({
-  apiKey: process.env.WHOP_API_KEY!,
-  webhookKey: process.env.WHOP_WEBHOOK_SECRET
-    ? btoa(process.env.WHOP_WEBHOOK_SECRET)
-    : undefined,
-});
 
 export async function POST(request: NextRequest) {
   const bodyText = await request.text();
   const headers = Object.fromEntries(request.headers);
 
-  let webhook: { id: string; type: string; company_id?: string; data: unknown };
+  // Step 1: Verify the signature and parse the payload.
+  // If the signature is invalid, the SDK will throw and we return 401.
+  // Depending on the webhook's API version, the account arrives as account_id or company_id.
+  let webhook: { id: string; type: string; account_id?: string; company_id?: string; data: unknown };
   try {
-    webhook = whop.webhooks.unwrap(bodyText, { headers }) as typeof webhook;
+    webhook = unwrapWebhook<typeof webhook>(bodyText, {
+      headers,
+      key: process.env.WHOP_WEBHOOK_SECRET,
+    });
   } catch (err) {
     return NextResponse.json({ error: 'Invalid webhook signature' }, { status: 401 });
   }
 
   const supabaseAdmin = createAdminClient();
 
+  // Step 2: Store the event idempotently.
+  // The webhook_id unique constraint prevents duplicate processing.
+  // If this event has already been processed, return 200 immediately.
+  const accountId = webhook.account_id ?? webhook.company_id;
   const { error: insertError } = await supabaseAdmin.from('webhook_events').insert({
     webhook_id: webhook.id,
     type: webhook.type,
-    company_id: webhook.company_id ?? null,
+    company_id: accountId ?? null,
     payload: JSON.parse(bodyText),
   });
 
@@ -1183,18 +1348,18 @@ export async function POST(request: NextRequest) {
 
   try {
     switch (webhook.type) {
-      case 'payment_succeeded':
+      case 'payment.succeeded':
         await handlePaymentSucceeded(webhook.data, supabaseAdmin);
         break;
-      case 'verification_succeeded':
-        await handleVerificationSucceeded(webhook.company_id, supabaseAdmin);
+      case 'verification.succeeded':
+        await handleVerificationSucceeded(accountId, supabaseAdmin);
         break;
-      case 'refund_created':
-      case 'refund_updated':
+      case 'refund.created':
+      case 'refund.updated':
         await handleRefund(webhook.data, supabaseAdmin);
         break;
-      case 'dispute_created':
-      case 'dispute_updated':
+      case 'dispute.created':
+      case 'dispute.updated':
         await handleDispute(webhook.data, supabaseAdmin);
         break;
       default:
@@ -1211,32 +1376,47 @@ async function handlePaymentSucceeded(
   data: unknown,
   supabaseAdmin: ReturnType<typeof createAdminClient>
 ) {
+  // Older webhook versions send company: { id } and plain numbers, newer ones
+  // send account_id and money objects like { amount: "29.00" }. Read both.
   const payment = data as {
     id: string;
-    company_id: string;
+    account_id?: string;
+    company?: { id: string } | null;
     status: string;
-    final_amount: number;
+    amount_after_fees: number | { amount: string } | null;
+    checkout_configuration_id?: string | null;
     metadata?: Record<string, string>;
   };
+  const amountAfterFees =
+    typeof payment.amount_after_fees === 'number'
+      ? payment.amount_after_fees
+      : Number(payment.amount_after_fees?.amount ?? 0);
 
+  // Attach the payment to its order. The checkout metadata has no order ID
+  // (the order is created after payment), so match on the checkout
+  // configuration ID that the confirm route stores on the order.
+  let orderId = payment.metadata?.order_id ?? null;
+  if (!orderId && payment.checkout_configuration_id) {
+    const { data: order } = await supabaseAdmin
+      .from('orders')
+      .select('id')
+      .eq('whop_checkout_config_id', payment.checkout_configuration_id)
+      .maybeSingle();
+    orderId = order?.id ?? null;
+  }
+
+  // Upsert the payment record. Seller earnings read amount_after_fees_cents.
   await supabaseAdmin.from('whop_payments').upsert(
     {
       whop_payment_id: payment.id,
-      whop_company_id: payment.company_id,
+      whop_company_id: payment.account_id ?? payment.company?.id,
+      ...(orderId ? { order_id: orderId } : {}),
       status: payment.status,
-      total_cents: payment.final_amount,
+      amount_after_fees_cents: Math.round(amountAfterFees * 100),
       raw: payment,
     },
     { onConflict: 'whop_payment_id' }
   );
-
-  const orderId = payment.metadata?.order_id;
-  if (orderId) {
-    await supabaseAdmin
-      .from('whop_payments')
-      .update({ order_id: orderId })
-      .eq('whop_payment_id', payment.id);
-  }
 }
 
 async function handleVerificationSucceeded(
@@ -1258,13 +1438,14 @@ async function handleRefund(
   data: unknown,
   supabaseAdmin: ReturnType<typeof createAdminClient>
 ) {
-  const refund = data as { payment_id?: string };
-  if (!refund.payment_id) return;
+  const refund = data as { payment_id?: string; payment?: { id: string } | null };
+  const paymentId = refund.payment_id ?? refund.payment?.id;
+  if (!paymentId) return;
 
   const { data: payment } = await supabaseAdmin
     .from('whop_payments')
     .select('order_id')
-    .eq('whop_payment_id', refund.payment_id)
+    .eq('whop_payment_id', paymentId)
     .single();
 
   if (payment?.order_id) {
@@ -1279,13 +1460,14 @@ async function handleDispute(
   data: unknown,
   supabaseAdmin: ReturnType<typeof createAdminClient>
 ) {
-  const dispute = data as { payment_id?: string };
-  if (!dispute.payment_id) return;
+  const dispute = data as { payment_id?: string; payment?: { id: string } | null };
+  const paymentId = dispute.payment_id ?? dispute.payment?.id;
+  if (!paymentId) return;
 
   const { data: payment } = await supabaseAdmin
     .from('whop_payments')
     .select('order_id')
-    .eq('whop_payment_id', dispute.payment_id)
+    .eq('whop_payment_id', paymentId)
     .single();
 
   if (payment?.order_id) {
@@ -1336,7 +1518,14 @@ export function SellPayoutsProvider({ children }: { children: React.ReactNode })
       .catch((err) => setError(err.message));
   }, []);
 
-  const loader = useMemo(() => loadWhopElements, []);
+  const elements = useMemo(
+    () =>
+      loadWhopElements({
+        environment:
+          process.env.NEXT_PUBLIC_WHOP_ENVIRONMENT === 'production' ? 'production' : 'sandbox',
+      }),
+    []
+  );
 
   const getToken = async (): Promise<string> => {
     const res = await fetch('/api/sell/payouts-token');
@@ -1355,8 +1544,12 @@ export function SellPayoutsProvider({ children }: { children: React.ReactNode })
 
   return (
     <PayoutsContext.Provider value={{ available: true }}>
-      <Elements loader={loader}>
-        <PayoutsSession companyId={config.companyId} getToken={getToken}>
+      <Elements elements={elements}>
+        <PayoutsSession
+          token={getToken}
+          companyId={config.companyId}
+          redirectUrl={config.redirectUrl}
+        >
           {children}
         </PayoutsSession>
       </Elements>
@@ -1369,11 +1562,11 @@ The dashboard mounts this provider and embeds Whop's `<BalanceElement>`, `<Withd
 
 ### Withdraw route (`src/app/api/sell/withdraw/route.ts`)
 
-Programmatic alternative to the embedded button. Calls `whop.withdrawals.create` with the seller's connected company ID. Gates on `kyc_status === 'verified'` and `payout_enabled`.
+Programmatic alternative to the embedded button. Calls `whop.payouts.create` with the seller's connected account ID and a saved `payout_method_id` (the legacy withdrawals endpoint now returns 410). Gates on `kyc_status === 'verified'` and `payout_enabled`.
 
 ```ts
 import { NextRequest, NextResponse } from 'next/server';
-import Whop from '@whop/sdk';
+import { WhopClient, WhopEnvironment } from '@whop/sdk';
 import { createClient } from '@/lib/supabase/server';
 
 export async function POST(request: NextRequest) {
@@ -1413,9 +1606,15 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'WHOP_API_KEY is not set' }, { status: 500 });
   }
 
-  const whop = new Whop({ apiKey });
-  const withdrawal = await whop.withdrawals.create({
-    company_id: seller.whop_company_id,
+  const whop = new WhopClient({
+    token: apiKey,
+    environment:
+      process.env.NEXT_PUBLIC_WHOP_ENVIRONMENT === 'production'
+        ? WhopEnvironment.Production
+        : WhopEnvironment.Sandbox,
+  });
+  const withdrawal = await whop.payouts.create({
+    account_id: seller.whop_company_id,
     amount,
     currency,
     payout_method_id,
@@ -1440,7 +1639,7 @@ Three-strategy fallback. Strategy 1: mint a user-scoped access token using `whop
 
 ```ts
 import { NextResponse } from 'next/server';
-import Whop from '@whop/sdk';
+import { WhopClient, WhopEnvironment } from '@whop/sdk';
 import { createClient } from '@/lib/supabase/server';
 import { getAppBaseUrl } from '@/lib/app-url';
 
@@ -1452,7 +1651,7 @@ const CHAT_SCOPES = [
   'dms:channel:manage',
   'support_chat:read',
   'support_chat:message:create',
-].join(' ');
+];
 
 export async function GET() {
   const supabase = await createClient();
@@ -1472,14 +1671,21 @@ export async function GET() {
     .eq('user_id', user.id)
     .single();
 
-  const whop = new Whop({ apiKey });
+  const whop = new WhopClient({
+    token: apiKey,
+    environment:
+      process.env.NEXT_PUBLIC_WHOP_ENVIRONMENT === 'production'
+        ? WhopEnvironment.Production
+        : WhopEnvironment.Sandbox,
+  });
 
   // Strategy 1: Direct user access token
   if (profile?.whop_user_id) {
     try {
       const { token } = await whop.accessTokens.create({
+        account_id: process.env.WHOP_PLATFORM_COMPANY_ID,
         user_id: profile.whop_user_id,
-        scopes: CHAT_SCOPES,
+        scoped_actions: CHAT_SCOPES,
       });
       return NextResponse.json({ token });
     } catch (err) {
@@ -1492,10 +1698,15 @@ export async function GET() {
     const clientId = process.env.WHOP_OAUTH_CLIENT_ID;
     const clientSecret = process.env.WHOP_OAUTH_CLIENT_SECRET;
     const baseUrl = getAppBaseUrl();
+    const whopHost =
+      process.env.NEXT_PUBLIC_WHOP_ENVIRONMENT === 'production'
+        ? 'https://api.whop.com'
+        : 'https://sandbox-api.whop.com';
 
     if (clientId && clientSecret) {
       try {
-        const tokenRes = await fetch('https://api.whop.com/oauth/token', {
+        console.log('[chat/token] Attempting OAuth refresh token exchange');
+        const tokenRes = await fetch(`${whopHost}/oauth/token`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -1510,6 +1721,14 @@ export async function GET() {
 
         if (tokenRes.ok) {
           const tokens = await tokenRes.json();
+          // Whop rotates refresh tokens on every use, so we store the new one
+          if (tokens.refresh_token) {
+            const { createAdminClient } = await import('@/lib/supabase/server');
+            await createAdminClient()
+              .from('profiles')
+              .update({ whop_refresh_token: tokens.refresh_token })
+              .eq('user_id', user.id);
+          }
           return NextResponse.json({ token: tokens.access_token });
         }
 
@@ -1538,7 +1757,7 @@ export async function GET() {
   if (seller?.whop_company_id) {
     try {
       const { token } = await whop.accessTokens.create({
-        company_id: seller.whop_company_id,
+        account_id: seller.whop_company_id,
       });
       return NextResponse.json({ token });
     } catch (err) {
@@ -1586,7 +1805,7 @@ export function WhopChatEmbed({ channelId, onAuthRequired }: WhopChatEmbedProps)
     | 'sandbox'
     | 'production';
 
-  const loader = useMemo(() => loadWhopElements, []);
+  const elements = useMemo(() => loadWhopElements({ environment: whopEnv }), [whopEnv]);
 
   useEffect(() => {
     fetch('/api/token', { credentials: 'include' })
@@ -1624,15 +1843,18 @@ export function WhopChatEmbed({ channelId, onAuthRequired }: WhopChatEmbedProps)
 
   return (
     <div className="relative h-full min-h-[400px]">
-      <Elements loader={loader}>
-        <ChatSession
-          getToken={async () => token}
-          environment={whopEnv}
-          appearance={{ theme: 'light' }}
-        >
+      {!isReady && (
+        <div className="absolute inset-0 flex items-center justify-center bg-white text-gray-400">
+          Loading chat…
+        </div>
+      )}
+      <Elements elements={elements} appearance={{ theme: { appearance: 'light' } }}>
+        <ChatSession token={async () => token}>
           <ChatElement
-            channelId={channelId}
-            emptyState="Send a message to start the conversation"
+            options={{
+              channelId,
+              emptyState: { description: 'Send a message to start the conversation' },
+            }}
             onReady={() => setIsReady(true)}
           />
         </ChatSession>
@@ -1775,12 +1997,15 @@ In Vercel, set every variable from `.env.local` but replace the Whop ones with t
 
 ## Whop SDK gotchas
 
-- **`accountLinks.create` is the hosted-redirect flow.** It returns a Whop-hosted URL. We don't use it in this project — embedded `<VerifyElement>` + `whop.accessTokens.create({ company_id })` keeps KYC inside your app.
+- **This project uses `@whop/sdk` 2.4.0.** Create clients with `new WhopClient({ token, environment })`, pass objects to every call (`retrieve({ id })`), and send `account_id` where 0.0.x sent `company_id`. `companies.create` is now `accounts.create`, and `withdrawals.create` is now `payouts.create`.
+- **Price the checkout on the server.** The create route reads the package and extras prices from the database. A total sent by the browser is never charged.
+- **Only a paid checkout becomes an order.** The confirm route asks Whop for a payment with `status: 'paid'` on that checkout configuration before it inserts the order.
+- **`accountLinks.create` is the hosted-redirect flow.** It returns a Whop-hosted URL. We don't use it in this project — embedded `<VerifyElement>` + `whop.accessTokens.create({ account_id })` keeps KYC inside your app.
 - **`application_fee_amount` goes on `checkoutConfigurations.create()` inside the `plan` object.** Not on `plans.create()`. Whop routes the fee to your platform automatically.
-- **`company_id` on `checkoutConfigurations.create` belongs on the `plan` object only.** Top-level `company_id` will produce `400: Cannot provide company_id for this configuration`.
-- **Webhook verification needs `webhookKey: btoa(WHOP_WEBHOOK_SECRET)` in the SDK constructor.** Pass the raw body text to `whop.webhooks.unwrap(bodyText, { headers })` — parsed JSON breaks signature verification.
-- **Webhook event names use underscores, not dots:** `payment_succeeded`, `verification_succeeded`, `refund_created`, `dispute_created`, `payout_method_created`, `withdrawal_created`, etc.
-- **Sandbox uses `sandbox-api.whop.com` for all SDK endpoints** (OAuth, API, webhooks). The embedded components read `NEXT_PUBLIC_WHOP_ENVIRONMENT`.
+- **`account_id` on `checkoutConfigurations.create` belongs on the `plan` object.** It is the seller's connected account. The plan has no `product` object anymore.
+- **Webhook verification uses `unwrapWebhook` from `@whop/sdk/helpers` with the raw `WHOP_WEBHOOK_SECRET`.** Pass the raw body text, `unwrapWebhook(bodyText, { headers, key })`. Parsed JSON breaks signature verification.
+- **Webhook event names differ between the dashboard and the payload.** You subscribe in the dashboard using underscored names (`payment_succeeded`, `refund_created`), but the webhook payload's `type` field arrives **dotted** (`payment.succeeded`, `refund.created`, `verification.succeeded`, `dispute.created`). Your handler must `switch` on the dotted form, or no case ever matches.
+- **Sandbox uses `sandbox-api.whop.com` for all SDK endpoints** (OAuth, API, webhooks). Every `WhopClient` gets `environment: WhopEnvironment.Sandbox` unless `NEXT_PUBLIC_WHOP_ENVIRONMENT` is `production`, and the embedded components read the same variable.
 - **OAuth PKCE: store the code verifier in an httpOnly cookie**, not the session. Cookies survive cross-domain redirects reliably.
 - **The chat token endpoint needs three fallback strategies** because some users have a `whop_user_id` (OAuth path), some have a `whop_refresh_token` only, and sellers have a company they can scope the token to.
 - **The KYC trigger is the source of trust.** Keep `trg_enforce_kyc_before_gig_publish` even if the UI also blocks unverified publishes — the trigger catches API-level bypass attempts.

@@ -20,13 +20,13 @@ import { loadWhopElements } from "@whop/embedded-components-vanilla-js";
 
 ## 2. Authentication (token endpoint)
 
-Per [Whop Chat Authentication](https://docs.whop.com/developer/guides/chat/authentication) and [Create access token](https://docs.whop.com/api-reference/access-tokens/create-access-token): the token endpoint can return **either** an OAuth access token **or** a token from Create Access Token (API key + `company_id` or `user_id`). Both work with embedded components — **OAuth is not required** when we can issue a token via the API.
+Per [Whop Chat Authentication](https://docs.whop.com/developer/guides/chat/authentication) and [Create access token](https://docs.whop.com/api-reference/access-tokens/create-access-token): the token endpoint can return **either** an OAuth access token **or** a token from Create Access Token (API key + `account_id`, with or without `user_id`). Both work with embedded components — **OAuth is not required** when we can issue a token via the API.
 
 The embed calls **`GET /api/token`** (implemented by `src/app/api/chat/token/route.ts`; the route at `src/app/api/token/route.ts` is an alias so the quickstart’s `fetch("/api/token")` works). Token logic runs in this order:
 
-1. **Create Access Token with `user_id`** — if profile has `whop_user_id`, call the API with API key + `user_id` and chat scopes; **no OAuth needed** (preferred for embed).
-2. **Create Access Token with `company_id`** — for sellers with `whop_company_id`; **no OAuth needed**.
-3. **OAuth refresh** — fallback if profile has `whop_refresh_token`.
+1. **Create Access Token with `user_id`** — if profile has `whop_user_id`, call the API with API key + your platform's `account_id` + `user_id` and chat scopes (`scoped_actions`); **no OAuth needed** (preferred for embed).
+2. **OAuth refresh** — if profile has `whop_refresh_token`. Whop rotates the refresh token on every use, so the route stores the new one.
+3. **Create Access Token with `account_id`** — for sellers with `whop_company_id`; **no OAuth needed**.
 
 So once a user has `whop_user_id` (e.g. from linking once or from another flow), we can issue a chat token without OAuth. Sellers with `whop_company_id` always get a company-scoped token without linking.
 
@@ -41,7 +41,7 @@ Required scopes for chat: `chat:read`, `chat:message:create`, `dms:read`, `dms:m
 To show a conversation in Whop chat you need a **channel ID**. We use a **DM channel** by default (direct message between buyer and seller).
 
 - We have `GET /api/conversations/[id]/whop-channel`, which calls [Create DM channel](https://docs.whop.com/api-reference/dm-channels/create-dm-channel) with:
-  - `company_id`: optional, seller’s Whop company when both users have Whop IDs
+  - `account_id`: optional, seller’s Whop account when both users have Whop IDs
   - `with_user_ids`: seller and buyer Whop user IDs (or buyer email if only one has linked Whop)
   - `custom_name`: optional (e.g. "Gig conversation")
 
@@ -64,7 +64,9 @@ Once you have:
 you can render Whop chat as in the quickstart:
 
 ```tsx
-const elements = loadWhopElements();
+const elements = loadWhopElements({
+  environment: process.env.NEXT_PUBLIC_WHOP_ENVIRONMENT === "production" ? "production" : "sandbox",
+});
 
 async function getToken() {
   const response = await fetch("/api/token");  // alias of /api/chat/token
@@ -114,7 +116,7 @@ If chat still doesn’t load, open the browser Network tab and check: (1) **`/ap
 | `WHOP_OAUTH_CLIENT_ID` | OAuth path for token (refresh). |
 | `WHOP_OAUTH_CLIENT_SECRET` | OAuth path for token (refresh). |
 | `NEXT_PUBLIC_WHOP_OAUTH_REDIRECT_URI` | Must match Whop Dashboard (e.g. `https://your-app.com/api/auth/callback/whop`). |
-| `NEXT_PUBLIC_WHOP_ENVIRONMENT` | Optional; `production` (default) or `sandbox` for `loadWhopElements`. |
+| `NEXT_PUBLIC_WHOP_ENVIRONMENT` | `sandbox` or `production`. The SDK clients and OAuth URLs use sandbox unless it is `production`. `WhopChatEmbed` falls back to `production` when it is unset, so set it. |
 
 ## Rebuild checklist (when changing chat)
 
@@ -130,7 +132,7 @@ When touching Whop chat, ensure:
 | Requirement              | Status |
 |--------------------------|--------|
 | SDK with ChatElement     | Using 0.0.13-beta+ with Chat |
-| Token                    | OAuth refresh, or Create Access Token (user_id or company_id) — OAuth not required when we have whop_user_id or company |
+| Token                    | OAuth refresh, or Create Access Token (user_id or account_id) — OAuth not required when we have whop_user_id or company |
 | Channel ID (DM)          | API exists; both users need Whop identity for DMs |
 | Frontend ChatElement     | Ready; WhopChatEmbed in ChatPanel |
 

@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { createClient as createSupabaseAdmin } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
+import { WhopClient, WhopEnvironment } from '@whop/sdk';
 import { getAppBaseUrl } from '@/lib/app-url';
 
 export async function GET() {
@@ -38,10 +39,15 @@ export async function GET() {
       return NextResponse.redirect(new URL('/sell/kyc?error=whop_not_configured', baseUrl));
     }
     try {
-      const Whop = (await import('@whop/sdk')).default;
-      const whop = new Whop({ apiKey: process.env.WHOP_API_KEY });
+      const whop = new WhopClient({
+        token: process.env.WHOP_API_KEY,
+        environment:
+          process.env.NEXT_PUBLIC_WHOP_ENVIRONMENT === 'production'
+            ? WhopEnvironment.Production
+            : WhopEnvironment.Sandbox,
+      });
       const accountLink = await whop.accountLinks.create({
-        company_id: existingSeller.whop_company_id,
+        account_id: existingSeller.whop_company_id,
         use_case: 'account_onboarding',
         return_url: `${whopBaseUrl}/sell/kyc/return`,
         refresh_url: `${whopBaseUrl}/sell/kyc/return`,
@@ -61,13 +67,18 @@ export async function GET() {
   }
 
   try {
-    const Whop = (await import('@whop/sdk')).default;
-    const whop = new Whop({ apiKey: process.env.WHOP_API_KEY });
+    const whop = new WhopClient({
+      token: process.env.WHOP_API_KEY,
+      environment:
+        process.env.NEXT_PUBLIC_WHOP_ENVIRONMENT === 'production'
+          ? WhopEnvironment.Production
+          : WhopEnvironment.Sandbox,
+    });
 
-    const company = await whop.companies.create({
+    // The API key's own account becomes the parent of the new connected account
+    const company = await whop.accounts.create({
       email: user.email,
       title: profile?.display_name || user.email?.split('@')[0] || 'Seller',
-      parent_company_id: process.env.WHOP_PLATFORM_COMPANY_ID,
       metadata: { internal_user_id: user.id },
     });
 
@@ -77,15 +88,15 @@ export async function GET() {
       kyc_status: 'unstarted',
     });
 
-    if (company.owner_user?.id) {
+    if (company.owner?.id) {
       await supabaseAdmin
         .from('profiles')
-        .update({ whop_user_id: company.owner_user.id, updated_at: new Date().toISOString() })
+        .update({ whop_user_id: company.owner.id, updated_at: new Date().toISOString() })
         .eq('user_id', user.id);
     }
 
     const accountLink = await whop.accountLinks.create({
-      company_id: company.id,
+      account_id: company.id,
       use_case: 'account_onboarding',
       return_url: `${whopBaseUrl}/sell/kyc/return`,
       refresh_url: `${whopBaseUrl}/sell/kyc/return`,

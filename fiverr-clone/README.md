@@ -12,7 +12,7 @@ A freelance services marketplace where verified sellers list tiered gig packages
 - **Embedded Buyer/Seller Chat** - `<ChatElement />` per order with a Supabase Realtime fallback when a user has not linked Whop
 - **Whop OAuth (PKCE)** - Login with Whop using chat scopes; email/password through Supabase Auth as a fallback
 - **Reviews** - Star ratings on delivered orders with auto-completion when a review is left
-- **Webhook-Driven Reconciliation** - Whop SDK signs and verifies every payment, refund, dispute, KYC, and payout event; idempotent and the source of truth
+- **Webhook-Driven Reconciliation** - `unwrapWebhook` verifies every payment, refund, dispute and KYC event. Each event is stored once, and payments are matched to their order by checkout configuration
 - **Database-Enforced KYC Gate** - A Postgres trigger rejects gig publishes from unverified sellers, even on direct API calls
 - **Row Level Security** - Self / participant / admin policies on every table
 
@@ -24,14 +24,14 @@ A freelance services marketplace where verified sellers list tiered gig packages
 | [React 19](https://react.dev/) | UI library |
 | [TypeScript](https://www.typescriptlang.org/) | Type safety |
 | [Supabase](https://supabase.com/) | Postgres, Row Level Security, Realtime, Auth |
-| [Whop SDK](https://dev.whop.com/) | Payments, OAuth, KYC, connected accounts, embedded payouts, chat |
+| [Whop SDK](https://docs.whop.com/) (`@whop/sdk` 2.4.0) | Payments, OAuth, KYC, connected accounts, embedded payouts, chat |
 | [Tailwind CSS v4](https://tailwindcss.com/) | Styling |
 
 ## Getting Started
 
 ### Prerequisites
 
-- Node.js 18+
+- Node.js 20.9+
 - A [Supabase](https://supabase.com) project
 - A [Whop Developer Account](https://whop.com/developer)
 
@@ -109,8 +109,8 @@ The `scripts/create-whop-oauth-app.js` helper can create or update the app via A
 #### Webhooks
 
 1. **Developer → Webhooks → Create** — point the endpoint at `https://your-app.vercel.app/api/webhooks/whop`.
-2. Subscribe to: `payment_succeeded`, `payment_failed`, `payment_pending`, `refund_created`, `refund_updated`, `dispute_created`, `dispute_updated`, `dispute_alert_created`, `verification_succeeded`, `payout_method_created`, `withdrawal_created`, `withdrawal_updated`.
-3. Copy the signing secret into `WHOP_WEBHOOK_SECRET`. The handler verifies every request via the Whop SDK before acting on it.
+2. Subscribe to the events the handler acts on: `payment_succeeded`, `refund_created`, `refund_updated`, `dispute_created`, `dispute_updated` and `verification_succeeded`. The payload `type` arrives dotted (`payment.succeeded`).
+3. Copy the signing secret into `WHOP_WEBHOOK_SECRET`. The handler verifies every request with `unwrapWebhook` from `@whop/sdk/helpers`, using the raw secret, before acting on it.
 
 ## Project Structure
 
@@ -172,7 +172,7 @@ notifications                                            (in-app notifications)
 | **Sandbox** | sandbox.whop.com | sandbox-api.whop.com | Test cards only |
 | **Production** | whop.com | api.whop.com | Real payments |
 
-Set `NEXT_PUBLIC_WHOP_ENVIRONMENT="sandbox"` for development and switch to `production` when you go live. The embedded components and SDK both read this value to point at the right API.
+Set `NEXT_PUBLIC_WHOP_ENVIRONMENT="sandbox"` for development and switch to `production` when you go live. The SDK clients, the OAuth URLs and the embedded components all read this value to point at the right API.
 
 ### Test Cards (Sandbox)
 
@@ -195,7 +195,7 @@ npm run build
 npm start
 ```
 
-Requires Node.js 18+ runtime, a Supabase project, and all environment variables configured.
+Requires Node.js 20.9+ runtime, a Supabase project, and all environment variables configured.
 
 ## Documentation
 

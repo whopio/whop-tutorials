@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import Whop from '@whop/sdk';
+import { WhopClient, WhopEnvironment } from '@whop/sdk';
 import { createClient } from '@/lib/supabase/server';
 
 export async function POST(req: Request) {
@@ -34,13 +34,24 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Invalid amount' }, { status: 400 });
     }
 
-    const whop = new Whop({ apiKey });
+    // Payouts always go to a saved payout method
+    if (!payoutMethodId) {
+      return NextResponse.json({ error: 'Add a payout method before withdrawing' }, { status: 400 });
+    }
 
-    const withdrawal = await whop.withdrawals.create({
-      company_id: seller.whop_company_id,
+    const whop = new WhopClient({
+      token: apiKey,
+      environment:
+        process.env.NEXT_PUBLIC_WHOP_ENVIRONMENT === 'production'
+          ? WhopEnvironment.Production
+          : WhopEnvironment.Sandbox,
+    });
+
+    const withdrawal = await whop.payouts.create({
+      account_id: seller.whop_company_id,
       amount,
-      currency: currency as 'usd' | 'eur' | 'gbp',
-      ...(payoutMethodId && { payout_method_id: payoutMethodId }),
+      currency,
+      payout_method_id: payoutMethodId,
     });
 
     return NextResponse.json({

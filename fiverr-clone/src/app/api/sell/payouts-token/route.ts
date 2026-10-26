@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import Whop from '@whop/sdk';
+import { WhopClient, WhopEnvironment } from '@whop/sdk';
 import { createClient } from '@/lib/supabase/server';
 import { getAppBaseUrl } from '@/lib/app-url';
 
@@ -26,9 +26,15 @@ export async function GET() {
       return NextResponse.json({ error: 'Complete verification first' }, { status: 400 });
     }
 
-    const whop = new Whop({ apiKey });
+    const whop = new WhopClient({
+      token: apiKey,
+      environment:
+        process.env.NEXT_PUBLIC_WHOP_ENVIRONMENT === 'production'
+          ? WhopEnvironment.Production
+          : WhopEnvironment.Sandbox,
+    });
     const { token } = await whop.accessTokens.create({
-      company_id: seller.whop_company_id,
+      account_id: seller.whop_company_id,
     });
 
     const baseUrl = getAppBaseUrl();

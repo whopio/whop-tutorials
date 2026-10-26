@@ -18,19 +18,26 @@ export function CheckoutCompleteHandler() {
     if (status !== 'success' || orderId || !sessionId) return;
 
     let mounted = true;
+    const receipt = searchParams.get('receipt') ?? undefined;
     (async () => {
       try {
-        const res = await fetch('/api/checkout/confirm', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ session_id: sessionId }),
-        });
-        const data = await res.json();
-        if (mounted && res.ok && data.orderId) {
-          const next = new URLSearchParams(searchParams);
-          next.set('order_id', data.orderId);
-          next.delete('session_id');
-          router.replace(`/checkout/complete?${next.toString()}`);
+        // 402 means Whop hasn't marked the payment paid yet, so try again shortly.
+        for (let attempt = 0; attempt < 5 && mounted; attempt++) {
+          if (attempt > 0) await new Promise((r) => setTimeout(r, 2000));
+          const res = await fetch('/api/checkout/confirm', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ session_id: sessionId, receipt_id: receipt }),
+          });
+          if (res.status === 402) continue;
+          const data = await res.json();
+          if (mounted && res.ok && data.orderId) {
+            const next = new URLSearchParams(searchParams);
+            next.set('order_id', data.orderId);
+            next.delete('session_id');
+            router.replace(`/checkout/complete?${next.toString()}`);
+          }
+          return;
         }
       } catch {
         // Leave as-is, will show thank you without requirements

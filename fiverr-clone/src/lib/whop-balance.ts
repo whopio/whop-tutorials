@@ -1,4 +1,4 @@
-import Whop from '@whop/sdk';
+import { WhopClient, WhopEnvironment } from '@whop/sdk';
 
 export interface BalanceItem {
   balance: number;
@@ -24,8 +24,14 @@ export async function getWhopLedgerBalance(
   apiKey: string
 ): Promise<LedgerBalanceResult> {
   try {
-    const whop = new Whop({ apiKey });
-    const ledger = await whop.ledgerAccounts.retrieve(whopCompanyId);
+    const whop = new WhopClient({
+      token: apiKey,
+      environment:
+        process.env.NEXT_PUBLIC_WHOP_ENVIRONMENT === 'production'
+          ? WhopEnvironment.Production
+          : WhopEnvironment.Sandbox,
+    });
+    const ledger = await whop.ledgerAccounts.retrieve({ id: whopCompanyId });
 
     const balances = (ledger.balances || []).map((b) => ({
       balance: b.balance ?? 0,

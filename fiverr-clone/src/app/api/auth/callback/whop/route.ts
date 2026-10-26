@@ -45,8 +45,13 @@ export async function GET(request: Request) {
     return NextResponse.redirect(new URL('/login?error=config', baseUrl));
   }
 
+  const whopHost =
+    process.env.NEXT_PUBLIC_WHOP_ENVIRONMENT === 'production'
+      ? 'https://api.whop.com'
+      : 'https://sandbox-api.whop.com';
+
   // Try Basic auth for client credentials (OAuth 2.0 confidential client); body has no client_secret.
-  const tokenRes = await fetch('https://api.whop.com/oauth/token', {
+  const tokenRes = await fetch(`${whopHost}/oauth/token`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -70,7 +75,7 @@ export async function GET(request: Request) {
   const tokens = await tokenRes.json();
   const accessToken = tokens.access_token;
 
-  const userInfoRes = await fetch('https://api.whop.com/oauth/userinfo', {
+  const userInfoRes = await fetch(`${whopHost}/oauth/userinfo`, {
     headers: { Authorization: `Bearer ${accessToken}` },
   });
 

@@ -17,7 +17,14 @@ interface PayoutsConfig {
 
 export function SellPayoutsProvider({ children }: { children: React.ReactNode }) {
   const [config, setConfig] = useState<PayoutsConfig | null>(null);
-  const elementsPromise = useMemo(() => loadWhopElements(), []);
+  const elementsPromise = useMemo(
+    () =>
+      loadWhopElements({
+        environment:
+          process.env.NEXT_PUBLIC_WHOP_ENVIRONMENT === 'production' ? 'production' : 'sandbox',
+      }),
+    []
+  );
 
   useEffect(() => {
     fetch('/api/sell/payouts-token')

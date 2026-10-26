@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import Whop from '@whop/sdk';
+import { WhopClient, WhopEnvironment } from '@whop/sdk';
 import { createClient, createAdminClient } from '@/lib/supabase/server';
 
 /**
@@ -9,7 +9,7 @@ import { createClient, createAdminClient } from '@/lib/supabase/server';
  * Create DM channel API: with_user_ids can be user IDs (user_xxxxx), email, or username per
  * https://docs.whop.com/api-reference/dm-channels/create-dm-channel. We pass Whop user IDs
  * from profiles and, when only one user has linked Whop, buyer email so the channel can be created.
- * company_id is set when seller has whop_company_id and both sides have Whop IDs (scopes channel to company).
+ * account_id is set when seller has whop_company_id and both sides have Whop IDs (scopes channel to company).
  *
  * API key: WHOP_APP_API_KEY when set (App key has dms:channel:manage), else WHOP_API_KEY.
  * Company key must have dms:channel:manage in Dashboard → Developer → API Keys → Permissions, or use an App key.
@@ -94,10 +94,16 @@ export async function GET(
         : undefined;
 
     console.log('[Whop] API whop-channel: step 4 — creating DM channel', { withUserIds: withUserIds.length, companyId: companyId ?? null });
-    const whop = new Whop({ apiKey });
+    const whop = new WhopClient({
+      token: apiKey,
+      environment:
+        process.env.NEXT_PUBLIC_WHOP_ENVIRONMENT === 'production'
+          ? WhopEnvironment.Production
+          : WhopEnvironment.Sandbox,
+    });
     try {
       const dmChannel = await whop.dmChannels.create({
-        ...(companyId && { company_id: companyId }),
+        ...(companyId && { account_id: companyId }),
         with_user_ids: withUserIds,
         custom_name: 'Gig conversation',
       });

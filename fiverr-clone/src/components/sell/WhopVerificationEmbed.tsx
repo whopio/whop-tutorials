@@ -28,7 +28,14 @@ export function WhopVerificationEmbed({
 }: WhopVerificationEmbedProps) {
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const elementsPromise = useMemo(() => loadWhopElements(), []);
+  const elementsPromise = useMemo(
+    () =>
+      loadWhopElements({
+        environment:
+          process.env.NEXT_PUBLIC_WHOP_ENVIRONMENT === 'production' ? 'production' : 'sandbox',
+      }),
+    []
+  );
 
   const getToken = useCallback(async () => {
     const res = await fetch('/api/sell/payouts-token');

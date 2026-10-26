@@ -1,4 +1,4 @@
-import Whop from '@whop/sdk';
+import { WhopClient, WhopEnvironment } from '@whop/sdk';
 
 /**
  * Fetch KYC verification status from Whop for a seller's company.
@@ -10,8 +10,14 @@ export async function getWhopVerificationStatus(
   apiKey: string
 ): Promise<{ verified: boolean; status?: string; error?: string }> {
   try {
-    const whop = new Whop({ apiKey });
-    const ledger = await whop.ledgerAccounts.retrieve(whopCompanyId);
+    const whop = new WhopClient({
+      token: apiKey,
+      environment:
+        process.env.NEXT_PUBLIC_WHOP_ENVIRONMENT === 'production'
+          ? WhopEnvironment.Production
+          : WhopEnvironment.Sandbox,
+    });
+    const ledger = await whop.ledgerAccounts.retrieve({ id: whopCompanyId });
 
     const payout = ledger.payout_account_details;
     if (!payout?.latest_verification) {

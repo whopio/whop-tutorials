@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
-import Whop from '@whop/sdk';
+import { WhopClient, WhopEnvironment } from '@whop/sdk';
 
 export async function GET() {
   const supabase = await createClient();
@@ -45,7 +45,13 @@ export async function GET() {
     ])
   );
 
-  const whop = new Whop({ apiKey });
+  const whop = new WhopClient({
+    token: apiKey,
+    environment:
+      process.env.NEXT_PUBLIC_WHOP_ENVIRONMENT === 'production'
+        ? WhopEnvironment.Production
+        : WhopEnvironment.Sandbox,
+  });
   const allDisputes: Array<{
     dispute: { id: string; amount: number; currency: string; status: string; reason: string | null; created_at: string };
     sellerName: string;
@@ -56,7 +62,7 @@ export async function GET() {
   for (const seller of sellerCompanies) {
     const companyId = seller.whop_company_id!;
     try {
-      const list = whop.disputes.list({ company_id: companyId, first: 50 });
+      const list = await whop.disputes.list({ account_id: companyId, first: 50 });
       const disputes: unknown[] = [];
       for await (const item of list) {
         disputes.push(item);

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import Whop from '@whop/sdk';
+import { WhopClient, WhopEnvironment } from '@whop/sdk';
 import { createClient, createAdminClient } from '@/lib/supabase/server';
 import { getWhopOwnerUserId } from '@/lib/whop-owner';
 
@@ -36,8 +36,14 @@ export async function GET() {
       });
     }
 
-    const whop = new Whop({ apiKey });
-    const ledger = await whop.ledgerAccounts.retrieve(seller.whop_company_id);
+    const whop = new WhopClient({
+      token: apiKey,
+      environment:
+        process.env.NEXT_PUBLIC_WHOP_ENVIRONMENT === 'production'
+          ? WhopEnvironment.Production
+          : WhopEnvironment.Sandbox,
+    });
+    const ledger = await whop.ledgerAccounts.retrieve({ id: seller.whop_company_id });
 
     // Backfill seller's whop_user_id from ledger/company owner if missing (for DMs/chat)
     const { data: profile } = await supabase

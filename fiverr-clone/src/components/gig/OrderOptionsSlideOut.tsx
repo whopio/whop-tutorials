@@ -326,6 +326,9 @@ export function OrderOptionsSlideOut({
                 <div className="min-h-[420px]">
                   <WhopCheckoutEmbed
                     sessionId={sessionId}
+                    environment={
+                      process.env.NEXT_PUBLIC_WHOP_ENVIRONMENT === 'production' ? 'production' : 'sandbox'
+                    }
                     returnUrl={returnUrl}
                     onComplete={handleCheckoutComplete}
                     theme="light"

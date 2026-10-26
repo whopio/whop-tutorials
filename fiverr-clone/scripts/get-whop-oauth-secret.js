@@ -27,9 +27,15 @@ if (!WHOP_API_KEY || !WHOP_OAUTH_CLIENT_ID) {
 }
 
 async function main() {
-  const Whop = (await import('@whop/sdk')).default;
-  const whop = new Whop({ apiKey: WHOP_API_KEY });
-  const app = await whop.apps.retrieve(WHOP_OAUTH_CLIENT_ID);
+  const { WhopClient, WhopEnvironment } = await import('@whop/sdk');
+  const whop = new WhopClient({
+    token: WHOP_API_KEY,
+    environment:
+      process.env.NEXT_PUBLIC_WHOP_ENVIRONMENT === 'production'
+        ? WhopEnvironment.Production
+        : WhopEnvironment.Sandbox,
+  });
+  const app = await whop.apps.retrieve({ id: WHOP_OAUTH_CLIENT_ID });
 
   console.log('App id:', app.id);
   console.log('Redirect URIs:', app.redirect_uris);
