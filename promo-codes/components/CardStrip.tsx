@@ -32,7 +32,7 @@ export function CardStrip({ highlight }: { highlight?: string }) {
   const [copied, setCopied] = useState<string | null>(null);
 
   return (
-    <div className="flex flex-col gap-1.5 rounded-lg border border-dashed border-[#B6B5B0] bg-white/60 px-3 py-2.5">
+    <div className="grid gap-1.5 rounded-lg border border-dashed border-[#B6B5B0] bg-white/60 px-3 py-2.5 sm:grid-cols-2">
       {TEST_CARDS.map((card) => {
         const active = highlight === card.number;
         return (
@@ -65,9 +65,11 @@ export function CardStrip({ highlight }: { highlight?: string }) {
           </div>
         );
       })}
-      <Text size="1" color="gray">
-        Any future expiry, any CVC, any name and address.
-      </Text>
+      <div className="sm:col-span-2">
+        <Text size="1" color="gray">
+          Any future expiry, any CVC, any name and address.
+        </Text>
+      </div>
     </div>
   );
 }

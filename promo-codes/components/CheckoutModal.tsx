@@ -1,9 +1,23 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { WhopCheckoutEmbed } from "@whop/checkout/react";
-import type { WhopCheckoutPromoCode } from "@whop/checkout/react";
+import { loadWhop } from "@whop/elements";
+import {
+  Checkout,
+  CheckoutElement,
+  WhopElements,
+  type CheckoutPaymentCompletion,
+  type CheckoutSetupCompletion,
+  type CheckoutWaitlistCompletion,
+} from "@whop/elements-react";
 import { Button, Heading, Text } from "@whop/react/components";
+import { formatMoney } from "@/lib/money";
+
+/** Everything the checkout tells the page when it finishes. */
+export type CheckoutCompletion =
+  | CheckoutPaymentCompletion
+  | CheckoutWaitlistCompletion
+  | CheckoutSetupCompletion;
 
 export interface ReceiptSummary {
   id: string;
@@ -33,6 +47,7 @@ const POLL_MS = 2000;
 const MAX_ATTEMPTS = 10;
 
 const ERROR_COPY: Record<string, string> = {
+  invalid_receipt: "That is not a payment ID this page can check.",
   wrong_product: "This receipt is for a different product.",
   not_paid: "Whop says this checkout didn't complete.",
   timeout:
@@ -46,36 +61,36 @@ export function CheckoutModal({
   open,
   onClose,
   onVerified,
+  onCompleted,
   onEvent,
-  onPromoChanged,
   planId,
   title,
   priceLabel,
   environment,
-  returnUrl,
   promoCode,
-  aboveEmbed,
+  resumeReceiptId,
+  checkoutConfigurationId,
+  aboveCheckout,
 }: {
   open: boolean;
   onClose: () => void;
   onVerified: (receipt: ReceiptSummary) => void;
+  onCompleted: (completion: CheckoutCompletion) => void;
   onEvent: (kind: string, detail: string) => void;
-  onPromoChanged: (promo: WhopCheckoutPromoCode | null) => void;
   planId: string;
   title: string;
   priceLabel: string;
   environment: "production" | "sandbox";
-  returnUrl: string;
   /** Pre-applies a code, so the buyer never sees the full price first. */
   promoCode?: string;
-  aboveEmbed?: ReactNode;
+  /** A payment the buyer came back with. Opens straight into verifying it. */
+  resumeReceiptId?: string;
+  /** Mount from this checkout configuration so its redirect brings the buyer back. */
+  checkoutConfigurationId?: string;
+  aboveCheckout?: ReactNode;
 }) {
   const [phase, setPhase] = useState<Phase>({ name: "checkout" });
   const cancelled = useRef(false);
-
-  useEffect(() => {
-    if (open) setPhase({ name: "checkout" });
-  }, [open]);
 
   useEffect(() => {
     // StrictMode runs the cleanup once at mount; reset on every (re)mount
@@ -138,7 +153,7 @@ export function CheckoutModal({
             const data = (await res.json()) as { receipt: ReceiptSummary };
             onEvent(
               "payments.retrieve",
-              `${data.receipt.id} charged $${data.receipt.paid.toFixed(2)}`,
+              `${data.receipt.id} charged ${formatMoney(data.receipt.paid, data.receipt.currency)}`,
             );
             setPhase({ name: "verified" });
             onVerified(data.receipt);
@@ -172,16 +187,30 @@ export function CheckoutModal({
     [onClose, onEvent, onVerified],
   );
 
+  useEffect(() => {
+    if (!open) return;
+    if (resumeReceiptId) void verify(resumeReceiptId);
+    else setPhase({ name: "checkout" });
+    // Runs when the modal opens. verify is rebuilt on every parent render, and
+    // re-running it here would start a second polling loop.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, resumeReceiptId]);
+
+  // Elements reports one of three outcomes. Only a payment has a receipt to
+  // verify. A waitlist entry or a saved card would mean the plan is set up
+  // differently from the one this demo sells.
   const handleComplete = useCallback(
-    (_planId: string, receiptId?: string) => {
-      onEvent("embed.onComplete", receiptId ?? "(no receipt id)");
-      if (!receiptId) {
+    (completion: CheckoutCompletion) => {
+      onCompleted(completion);
+      if (completion.result !== "payment") {
+        onEvent("Checkout.onComplete", completion.result);
         setPhase({ name: "error", message: ERROR_COPY.missing_receipt });
         return;
       }
-      void verify(receiptId);
+      onEvent("Checkout.onComplete", completion.paymentId);
+      void verify(completion.paymentId);
     },
-    [onEvent, verify],
+    [onCompleted, onEvent, verify],
   );
 
   if (!open) return null;
@@ -196,7 +225,9 @@ export function CheckoutModal({
         className="absolute inset-0 bg-[#151515]/50 backdrop-blur-[6px]"
         onClick={dismissable ? close : undefined}
       />
-      <div className="relative max-h-[90vh] w-full max-w-md overflow-y-auto rounded-xl bg-white p-4 shadow-xl sm:p-5">
+      {/* Wide on purpose. Below roughly 1,000px the checkout drops to one
+          column and folds the promo field under "Promo code & details". */}
+      <div className="relative max-h-[90vh] w-full max-w-6xl overflow-y-auto rounded-xl bg-white p-4 shadow-xl sm:p-5">
         <div className="mb-3 flex items-start justify-between gap-3">
           <div>
             <Heading size="4">{title}</Heading>
@@ -218,33 +249,34 @@ export function CheckoutModal({
 
         {phase.name === "checkout" && (
           <div className="flex flex-col gap-3">
-            {aboveEmbed}
-            <WhopCheckoutEmbed
-              // Keyed by the code so switching between "typed in" and
-              // "carried by the link" remounts the embed with a fresh quote.
-              key={`${planId}:${promoCode ?? ""}`}
-              planId={planId}
+            {aboveCheckout}
+            <WhopElements
+              elements={loadWhop()}
               environment={environment}
-              returnUrl={returnUrl}
-              promoCode={promoCode}
-              theme="light"
-              themeOptions={{ accentColor: "orange" }}
-              onComplete={handleComplete}
-              onPromoCodeChanged={(promo) => {
-                onEvent(
-                  "embed.onPromoCodeChanged",
-                  promo ? `${promo.code} -> ${promo.type} ${promo.amount}` : "removed",
-                );
-                onPromoChanged(promo);
-              }}
-              fallback={
-                <div className="flex h-64 items-center justify-center">
-                  <Text size="2" color="gray">
-                    Loading secure checkout...
-                  </Text>
-                </div>
-              }
-            />
+              appearance={{ theme: { appearance: "light", accentColor: "orange" } }}
+            >
+              <Checkout
+                // Every option is fixed when the checkout session is minted, so
+                // a different code needs a fresh mount, not new props.
+                key={`${planId}:${promoCode ?? ""}`}
+                // The configuration names the same plan and adds the
+                // redirect. promoCode still applies on top of it.
+                {...(checkoutConfigurationId
+                  ? { checkoutConfiguration: checkoutConfigurationId }
+                  : { plan: planId })}
+                promoCode={promoCode}
+                onComplete={handleComplete}
+                fallback={
+                  <div className="flex h-64 items-center justify-center">
+                    <Text size="2" color="gray">
+                      Loading secure checkout...
+                    </Text>
+                  </div>
+                }
+              >
+                <CheckoutElement />
+              </Checkout>
+            </WhopElements>
           </div>
         )}
 

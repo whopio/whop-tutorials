@@ -3,6 +3,7 @@
 import { Badge, Code, Text } from "@whop/react/components";
 import { Panel } from "@/components/Panel";
 import type { ReceiptSummary } from "@/components/CheckoutModal";
+import { formatMoney } from "@/lib/money";
 
 // Step 5: the only number that settles the argument. Everything before this is
 // the checkout's opinion of the price. payments.retrieve is what was charged.
@@ -21,7 +22,7 @@ export function ProofPanel({
       meta={
         receipt && receipt.saved > 0 ? (
           <Badge color="green" variant="solid" size="1">
-            {`saved $${receipt.saved.toFixed(2)}`}
+            {`saved ${formatMoney(receipt.saved, receipt.currency)}`}
           </Badge>
         ) : undefined
       }
@@ -57,7 +58,7 @@ export function ProofPanel({
                 Before discount
               </span>
               <span className="font-mono text-[20px] leading-tight text-[#9A9993] line-through">
-                {`$${receipt.before.toFixed(2)}`}
+                {formatMoney(receipt.before, receipt.currency)}
               </span>
             </div>
             <div aria-hidden className="text-xl text-[#B6B5B0]">
@@ -68,7 +69,7 @@ export function ProofPanel({
                 Actually charged
               </span>
               <span className="font-mono text-[28px] leading-tight text-[#151515]">
-                {`$${receipt.paid.toFixed(2)}`}
+                {formatMoney(receipt.paid, receipt.currency)}
               </span>
             </div>
           </div>

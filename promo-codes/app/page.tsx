@@ -1,4 +1,5 @@
 import { WHOP_IDS } from "@/constants/whop-ids";
+import { getCheckoutConfigurationId } from "@/lib/checkout";
 import { getEnv } from "@/lib/env";
 import { evaluateCode, getSeededCodes, type CodeVerdict } from "@/lib/promo";
 import { getSession } from "@/lib/session";
@@ -16,11 +17,27 @@ export const dynamic = "force-dynamic";
 export default async function Home({
   searchParams,
 }: {
-  searchParams: Promise<{ promo?: string }>;
+  searchParams: Promise<{
+    promo?: string;
+    payment?: string;
+    payment_id?: string;
+    status?: string;
+  }>;
 }) {
   const env = getEnv();
   const session = await getSession();
-  const { promo } = await searchParams;
+  const { promo, payment, payment_id, status } = await searchParams;
+
+  // A checkout that has finished lands back here in one of two ways. The
+  // configuration's redirect sends ?payment_id=pay_...&status=success after
+  // every purchase, and a 3D Secure or bank step that leaves the page comes
+  // back with ?payment=pay_...&status=succeeded|failed|canceled.
+  const paymentId = payment_id ?? payment ?? null;
+  const returned = status ? { paymentId, status } : null;
+
+  // If Whop is unreachable the checkout still works with the plan alone, it
+  // just cannot bring a new buyer back here afterwards.
+  const checkoutConfigurationId = await getCheckoutConfigurationId().catch(() => null);
 
   // Only the seeded set. Nothing on this page creates or destroys a code, so
   // the list is the same three for everyone who visits.
@@ -29,8 +46,8 @@ export default async function Home({
     WHOP_IDS.promoCodes.map((promo) => [promo.id, promo.note]),
   );
 
-  // A link can carry a code that no longer works. The checkout will not say
-  // so, so we check before the buyer ever opens it.
+  // A link can carry a code that no longer works. The checkout would say so on
+  // its promo row, but checking here lets the page say it first.
   let linkVerdict: CodeVerdict | null = null;
   if (promo) linkVerdict = await evaluateCode(promo);
 
@@ -65,13 +82,15 @@ export default async function Home({
             key={session.receiptId ?? "fresh"}
             plan={planInfo}
             appUrl={env.APP_URL}
+            purchaseUrl={WHOP_IDS.purchaseUrl}
+            checkoutConfigurationId={checkoutConfigurationId}
             environment={env.WHOP_SANDBOX ? "sandbox" : "production"}
-            returnUrl={`${env.APP_URL}/`}
             initialCodes={codes}
             codeNotes={codeNotes}
             initialReceipt={initialReceipt}
             linkedCode={promo ?? null}
             linkVerdict={linkVerdict}
+            returned={returned}
           />
         </section>
       </div>

@@ -1,19 +1,22 @@
 import type { NextConfig } from "next";
+import { contentSecurityPolicy } from "@whop/elements";
 import { withWhopAppConfig } from "@whop/react/next.config";
 
-const csp = [
-  // The checkout itself renders in a Whop frame. Plaid Link, which the embed
-  // opens for bank payments, mounts its own frame on this page.
-  "frame-src https://*.whop.com https://cdn.plaid.com",
-  // The embed ships in our own bundle via @whop/checkout, so no Whop script
-  // host is required for it. js.whop.com stays listed for the script-tag
-  // integration, and it is the same host in sandbox and production. The embed
-  // injects Plaid Link's loader into this page, so cdn.plaid.com is allowed.
-  // The card fields stay inside the Whop frame, which this policy does not
-  // govern.
-  "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://js.whop.com https://cdn.plaid.com",
-  "connect-src 'self' https://api.whop.com https://sandbox-api.whop.com https://*.whop.com https://*.plaid.com",
-].join("; ");
+// Elements loads its script from cdn.whop.com, renders the checkout in frames
+// from the same host, and talks to the Whop API for the environment it runs
+// against. The helper knows those hosts, plus the wallet providers the
+// checkout can offer, and adds them to our own policy. The card fields stay
+// inside Whop's frames, which this policy does not govern. 'unsafe-eval' is
+// for React's development build.
+const csp = contentSecurityPolicy({
+  environment: process.env.WHOP_SANDBOX?.trim() === "true" ? "sandbox" : "production",
+}).merge(
+  [
+    "frame-src 'self'",
+    "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+    "connect-src 'self'",
+  ].join("; "),
+);
 
 const nextConfig: NextConfig = {
   turbopack: {

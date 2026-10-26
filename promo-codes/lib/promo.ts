@@ -177,12 +177,10 @@ export interface CodeVerdict {
 /**
  * Decide whether a code is worth putting in front of a buyer.
  *
- * This exists because the checkout will not tell you. Handing it a code that
- * does not exist, or an archived one, does not raise an error and does not
- * fire onPromoCodeChanged: the checkout simply opens at full price with an
- * empty promo row. From your app's side a dead code and a code nobody typed
- * look identical, so a buyer following last quarter's campaign link pays full
- * price and is never told why. If that matters to you, check first.
+ * The checkout copes with a dead code on its own: it opens at full price and
+ * says why. This answers the same question earlier, on the
+ * server, so a page can say it before the buyer gets that far, or leave the
+ * code off a link that would only disappoint.
  */
 export async function evaluateCode(code: string): Promise<CodeVerdict> {
   const promo = await findByCode(code);

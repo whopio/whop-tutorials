@@ -9,7 +9,7 @@ const bodySchema = z.object({
   receiptId: z.string().regex(/^pay_[A-Za-z0-9]{4,60}$/),
 });
 
-// The embed's onComplete hands the client a pay_ id. Only the server can say
+// The checkout's onComplete hands the client a pay_ id. Only the server can say
 // what it was worth, and the payment carries the whole story: `subtotal` is the
 // price before the discount, `total` is what was charged, and `promo_code_id`
 // points at the code that did it. No need to look the plan price up separately.

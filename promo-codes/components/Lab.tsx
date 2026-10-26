@@ -1,11 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import type { WhopCheckoutPromoCode } from "@whop/checkout/react";
 import { Badge, Button, Code, Text } from "@whop/react/components";
 import { ActivityLog, logEntry, type ActivityEntry } from "@/components/ActivityLog";
 import { CardStrip } from "@/components/CardStrip";
-import { CheckoutModal, type ReceiptSummary } from "@/components/CheckoutModal";
+import {
+  CheckoutModal,
+  type CheckoutCompletion,
+  type ReceiptSummary,
+} from "@/components/CheckoutModal";
 import { CodeTable } from "@/components/CodeTable";
 import { EncodingPanel } from "@/components/EncodingPanel";
 import { LinkPanel } from "@/components/LinkPanel";
@@ -13,6 +16,9 @@ import { ProofPanel } from "@/components/ProofPanel";
 import { PromoPicker } from "@/components/PromoPicker";
 import { RedeemPanel } from "@/components/RedeemPanel";
 import type { CodeVerdict, PromoSummary } from "@/lib/promo";
+
+// The redirect says "success", a returning bank step says "succeeded".
+const SUCCESS = new Set(["success", "succeeded"]);
 
 export interface PlanInfo {
   id: string;
@@ -23,18 +29,23 @@ export interface PlanInfo {
 export function Lab({
   plan,
   appUrl,
+  purchaseUrl,
+  checkoutConfigurationId,
   environment,
-  returnUrl,
   initialCodes,
   codeNotes,
   initialReceipt,
   linkedCode,
   linkVerdict,
+  returned,
 }: {
   plan: PlanInfo;
   appUrl: string;
+  /** Whop's hosted checkout for the same plan. */
+  purchaseUrl: string;
+  /** Carries the redirect that brings every buyer back here. Null on http. */
+  checkoutConfigurationId: string | null;
   environment: "production" | "sandbox";
-  returnUrl: string;
   initialCodes: PromoSummary[];
   /** Human blurbs for each seeded code, keyed by promo id. */
   codeNotes: Record<string, string>;
@@ -43,17 +54,21 @@ export function Lab({
   linkedCode: string | null;
   /** Whether that link's code is actually worth applying. */
   linkVerdict: CodeVerdict | null;
+  /** Set when the checkout's redirect, or a bank step, sent the buyer back here. */
+  returned: { paymentId: string | null; status: string } | null;
 }) {
   const [codes, setCodes] = useState(initialCodes);
   const [selectedId, setSelectedId] = useState<string | null>(
     initialCodes.find((c) => c.status === "active")?.id ?? null,
   );
-  const [applied, setApplied] = useState<WhopCheckoutPromoCode | null>(null);
+  const [completion, setCompletion] = useState<CheckoutCompletion | null>(null);
   const [receipt, setReceipt] = useState<ReceiptSummary | null>(initialReceipt);
   const [entries, setEntries] = useState<ActivityEntry[]>([]);
-  const [checkout, setCheckout] = useState<{ open: boolean; promoCode?: string }>({
-    open: false,
-  });
+  const [checkout, setCheckout] = useState<{
+    open: boolean;
+    promoCode?: string;
+    resumeReceiptId?: string;
+  }>({ open: false });
 
   const onEvent = useCallback((kind: string, detail: string) => {
     setEntries((prev) => [...prev, logEntry(kind, detail)].slice(-40));
@@ -76,6 +91,27 @@ export function Lab({
     // Runs once for the arriving link, not on every code refresh.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [linkedCode]);
+
+  // The buyer comes back with a payment ID and a status on the URL. Only a
+  // success is worth checking, and even then the server reads the payment
+  // before the page believes it.
+  useEffect(() => {
+    if (!returned) return;
+    onEvent(
+      "return",
+      `status=${returned.status}${returned.paymentId ? ` payment=${returned.paymentId}` : ""}`,
+    );
+    const url = new URL(window.location.href);
+    for (const key of ["payment", "payment_id", "receipt_id", "status", "checkout_status", "state_id"]) {
+      url.searchParams.delete(key);
+    }
+    window.history.replaceState(null, "", url);
+    if (SUCCESS.has(returned.status) && returned.paymentId) {
+      setCheckout({ open: true, resumeReceiptId: returned.paymentId });
+    }
+    // Runs once for the arriving return.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const selected = codes.find((c) => c.id === selectedId) ?? null;
 
@@ -124,20 +160,25 @@ export function Lab({
           <Text size="2" as="p">
             {linkVerdict?.usable
               ? `This page was opened with ?promo=${linkedCode}, so that is the code the checkout carries.`
-              : `This link carries ?promo=${linkedCode}, and it will not work. ${linkVerdict?.reason ?? ""} The checkout would open at full price without mentioning it, so we checked first.`}
+              : `This link carries ?promo=${linkedCode}, and it will not work. ${linkVerdict?.reason ?? ""} The checkout still opens, at full price, and says why. Checking first lets this page say so before the buyer gets there.`}
           </Text>
           <Button
             type="button"
             size="1"
             variant={linkVerdict?.usable ? "solid" : "soft"}
             color={linkVerdict?.usable ? undefined : "gray"}
-            onClick={() => {
-              setApplied(null);
-              setCheckout({ open: true, promoCode: linkedCode });
-            }}
+            onClick={() => setCheckout({ open: true, promoCode: linkedCode })}
           >
             {linkVerdict?.usable ? "Open it" : "Open it anyway"}
           </Button>
+        </div>
+      )}
+
+      {returned && !SUCCESS.has(returned.status) && (
+        <div className="rounded-xl border border-[#E5E4E0] bg-white px-4 py-3">
+          <Text size="2" as="p">
+            {`The bank step came back as "${returned.status}", so nothing was charged. Open the checkout to try again.`}
+          </Text>
         </div>
       )}
 
@@ -158,20 +199,16 @@ export function Lab({
       <div className="grid items-stretch gap-4 lg:grid-cols-2">
         <RedeemPanel
           selected={selected}
-          applied={applied}
-          onOpenCheckout={() => {
-            setApplied(null);
-            setCheckout({ open: true });
-          }}
+          completion={completion}
+          purchaseUrl={purchaseUrl}
+          onOpenCheckout={() => setCheckout({ open: true })}
         />
         <LinkPanel
           selected={selected}
           appUrl={appUrl}
+          purchaseUrl={purchaseUrl}
           price={plan.price}
-          onOpenWithCode={(code) => {
-            setApplied(null);
-            setCheckout({ open: true, promoCode: code });
-          }}
+          onOpenWithCode={(code) => setCheckout({ open: true, promoCode: code })}
         />
       </div>
 
@@ -191,23 +228,26 @@ export function Lab({
       <CheckoutModal
         open={checkout.open}
         promoCode={checkout.promoCode}
+        resumeReceiptId={checkout.resumeReceiptId}
+        checkoutConfigurationId={checkoutConfigurationId ?? undefined}
         onClose={() => setCheckout({ open: false })}
         onVerified={(next) => {
           setReceipt(next);
           void refresh();
         }}
+        onCompleted={setCompletion}
         onEvent={onEvent}
-        onPromoChanged={setApplied}
         planId={plan.id}
         title={plan.title}
         priceLabel={
-          checkout.promoCode
-            ? `${checkout.promoCode} is already applied`
-            : `$${plan.price.toFixed(2)}, before any code`
+          checkout.resumeReceiptId
+            ? "Checking your payment"
+            : checkout.promoCode
+              ? `Opened with ${checkout.promoCode}`
+              : `$${plan.price.toFixed(2)}, before any code`
         }
         environment={environment}
-        returnUrl={returnUrl}
-        aboveEmbed={<CardStrip highlight="4242 4242 4242 4242" />}
+        aboveCheckout={<CardStrip highlight="4242 4242 4242 4242" />}
       />
     </div>
   );

@@ -30,7 +30,7 @@ export function EncodingPanel({ code }: { code: PromoSummary | null }) {
           <div className="flex flex-col gap-1.5">
             <span>
               {isPercent
-                ? "Every read is the fraction: create, retrieve, list, and the checkout callback. Convert once, at the edge, and never store the result."
+                ? "Every read is the fraction: create, retrieve, and list, including the code behind a payment. Convert once, at the edge, and never store the result."
                 : "Dollars go in and dollars come out. That is why the conversion has to branch on promo_type instead of running on every amount."}
             </span>
             <span className="block rounded-md bg-[#151515] px-2.5 py-2 font-mono text-[11px] leading-relaxed text-[#F1F1F1]">

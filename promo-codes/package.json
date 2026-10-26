@@ -9,11 +9,12 @@
     "setup": "node --env-file=.env.local scripts/setup.mjs"
   },
   "dependencies": {
-    "@whop/checkout": "^0.7.0",
+    "@whop/elements": "1.9.0",
+    "@whop/elements-react": "1.9.0",
     "@whop/react": "^0.3.2",
-    "@whop/sdk": "^2.2.0",
+    "@whop/sdk": "2.4.0",
     "iron-session": "^8.0.4",
-    "next": "16.3.8",
+    "next": "16.4.3",
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "zod": "^4.4.3"

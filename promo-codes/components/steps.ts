@@ -20,12 +20,12 @@ export const WALKTHROUGH_STEPS: WalkthroughStep[] = [
   {
     id: "redeem",
     title: "Let someone use it",
-    body: "Open the checkout and type the code into the promo row. The panel echoes what Whop reports back, which is your app's only signal that a discount was applied.",
+    body: "Both of Whop's checkouts already have a promo field. Open one, type the code, and pay. The panel shows everything the embedded checkout tells your app afterwards, which is less than you might expect.",
   },
   {
     id: "link",
     title: "Put it in a link",
-    body: "Marketing rarely asks people to type anything. Hand the checkout the code up front and the buyer sees the lower price before they see the higher one.",
+    body: "Marketing rarely asks people to type anything. Put the code in the link, for this page or for Whop's hosted checkout, and the buyer sees the lower price before they see the higher one.",
   },
   {
     id: "proof",
@@ -35,6 +35,6 @@ export const WALKTHROUGH_STEPS: WalkthroughStep[] = [
   {
     id: "manage",
     title: "Turn it off",
-    body: "Pause a code and the checkout stops taking it. Resume and it works again. Archiving is the third option, and it is permanent.",
+    body: "Pause a code and the checkout turns it away with a reason. Resume and it works again. Archiving is the third option, and it is permanent.",
   },
 ];

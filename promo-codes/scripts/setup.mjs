@@ -79,7 +79,7 @@ async function main() {
   }
 
   let plan = null;
-  for await (const p of await whop.plans.list({
+  for await (const p of await whop.variants.list({
     account_id: companyId,
     product_ids: [product.id],
   })) {
@@ -89,7 +89,7 @@ async function main() {
     }
   }
   if (!plan) {
-    plan = await whop.plans.create({
+    plan = await whop.variants.create({
       account_id: companyId,
       product_id: product.id,
       plan_type: "one_time",
