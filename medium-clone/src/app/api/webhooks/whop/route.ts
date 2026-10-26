@@ -1,6 +1,6 @@
 import { waitUntil } from "@vercel/functions";
 import type { NextRequest } from "next/server";
-import { getWhop } from "@/lib/whop";
+import { unwrapWebhook } from "@whop/sdk/helpers";
 import { prisma } from "@/lib/prisma";
 
 interface WebhookData {
@@ -9,8 +9,13 @@ interface WebhookData {
   data: Record<string, unknown>;
 }
 
+// Depending on the webhook's API version, Whop sends nested objects (user.id, plan.id)
+// and plain numbers, or flat IDs (user_id, plan_id) and money objects ({ amount: "5.00" }).
+// The payload types and handlers below accept both.
 interface MembershipPayload {
   id?: string;
+  user_id?: string;
+  plan_id?: string;
   user?: { id?: string; email?: string };
   plan?: { id?: string };
   expires_at?: string | number;
@@ -26,8 +31,20 @@ interface PaymentPayload {
   membership_id?: string;
   user?: { id?: string; email?: string };
   plan?: { id?: string };
-  subtotal?: number;
+  subtotal?: number | { amount?: string };
   metadata?: Record<string, unknown>;
+}
+
+interface RefundPayload {
+  id?: string;
+  payment_id?: string;
+  payment?: { id?: string };
+}
+
+function subtotalDollars(data: PaymentPayload): number {
+  if (typeof data.subtotal === "number") return data.subtotal;
+  const amount = Number(data.subtotal?.amount);
+  return Number.isFinite(amount) ? amount : 0;
 }
 
 function toDate(value: string | number | undefined): Date | null {
@@ -42,8 +59,8 @@ async function findUserByWhopId(whopUserId: string) {
 
 async function handleMembershipActivated(data: MembershipPayload) {
   const whopMembershipId = data.id;
-  const whopUserId = data.user?.id;
-  const whopPlanId = data.plan?.id;
+  const whopUserId = data.user_id ?? data.user?.id;
+  const whopPlanId = data.plan_id ?? data.plan?.id;
   if (!whopMembershipId || !whopUserId || !whopPlanId) return;
 
   const user = await findUserByWhopId(whopUserId);
@@ -74,11 +91,7 @@ async function handleMembershipActivated(data: MembershipPayload) {
   });
 
   await prisma.notification.create({
-    data: {
-      userId: user.id,
-      type: "PLUS_RENEWED",
-      entityId: whopMembershipId,
-    },
+    data: { userId: user.id, type: "PLUS_RENEWED", entityId: whopMembershipId },
   });
 }
 
@@ -96,7 +109,7 @@ async function handleTipSucceeded(data: PaymentPayload) {
   const storyId = meta.storyId as string | undefined;
   const tipperUserId = meta.tipperUserId as string | undefined;
   const writerUserId = meta.writerUserId as string | undefined;
-  const amountCents = Number(meta.amountCents ?? Math.round((data.subtotal ?? 0) * 100));
+  const amountCents = Number(meta.amountCents ?? Math.round(subtotalDollars(data) * 100));
   const applicationFeeCents = Number(meta.applicationFeeCents ?? 0);
   const whopPaymentId = data.id;
 
@@ -140,7 +153,7 @@ async function handlePaymentSucceeded(data: PaymentPayload) {
         where: { whopMembershipId },
         data: {
           status: "ACTIVE",
-          priceCents: Math.round((data.subtotal ?? 0) * 100),
+          priceCents: Math.round(subtotalDollars(data) * 100),
         },
       });
       await prisma.notification.create({
@@ -156,17 +169,12 @@ async function handlePaymentFailed(_data: PaymentPayload) {
   // Optional: notify the user. Skipped in v1.
 }
 
-interface RefundPayload {
-  id?: string;
-  payment?: { id?: string };
-}
-
 async function handleRefundCreated(data: RefundPayload) {
   // Mark the Tip as REFUNDED. We don't roll back the writer's balance here — Whop
   // handles fund reversal on the connected account at the payment-processor level.
-  // The refund payload references the original payment via `payment.id` (NOT
-  // `id` — `id` is the refund's own id, e.g. `rf_...`).
-  const whopPaymentId = data.payment?.id;
+  // The refund payload references the original payment via `payment_id` (flat) or
+  // `payment.id` (nested), never `id` — `id` is the refund's own id, e.g. `rf_...`.
+  const whopPaymentId = data.payment_id ?? data.payment?.id;
   if (!whopPaymentId) return;
   await prisma.tip.updateMany({
     where: { whopPaymentId },
@@ -180,7 +188,10 @@ export async function POST(request: NextRequest): Promise<Response> {
 
   let webhookData: WebhookData;
   try {
-    webhookData = getWhop().webhooks.unwrap(bodyText, { headers }) as unknown as WebhookData;
+    webhookData = unwrapWebhook<WebhookData>(bodyText, {
+      headers,
+      key: process.env.WHOP_WEBHOOK_SECRET,
+    });
   } catch {
     return new Response("Invalid signature", { status: 401 });
   }

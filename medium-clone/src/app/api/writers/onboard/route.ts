@@ -5,7 +5,7 @@ import { getCompanyWhop } from "@/lib/whop";
 import { env } from "@/lib/env";
 
 /**
- * Creates the writer's own Whop sub-company (where all their tips and Partner-Program
+ * Creates the writer's own Whop connected account (where all their tips and Partner-Program
  * payouts land), then either bypasses KYC in sandbox or returns a hosted KYC URL.
  *
  * Idempotent: re-running for an existing WriterProfile is safe — we return the
@@ -19,10 +19,9 @@ export async function POST() {
   let writerCompanyId = user.writerProfile?.whopCompanyId;
 
   if (!writerCompanyId) {
-    const company = await whop.companies.create({
+    const company = await whop.accounts.create({
       email: user.email,
       title: `${user.name ?? user.username}'s Storyline`,
-      parent_company_id: env.WHOP_COMPANY_ID,
       metadata: { storyline_user_id: user.id },
     });
     writerCompanyId = company.id;
@@ -44,7 +43,7 @@ export async function POST() {
   }
 
   const link = await whop.accountLinks.create({
-    company_id: writerCompanyId,
+    account_id: writerCompanyId,
     use_case: "account_onboarding",
     return_url: `${env.NEXT_PUBLIC_APP_URL}/me/kyc-return`,
     refresh_url: `${env.NEXT_PUBLIC_APP_URL}/me/settings?kyc=refresh`,

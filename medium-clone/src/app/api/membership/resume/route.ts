@@ -7,9 +7,9 @@ export async function POST() {
   const user = await requireAuth({ include: { plusMembership: true } });
   const membership = user.plusMembership;
   if (!membership) {
-    return NextResponse.json({ error: "No membership to resume" }, { status: 400 });
+    return NextResponse.json({ error: "No active membership" }, { status: 400 });
   }
-  await getCompanyWhop().memberships.resume(membership.whopMembershipId);
+  await getCompanyWhop().memberships.resume({ id: membership.whopMembershipId });
   await prisma.plusMembership.update({
     where: { id: membership.id },
     data: { status: "ACTIVE" },

@@ -60,19 +60,20 @@ export async function POST(
 
   const feePercent = Number(env.TIP_PLATFORM_FEE_PERCENT);
   const feeCents = Math.max(1, Math.round((amountCents * feePercent) / 100));
-
   try {
     const returnUrl = safeReturnUrl(req);
+    // application_fee_amount is accepted by the API but missing from the SDK's
+    // types, so we build the inline plan as a variable instead of in place.
+    const plan = {
+      account_id: story.author.writerProfile.whopCompanyId,
+      initial_price: amountCents / 100,
+      plan_type: "one_time" as const,
+      currency: "usd",
+      application_fee_amount: feeCents / 100,
+    };
     const checkout = await getCompanyWhop().checkoutConfigurations.create({
       ...(returnUrl.startsWith("https://") ? { redirect_url: returnUrl } : {}),
-      source_url: returnUrl,
-      plan: {
-        company_id: story.author.writerProfile.whopCompanyId,
-        initial_price: amountCents / 100,
-        plan_type: "one_time",
-        currency: "usd",
-        application_fee_amount: feeCents / 100,
-      },
+      plan,
       metadata: {
         kind: "tip",
         storyId: story.id,

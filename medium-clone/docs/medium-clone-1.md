@@ -71,8 +71,8 @@ This guide is split into two files. Load them in order, or jump straight to file
 Storyline has three distinct payment paths, all running through Whop:
 
 1. **Plus subscription** — one recurring `$5/month` plan on Storyline's **own** company (`WHOP_COMPANY_ID`). Reader hits `/membership`, the `<WhopCheckoutEmbed>` opens against a fresh `checkoutConfigurations.create` referencing `STORYLINE_PLUS_PLAN_ID`. The webhook (`membership.activated`, `payment.succeeded`) creates/updates the `PlusMembership` row keyed by `whopMembershipId`. Self-service pause/cancel/resume/uncancel call the matching `whop.memberships.*` methods and mirror the state locally.
-2. **Direct tips** — writer creates a Whop **sub-company** via `whop.companies.create({ parent_company_id: WHOP_COMPANY_ID, ... })` and completes KYC via `whop.accountLinks.create`. Tip checkout calls `whop.checkoutConfigurations.create` with `plan.company_id` = the writer's `whopCompanyId` and `application_fee_amount` for Storyline's 10% cut. The webhook (`payment.succeeded` branched on `metadata.kind === "tip"`) upserts the `Tip` row keyed by `whopPaymentId` and fires a `TIP_RECEIVED` notification.
-3. **Partner Program** — Vercel Cron fires `/api/cron/partner-payout` on the 1st of each month at 00:00 UTC. The cron sums Plus-member reads per writer over the previous `monthBucket`, computes each writer's share of (active members × $5 × (1 − platform fee %)), and calls `whop.transfers.create` with `origin_id: WHOP_COMPANY_ID` → `destination_id: writer.whopCompanyId`. Idempotent via `idempotence_key: partner-payout-{writerId}-{bucket}` plus a `PartnerPayout` row check.
+2. **Direct tips** — writer gets a Whop **connected account** via `whop.accounts.create({ title, email })` (the platform's Company API key makes it a child of `WHOP_COMPANY_ID`) and completes KYC via `whop.accountLinks.create`. Tip checkout calls `whop.checkoutConfigurations.create` with `plan.account_id` = the writer's `whopCompanyId` and `application_fee_amount` for Storyline's 10% cut. The webhook (`payment.succeeded` branched on `metadata.kind === "tip"`) upserts the `Tip` row keyed by `whopPaymentId` and fires a `TIP_RECEIVED` notification.
+3. **Partner Program** — Vercel Cron fires `/api/cron/partner-payout` on the 1st of each month at 00:00 UTC. The cron sums Plus-member reads per writer over the previous `monthBucket`, computes each writer's share of (active members × $5 × (1 − platform fee %)), and calls `whop.transfers.create` with `type: "balance"`, `origin_id: WHOP_COMPANY_ID` → `destination_id: writer.whopCompanyId`. Idempotent via `idempotence_key: partner-payout-{writerId}-{bucket}` plus a `PartnerPayout` row check.
 
 The same `<WhopCheckoutEmbed>` component runs both Plus and tip checkouts — only the payload differs.
 
@@ -95,7 +95,7 @@ Provision Neon from Vercel **Storage → Connect Database → Neon**. It injects
 2. Developer → Apps → Create App → grab App API key (`apik_...`) → `WHOP_APP_API_KEY`.
 3. App OAuth tab → grab Client ID (`app_...`) + Client Secret → `WHOP_CLIENT_ID` / `WHOP_CLIENT_SECRET`.
 4. Add two OAuth Redirect URIs: `${NEXT_PUBLIC_APP_URL}/api/auth/callback` **and** `http://localhost:3000/api/auth/callback`.
-5. Developer → Company API Keys → Create new key (`apik_...`) → `WHOP_COMPANY_API_KEY`. This one has `access_pass:create` scope; the App API key does not.
+5. Developer → Company API Keys → Create new key (`apik_...`) → `WHOP_COMPANY_API_KEY`. Give it the scopes the tutorial uses end to end: `access_pass:create`, `plan:create`, `checkout_configuration:create`, `accounts:create`, `membership:update`, `promo_code:create`, `payout:transfer_funds`, `company:balance:read` and `payout:account:read` (account links and the KYC check need them). The App API key does not have these.
 
 **Env vars** — add to Vercel first (Production/Preview/Development), then `vercel env pull .env.local`. Sensitive ones come down empty; paste manually for local dev.
 
@@ -120,12 +120,12 @@ Provision Neon from Vercel **Storage → Connect Database → Neon**. It injects
 | `WHOP_WEBHOOK_SECRET` | placeholder; filled in file 2 |
 | `UPLOADTHING_TOKEN` | placeholder; filled below |
 
-> **Sandbox swap convention.** Sandbox lives at `sandbox-api.whop.com`; production at `api.whop.com`. We branch on `WHOP_SANDBOX === "true"` inside helpers (`resolveBaseURL`, `whopOauthBaseUrl`). In production, set `WHOP_SANDBOX=false` (or omit), and the helpers route to live.
+> **Sandbox swap convention.** Sandbox lives at `sandbox-api.whop.com`; production at `api.whop.com`. We branch on `WHOP_SANDBOX === "true"` inside helpers (`resolveEnvironment`, `whopOauthBaseUrl`). In production, set `WHOP_SANDBOX=false` (or omit), and the helpers route to live.
 
 **Install all deps in one shot:**
 
 ```bash
-npm install @whop/sdk @whop/checkout @whop/embedded-components-react-js iron-session zod @prisma/client @prisma/adapter-pg pg @types/pg prisma @tiptap/core @tiptap/react @tiptap/starter-kit @tiptap/extension-image @tiptap/extension-link @tiptap/extension-placeholder uploadthing @uploadthing/react next-themes lucide-react clsx tailwind-merge dotenv @vercel/config @vercel/functions
+npm install @whop/sdk@2.4.0 @whop/checkout @whop/embedded-components-react-js iron-session zod @prisma/client@7.10.1 @prisma/adapter-pg@7.10.1 pg @types/pg prisma@7.10.1 @tiptap/core @tiptap/react @tiptap/starter-kit @tiptap/extension-image @tiptap/extension-link @tiptap/extension-placeholder uploadthing @uploadthing/react next-themes lucide-react clsx tailwind-merge dotenv @vercel/config @vercel/functions
 ```
 
 > No ngrok needed — we develop against the real deployed Vercel URL. OAuth + webhook callbacks hit Vercel, not localhost.
@@ -141,6 +141,13 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   turbopack: {
     root: path.resolve(__dirname),
+    // create-next-app adds this rule so Tailwind CSS gets compiled. Keep it.
+    rules: {
+      "*.css": {
+        loaders: ["@tailwindcss/turbopack"],
+        as: "*.css",
+      },
+    },
   },
   images: {
     remotePatterns: [
@@ -161,19 +168,19 @@ export default nextConfig;
 
 ## vercel.ts
 
-Typed Vercel config (`@vercel/config/v1`). Defines build command, crons, and a project-wide CSP. CSP allowlists Whop's JS hosts (live + sandbox), UploadThing, Google Fonts, and the same image hosts as `next.config.ts`. The monthly partner-payout cron lives here (full route handler is in file 2).
+Typed Vercel config (`@vercel/config/v1`). Defines build command, crons, and a project-wide CSP. CSP allowlists Whop's JS hosts (`js.whop.com` and `*.elements.whop.com` for the payout portal), the checkout frame on `whop.com`, UploadThing, Google Fonts, and the same image hosts as `next.config.ts`. The monthly partner-payout cron lives here (full route handler is in file 2).
 
 ```ts
 import { routes, type VercelConfig } from "@vercel/config/v1";
 
 const CSP = [
   "default-src 'self'",
-  "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://js.whop.com https://sandbox-js.whop.com https://uploadthing.com",
+  "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://js.whop.com https://*.elements.whop.com https://uploadthing.com",
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
   "font-src 'self' https://fonts.gstatic.com data:",
   "img-src 'self' data: blob: https://utfs.io https://assets.whop.com https://cdn.whop.com https://ui-avatars.com",
   "connect-src 'self' https://*.whop.com https://*.uploadthing.com https://*.utfs.io",
-  "frame-src 'self' https://*.whop.com",
+  "frame-src 'self' https://whop.com https://*.whop.com",
 ].join("; ");
 
 export const config: VercelConfig = {
@@ -575,41 +582,40 @@ export const env = new Proxy({} as Env, {
 
 ### `src/lib/whop.ts`
 
-Two Whop clients — App key for OAuth + webhook verification, Company key for resource creation (products, plans, transfers, promo codes). Both are **factory functions** so the env is read per call.
+Two Whop clients on `@whop/sdk` 2.4.0. The App key covers OAuth and generic calls, the Company key covers resource creation (products, plans, transfers, promo codes). Both are **factory functions** so the env is read per call.
 
 ```ts
-import Whop from "@whop/sdk";
+import { WhopClient, WhopEnvironment } from "@whop/sdk";
 
-function resolveBaseURL(): string {
+// Lazy — evaluated per call, not at module load. Standalone scripts call
+// `dotenv.config()` AFTER ES module imports are hoisted; reading env at module
+// scope means WHOP_SANDBOX is unset and we silently fall back to production.
+function resolveEnvironment() {
   return process.env.WHOP_SANDBOX === "true"
-    ? "https://sandbox-api.whop.com/api/v1"
-    : "https://api.whop.com/api/v1";
+    ? WhopEnvironment.Sandbox
+    : WhopEnvironment.Production;
 }
 
-function webhookKey() {
-  return Buffer.from(process.env.WHOP_WEBHOOK_SECRET || "").toString("base64");
-}
-
+// App API key — OAuth, notifications, generic SDK ops.
 export function getWhop() {
-  return new Whop({
-    apiKey: process.env.WHOP_APP_API_KEY!,
-    webhookKey: webhookKey(),
-    baseURL: resolveBaseURL(),
+  return new WhopClient({
+    token: process.env.WHOP_APP_API_KEY!,
+    environment: resolveEnvironment(),
   });
 }
 
+// Company API key — products, plans, checkout configurations, transfers, promo codes.
 export function getCompanyWhop() {
-  return new Whop({
-    apiKey: process.env.WHOP_COMPANY_API_KEY!,
-    webhookKey: webhookKey(),
-    baseURL: resolveBaseURL(),
+  return new WhopClient({
+    token: process.env.WHOP_COMPANY_API_KEY!,
+    environment: resolveEnvironment(),
   });
 }
 ```
 
-> **Gotcha — must be functions, not constants.** Module imports hoist above `dotenv.config()`. Read `process.env` at module load and sandbox calls silently route to production. Same reason `resolveBaseURL` is a function.
+> **Gotcha — must be functions, not constants.** Module imports hoist above `dotenv.config()`. Read `process.env` at module load and sandbox calls silently route to production. Same reason `resolveEnvironment` is a function.
 >
-> **Gotcha — `/api/v1` suffix is mandatory.** Without it every call 404s into production.
+> **Gotcha: pass `environment` explicitly.** `@whop/sdk` 2.x reads no env vars, so `WhopEnvironment.Sandbox` is what keeps sandbox calls in sandbox. Webhooks don't go through a client at all: the route verifies them with `unwrapWebhook` from `@whop/sdk/helpers` (file 2).
 
 **`src/lib/whop-oauth.ts`** — base64url + random + sha256 helpers for PKCE. Exports both `getWhopOauthBaseUrl()` (function, preferred) and `whopOauthBaseUrl` (constant — only safe after env is loaded):
 
@@ -737,7 +743,7 @@ export async function requireAuth<I extends Prisma.UserInclude | undefined = und
 
 ### `src/app/api/auth/login/route.ts`
 
-Generates PKCE verifier + challenge + state + nonce, stashes them in 10-minute cookies along with a `returnTo`, and 302s to Whop's `/oauth/authorize`.
+Generates PKCE verifier + challenge + state + nonce, stashes them in 10-minute cookies along with a `returnTo` (same-origin paths only, so a crafted link can't redirect off-site after sign-in), and 302s to Whop's `/oauth/authorize`.
 
 ```ts
 import { cookies } from "next/headers";
@@ -751,7 +757,13 @@ export async function GET(req: NextRequest) {
   const state = randomString(16);
   const nonce = randomString(16);
 
-  const returnTo = req.nextUrl.searchParams.get("returnTo") || "/";
+  // Only same-origin paths like /membership, so a crafted sign-in link can't
+  // send the reader to another site once they're signed in.
+  const requested = req.nextUrl.searchParams.get("returnTo") || "/";
+  const returnTo =
+    requested.startsWith("/") && !requested.startsWith("//") && !requested.includes("\\")
+      ? requested
+      : "/";
 
   const c = await cookies();
   c.set("storyline_pkce_verifier", verifier, {
@@ -795,7 +807,7 @@ export async function GET(req: NextRequest) {
 
 ### `src/app/api/auth/callback/route.ts`
 
-Validates `state`, swaps `code` for token, fetches `/oauth/userinfo`, upserts the User (dedupes username on collision), claims any pending Operator invite by email, stashes `accessToken` in the session, deletes the PKCE cookies, redirects to `returnTo`.
+Validates `state`, swaps `code` for token, fetches `/oauth/userinfo` (and refuses sign-in unless Whop says the email is verified, because operator access is matched by email), upserts the User (dedupes username on collision), claims any pending Operator invite by email, stashes `accessToken` in the session, deletes the PKCE cookies, redirects to `returnTo`.
 
 ```ts
 import { cookies } from "next/headers";
@@ -817,6 +829,7 @@ interface TokenResponse {
 interface UserInfo {
   sub: string;
   email?: string;
+  email_verified?: boolean;
   name?: string;
   picture?: string;
   preferred_username?: string;
@@ -867,8 +880,17 @@ export async function GET(req: NextRequest) {
   }
   const userinfo = (await userinfoRes.json()) as UserInfo;
 
+  // Operator access is granted by email, so only an address Whop has verified
+  // may sign in. Otherwise anyone could claim someone else's invite.
+  if (userinfo.email_verified !== true) {
+    return NextResponse.redirect(
+      `${env.NEXT_PUBLIC_APP_URL}/?auth_error=email_unverified`,
+    );
+  }
+
   const lowerEmail = (userinfo.email || "").toLowerCase();
 
+  // Username generation: derive from preferred_username/name; suffix if taken.
   let baseUsername = (userinfo.preferred_username || userinfo.name || "writer")
     .toLowerCase()
     .replace(/[^a-z0-9]/g, "");
@@ -896,6 +918,7 @@ export async function GET(req: NextRequest) {
     },
   });
 
+  // Link any pending operator invite (by lowercased email).
   if (lowerEmail) {
     await prisma.operator.updateMany({
       where: { email: lowerEmail, userId: null },
@@ -913,7 +936,11 @@ export async function GET(req: NextRequest) {
   c.delete("storyline_oauth_state");
   c.delete("storyline_oauth_return_to");
 
-  return NextResponse.redirect(`${env.NEXT_PUBLIC_APP_URL}${returnTo}`);
+  // Check again before redirecting: resolve the path against our own URL and
+  // fall back to the home page if it points anywhere else.
+  const appUrl = new URL(env.NEXT_PUBLIC_APP_URL);
+  const target = new URL(returnTo, appUrl);
+  return NextResponse.redirect(target.origin === appUrl.origin ? target : appUrl);
 }
 ```
 

@@ -4,6 +4,13 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   turbopack: {
     root: path.resolve(__dirname),
+    // create-next-app adds this rule so Tailwind CSS gets compiled. Keep it.
+    rules: {
+      "*.css": {
+        loaders: ["@tailwindcss/turbopack"],
+        as: "*.css",
+      },
+    },
   },
   images: {
     remotePatterns: [

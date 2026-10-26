@@ -9,7 +9,13 @@ export async function GET(req: NextRequest) {
   const state = randomString(16);
   const nonce = randomString(16);
 
-  const returnTo = req.nextUrl.searchParams.get("returnTo") || "/";
+  // Only same-origin paths like /membership, so a crafted sign-in link can't
+  // send the reader to another site once they're signed in.
+  const requested = req.nextUrl.searchParams.get("returnTo") || "/";
+  const returnTo =
+    requested.startsWith("/") && !requested.startsWith("//") && !requested.includes("\\")
+      ? requested
+      : "/";
 
   const c = await cookies();
   c.set("storyline_pkce_verifier", verifier, {

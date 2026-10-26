@@ -15,7 +15,7 @@ export async function POST(
   if (row.archivedAt) return NextResponse.json({ ok: true });
 
   try {
-    await getCompanyWhop().promoCodes.delete(row.whopPromoCodeId);
+    await getCompanyWhop().promoCodes.delete({ id: row.whopPromoCodeId });
   } catch {
     // Continue — even if Whop's delete fails (e.g. already archived there), keep our row consistent.
   }

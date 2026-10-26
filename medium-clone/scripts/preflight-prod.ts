@@ -10,7 +10,7 @@
 import { config } from "dotenv";
 config({ path: ".env.local" });
 
-import Whop from "@whop/sdk";
+import { WhopClient, WhopEnvironment } from "@whop/sdk";
 
 interface CheckResult {
   name: string;
@@ -95,13 +95,13 @@ async function main() {
 
   // ─── Whop API reachability + plan exists ─────────────────────────────────
   try {
-    const whop = new Whop({
-      apiKey: process.env.WHOP_COMPANY_API_KEY ?? "",
-      baseURL: "https://api.whop.com/api/v1",
+    const whop = new WhopClient({
+      token: process.env.WHOP_COMPANY_API_KEY ?? "",
+      environment: WhopEnvironment.Production,
     });
     const planId = process.env.STORYLINE_PLUS_PLAN_ID ?? "";
     if (planId) {
-      const plan = await whop.plans.retrieve(planId);
+      const plan = await whop.plans.retrieve({ id: planId });
       if (plan?.id) {
         results.push(ok("Whop plan", `${plan.id} (${(plan as { plan_type?: string }).plan_type ?? "?"})`));
       } else {
@@ -119,7 +119,7 @@ async function main() {
   results.push(
     warn(
       "CSP",
-      "Manually verify vercel.ts script-src includes js.whop.com but NOT sandbox-js.whop.com",
+      "Manually verify vercel.ts script-src includes js.whop.com",
     ),
   );
 

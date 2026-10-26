@@ -68,6 +68,7 @@ function PlusCheckoutInner({ onClose, promoCode }: { onClose: () => void; promoC
           planId={checkout.planId}
           sessionId={checkout.sessionId}
           returnUrl={checkout.returnUrl}
+          promoCode={promoCode}
           theme={resolvedTheme === "dark" ? "dark" : "light"}
           themeOptions={{ accentColor: "green" }}
           environment={checkout.environment}

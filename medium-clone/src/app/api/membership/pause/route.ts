@@ -9,9 +9,7 @@ export async function POST() {
   if (!membership) {
     return NextResponse.json({ error: "No active membership" }, { status: 400 });
   }
-  await getCompanyWhop().memberships.pause(membership.whopMembershipId, {
-    void_payments: false,
-  });
+  await getCompanyWhop().memberships.pause({ id: membership.whopMembershipId });
   await prisma.plusMembership.update({
     where: { id: membership.id },
     data: { status: "PAUSED" },

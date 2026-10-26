@@ -48,7 +48,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const whopPromo = await getCompanyWhop().promoCodes.create({
-      company_id: env.WHOP_COMPANY_ID,
+      account_id: env.WHOP_COMPANY_ID,
       code,
       promo_type: "percentage",
       amount_off: parsed.data.discountPercent,

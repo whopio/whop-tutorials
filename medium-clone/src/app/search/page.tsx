@@ -51,6 +51,7 @@ export default async function SearchPage({ searchParams }: PageProps) {
           className="size-5 text-text-tertiary shrink-0"
         />
         <input
+          // eslint-disable-next-line jsx-a11y/no-autofocus -- search page is a single-purpose surface; expected behavior
           autoFocus
           type="search"
           name="q"

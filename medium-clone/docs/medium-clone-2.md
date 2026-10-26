@@ -23,7 +23,7 @@ The second half of the Storyline guide. File 1 (`medium-clone-1.md`) covered fou
 
 Storyline Plus is **one** recurring `renewal` plan on the platform's own company (not a sub-company — sub-companies are for writer tips). Created once with a bootstrap script (`scripts/create-plus-plan.ts`) that calls `whop.products.create` then `whop.plans.create` against `WHOP_COMPANY_ID` and prints `STORYLINE_PLUS_PLAN_ID=plan_xxxx`. Paste into Vercel, `vercel env pull`.
 
-> `products.create` and `plans.create` require the **company** API key, not the app key — the script uses `getCompanyWhop()`. `initial_price` / `renewal_price` are **dollars as numbers**, not cents.
+> `products.create` and `plans.create` require the **company** API key, not the app key — the script uses `getCompanyWhop()`. `initial_price` / `renewal_price` are **dollars as numbers**, not cents. On a renewal plan, `initial_price` is charged on top of the first `renewal_price`, so the script sets it to `0` and the first Plus payment is $5, not $10.
 
 Register one webhook endpoint at `${APP_URL}/api/webhooks/whop` listening for `payment_succeeded`, `payment_failed`, `membership_activated`, `membership_deactivated`, `refund_created`. The signing secret goes into `WHOP_WEBHOOK_SECRET`.
 
@@ -61,8 +61,6 @@ export async function POST(req: NextRequest) {
     const checkout = await getCompanyWhop().checkoutConfigurations.create({
       plan_id: env.STORYLINE_PLUS_PLAN_ID,
       ...(returnUrl.startsWith("https://") ? { redirect_url: returnUrl } : {}),
-      source_url: `${env.NEXT_PUBLIC_APP_URL}/membership`,
-      ...(parsed.data.promoCode ? { promo_code: parsed.data.promoCode } : {}),
       metadata: {
         kind: "plus",
         userId: user.id,
@@ -177,14 +175,17 @@ import { requireAuth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getCompanyWhop } from "@/lib/whop";
 
+// Cancel at period end — reader keeps access until currentPeriodEnd, then expires.
+// Whop will fire membership.deactivated when the period actually ends.
 export async function POST() {
   const user = await requireAuth({ include: { plusMembership: true } });
   const membership = user.plusMembership;
   if (!membership) {
     return NextResponse.json({ error: "No active membership" }, { status: 400 });
   }
-  await getCompanyWhop().memberships.cancel(membership.whopMembershipId, {
-    cancellation_mode: "at_period_end",
+  await getCompanyWhop().memberships.cancel({
+    id: membership.whopMembershipId,
+    cancel_at_period_end: true,
   });
   await prisma.plusMembership.update({
     where: { id: membership.id },
@@ -196,9 +197,11 @@ export async function POST() {
 
 The other three are byte-identical except for the SDK method and DB write:
 
-- `/api/membership/uncancel` → `memberships.uncancel(id)`; set `cancelAtPeriodEnd: false`.
-- `/api/membership/pause` → `memberships.pause(id)`; set `status: "PAUSED"`.
-- `/api/membership/resume` → `memberships.resume(id)`; set `status: "ACTIVE"`.
+- `/api/membership/uncancel` → `memberships.update({ id, cancel_at_period_end: false })` (2.x has no `uncancel`), set `cancelAtPeriodEnd: false`.
+- `/api/membership/pause` → `memberships.pause({ id })`, set `status: "PAUSED"`.
+- `/api/membership/resume` → `memberships.resume({ id })`, set `status: "ACTIVE"`.
+
+> Pass `cancel_at_period_end: true` to `cancel`. Without it, `cancel` ends access at once instead of at the end of the paid period.
 
 The `/me/membership` page renders `<MembershipActions>` (client) which swaps button sets by state machine:
 
@@ -261,18 +264,27 @@ The story page decides `locked = story.visibility === "PLUS" && !isPlus` server-
 
 ### `src/app/api/webhooks/whop/route.ts`
 
-One endpoint handles every event Whop sends. Signature verified via `whop.webhooks.unwrap`, dedupe by event ID in `WebhookEvent` (unique constraint on `id`), heavy work pushed into `waitUntil` so Whop's retry timer doesn't fire while we work. The `payment.succeeded` handler is a multiplexer that branches on `metadata.kind` (`"plus"` here, `"tip"` from the tipping section below).
+One endpoint handles every event Whop sends. Signature verified with `unwrapWebhook` from `@whop/sdk/helpers` and the raw `ws_` secret, both payload shapes (nested ids and plain numbers, or flat ids and money objects) accepted, dedupe by event ID in `WebhookEvent` (unique constraint on `id`), heavy work pushed into `waitUntil` so Whop's retry timer doesn't fire while we work. The `payment.succeeded` handler is a multiplexer that branches on `metadata.kind` (`"plus"` here, `"tip"` from the tipping section below).
 
 ```ts
 import { waitUntil } from "@vercel/functions";
 import type { NextRequest } from "next/server";
-import { getWhop } from "@/lib/whop";
+import { unwrapWebhook } from "@whop/sdk/helpers";
 import { prisma } from "@/lib/prisma";
 
-interface WebhookData { id: string; type: string; data: Record<string, unknown>; }
+interface WebhookData {
+  id: string;
+  type: string;
+  data: Record<string, unknown>;
+}
 
+// Depending on the webhook's API version, Whop sends nested objects (user.id, plan.id)
+// and plain numbers, or flat IDs (user_id, plan_id) and money objects ({ amount: "5.00" }).
+// The payload types and handlers below accept both.
 interface MembershipPayload {
   id?: string;
+  user_id?: string;
+  plan_id?: string;
   user?: { id?: string; email?: string };
   plan?: { id?: string };
   expires_at?: string | number;
@@ -288,11 +300,21 @@ interface PaymentPayload {
   membership_id?: string;
   user?: { id?: string; email?: string };
   plan?: { id?: string };
-  subtotal?: number;
+  subtotal?: number | { amount?: string };
   metadata?: Record<string, unknown>;
 }
 
-interface RefundPayload { id?: string; payment?: { id?: string }; }
+interface RefundPayload {
+  id?: string;
+  payment_id?: string;
+  payment?: { id?: string };
+}
+
+function subtotalDollars(data: PaymentPayload): number {
+  if (typeof data.subtotal === "number") return data.subtotal;
+  const amount = Number(data.subtotal?.amount);
+  return Number.isFinite(amount) ? amount : 0;
+}
 
 function toDate(value: string | number | undefined): Date | null {
   if (!value) return null;
@@ -306,8 +328,8 @@ async function findUserByWhopId(whopUserId: string) {
 
 async function handleMembershipActivated(data: MembershipPayload) {
   const whopMembershipId = data.id;
-  const whopUserId = data.user?.id;
-  const whopPlanId = data.plan?.id;
+  const whopUserId = data.user_id ?? data.user?.id;
+  const whopPlanId = data.plan_id ?? data.plan?.id;
   if (!whopMembershipId || !whopUserId || !whopPlanId) return;
 
   const user = await findUserByWhopId(whopUserId);
@@ -351,14 +373,45 @@ async function handleMembershipDeactivated(data: MembershipPayload) {
   });
 }
 
+async function handleTipSucceeded(data: PaymentPayload) {
+  const meta = data.metadata ?? {};
+  const storyId = meta.storyId as string | undefined;
+  const tipperUserId = meta.tipperUserId as string | undefined;
+  const writerUserId = meta.writerUserId as string | undefined;
+  const amountCents = Number(meta.amountCents ?? Math.round(subtotalDollars(data) * 100));
+  const applicationFeeCents = Number(meta.applicationFeeCents ?? 0);
+  const whopPaymentId = data.id;
+
+  if (!storyId || !tipperUserId || !writerUserId || !whopPaymentId || !amountCents) return;
+
+  await prisma.tip.upsert({
+    where: { whopPaymentId },
+    create: {
+      tipperUserId,
+      writerUserId,
+      storyId,
+      amountCents,
+      applicationFeeCents,
+      whopPaymentId,
+      status: "SUCCEEDED",
+    },
+    update: { status: "SUCCEEDED" },
+  });
+
+  await prisma.notification.create({
+    data: { userId: writerUserId, type: "TIP_RECEIVED", entityId: storyId },
+  });
+}
+
 async function handlePaymentSucceeded(data: PaymentPayload) {
   const kind = data.metadata?.kind as string | undefined;
 
   if (kind === "tip") {
-    await handleTipSucceeded(data); // defined alongside the tipping route below
+    await handleTipSucceeded(data);
     return;
   }
 
+  // Plus subscription renewal (or first payment) — keep currentPeriodEnd fresh.
   const whopMembershipId = data.membership?.id ?? data.membership_id;
   if (whopMembershipId) {
     const existing = await prisma.plusMembership.findUnique({
@@ -369,7 +422,7 @@ async function handlePaymentSucceeded(data: PaymentPayload) {
         where: { whopMembershipId },
         data: {
           status: "ACTIVE",
-          priceCents: Math.round((data.subtotal ?? 0) * 100),
+          priceCents: Math.round(subtotalDollars(data) * 100),
         },
       });
       await prisma.notification.create({
@@ -377,14 +430,20 @@ async function handlePaymentSucceeded(data: PaymentPayload) {
       });
     }
   }
+
+  // Partner Program payouts land in Part 6 — they use the Transfers API and don't fire here.
 }
 
 async function handlePaymentFailed(_data: PaymentPayload) {
-  // v1 relies on Whop's own dunning emails.
+  // Optional: notify the user. Skipped in v1.
 }
 
 async function handleRefundCreated(data: RefundPayload) {
-  const whopPaymentId = data.payment?.id;
+  // Mark the Tip as REFUNDED. We don't roll back the writer's balance here — Whop
+  // handles fund reversal on the connected account at the payment-processor level.
+  // The refund payload references the original payment via `payment_id` (flat) or
+  // `payment.id` (nested), never `id` — `id` is the refund's own id, e.g. `rf_...`.
+  const whopPaymentId = data.payment_id ?? data.payment?.id;
   if (!whopPaymentId) return;
   await prisma.tip.updateMany({
     where: { whopPaymentId },
@@ -398,11 +457,15 @@ export async function POST(request: NextRequest): Promise<Response> {
 
   let webhookData: WebhookData;
   try {
-    webhookData = getWhop().webhooks.unwrap(bodyText, { headers }) as unknown as WebhookData;
+    webhookData = unwrapWebhook<WebhookData>(bodyText, {
+      headers,
+      key: process.env.WHOP_WEBHOOK_SECRET,
+    });
   } catch {
     return new Response("Invalid signature", { status: 401 });
   }
 
+  // Idempotency — drop duplicate deliveries.
   const existing = await prisma.webhookEvent.findUnique({ where: { id: webhookData.id } });
   if (existing) return new Response("Already processed", { status: 200 });
   await prisma.webhookEvent.create({
@@ -433,7 +496,7 @@ export async function POST(request: NextRequest): Promise<Response> {
 }
 ```
 
-> **`await request.text()` first.** `webhooks.unwrap` HMACs the raw body; calling `request.json()` consumes the stream and breaks signature verification.
+> **`await request.text()` first.** `unwrapWebhook` HMACs the raw body; calling `request.json()` consumes the stream and breaks signature verification.
 >
 > **Idempotency via `WebhookEvent.id` unique constraint.** Insert before doing any work. Whop retries on non-200 and re-delivers on dropped connections — without this, a renewal can fire 2-3 notifications.
 >
@@ -447,7 +510,7 @@ export async function POST(request: NextRequest): Promise<Response> {
 
 ### Sub-company creation + KYC
 
-Writers create a Whop sub-company under the platform's `parent_company_id`. KYC is skipped in sandbox; in production we redirect to Whop's hosted onboarding via `accountLinks.create`.
+Writers get their own Whop connected account from `accounts.create`, called with the platform's Company API key (the key's account becomes the parent, there's no parent field). KYC is skipped in sandbox; in production we redirect to Whop's hosted onboarding via `accountLinks.create`.
 
 `src/app/api/writers/onboard/route.ts`:
 
@@ -458,6 +521,13 @@ import { prisma } from "@/lib/prisma";
 import { getCompanyWhop } from "@/lib/whop";
 import { env } from "@/lib/env";
 
+/**
+ * Creates the writer's own Whop connected account (where all their tips and Partner-Program
+ * payouts land), then either bypasses KYC in sandbox or returns a hosted KYC URL.
+ *
+ * Idempotent: re-running for an existing WriterProfile is safe — we return the
+ * existing company and either confirm sandbox bypass or mint a fresh KYC link.
+ */
 export async function POST() {
   const user = await requireAuth({ include: { writerProfile: true } });
   const isSandbox = process.env.WHOP_SANDBOX === "true";
@@ -466,10 +536,9 @@ export async function POST() {
   let writerCompanyId = user.writerProfile?.whopCompanyId;
 
   if (!writerCompanyId) {
-    const company = await whop.companies.create({
+    const company = await whop.accounts.create({
       email: user.email,
       title: `${user.name ?? user.username}'s Storyline`,
-      parent_company_id: env.WHOP_COMPANY_ID,
       metadata: { storyline_user_id: user.id },
     });
     writerCompanyId = company.id;
@@ -485,11 +554,13 @@ export async function POST() {
   }
 
   if (isSandbox) {
+    // Sandbox shortcut — Whop's hosted KYC isn't reachable without real ID,
+    // so we mark KYC complete immediately. Production switch in Part 7 removes this branch.
     return NextResponse.json({ ok: true, kycComplete: true });
   }
 
   const link = await whop.accountLinks.create({
-    company_id: writerCompanyId,
+    account_id: writerCompanyId,
     use_case: "account_onboarding",
     return_url: `${env.NEXT_PUBLIC_APP_URL}/me/kyc-return`,
     refresh_url: `${env.NEXT_PUBLIC_APP_URL}/me/settings?kyc=refresh`,
@@ -505,21 +576,36 @@ export async function POST() {
 import { NextResponse } from "next/server";
 import { requireAuth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { getCompanyWhop } from "@/lib/whop";
 
+/**
+ * Marks the writer as KYC-complete after they return from Whop's hosted onboarding flow,
+ * but only once Whop says so. Coming back from Whop proves nothing on its own, so we read
+ * the writer's payout account from Whop and turn payouts and tipping on only when its
+ * status is `connected` (onboarding complete).
+ */
 export async function POST() {
   const user = await requireAuth({ include: { writerProfile: true } });
   if (!user.writerProfile) {
     return NextResponse.json({ error: "No writer profile" }, { status: 400 });
   }
+
+  const ledger = await getCompanyWhop().ledgerAccounts.retrieve({
+    id: user.writerProfile.whopCompanyId,
+  });
+  if (ledger.payout_account_details?.status !== "connected") {
+    return NextResponse.json({ ok: true, kycComplete: false });
+  }
+
   await prisma.writerProfile.update({
     where: { id: user.writerProfile.id },
     data: { kycComplete: true, tippingEnabled: true },
   });
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({ ok: true, kycComplete: true });
 }
 ```
 
-The `/me/kyc-return` page is a tiny client component that POSTs to this route then redirects to `/me/dashboard?kyc=complete`.
+The route never trusts the round-trip: it reads the writer's ledger account from Whop and turns payouts on only when the payout account is `connected`. The `/me/kyc-return` page is a tiny client component that POSTs to this route, then goes to `/me/dashboard?kyc=complete` when the answer is `kycComplete: true` and back to `/me/settings?kyc=refresh` otherwise.
 
 > **`accountLinks.create` is reusable.** Re-use the existing `whopCompanyId` to mint a fresh onboarding link whenever the writer needs to update KYC or bank details. Don't create a new company on each click.
 
@@ -534,6 +620,10 @@ import { NextResponse, type NextRequest } from "next/server";
 import { requireAuth } from "@/lib/auth";
 import { getCompanyWhop } from "@/lib/whop";
 
+/**
+ * Mints a short-lived access token scoped to the writer's Whop sub-company.
+ * Consumed by the PayoutsSession embed on /me/dashboard. Default TTL is 1h.
+ */
 export async function GET(req: NextRequest) {
   const user = await requireAuth({ include: { writerProfile: true } });
   const companyId = req.nextUrl.searchParams.get("companyId");
@@ -543,7 +633,7 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const token = await getCompanyWhop().accessTokens.create({ company_id: companyId });
+    const token = await getCompanyWhop().accessTokens.create({ account_id: companyId });
     return NextResponse.json({ token: token.token });
   } catch (e) {
     const message = e instanceof Error ? e.message : "Could not mint token";
@@ -655,7 +745,7 @@ import { getCompanyWhop } from "@/lib/whop";
 import { env } from "@/lib/env";
 
 const Schema = z.object({
-  amountCents: z.number().int().min(100).max(50_000),
+  amountCents: z.number().int().min(100).max(50_000), // $1 - $500
 });
 
 function checkoutEnvironment() {
@@ -666,12 +756,14 @@ function safeReturnUrl(req: NextRequest) {
   const appUrl = new URL(env.NEXT_PUBLIC_APP_URL);
   const referer = req.headers.get("referer");
   if (!referer) return appUrl.toString();
+
   try {
     const url = new URL(referer);
     if (url.origin === appUrl.origin) return url.toString();
   } catch {
-    // Ignore malformed referer.
+    // Ignore malformed referers and fall back to the app root.
   }
+
   return appUrl.toString();
 }
 
@@ -694,7 +786,8 @@ export async function POST(
   if (!story || story.status !== "PUBLISHED") {
     return NextResponse.json({ error: "Story not available" }, { status: 404 });
   }
-  if (story.author.id === user.id) {
+  if (story.author.id === user.id && process.env.WHOP_SANDBOX !== "true") {
+    // Allowed in sandbox so you can test the full flow end-to-end.
     return NextResponse.json({ error: "Cannot tip your own story" }, { status: 400 });
   }
   if (!story.author.writerProfile?.kycComplete || !story.author.writerProfile.tippingEnabled) {
@@ -706,19 +799,20 @@ export async function POST(
 
   const feePercent = Number(env.TIP_PLATFORM_FEE_PERCENT);
   const feeCents = Math.max(1, Math.round((amountCents * feePercent) / 100));
-
   try {
     const returnUrl = safeReturnUrl(req);
+    // application_fee_amount is accepted by the API but missing from the SDK's
+    // types, so we build the inline plan as a variable instead of in place.
+    const plan = {
+      account_id: story.author.writerProfile.whopCompanyId,
+      initial_price: amountCents / 100,
+      plan_type: "one_time" as const,
+      currency: "usd",
+      application_fee_amount: feeCents / 100,
+    };
     const checkout = await getCompanyWhop().checkoutConfigurations.create({
       ...(returnUrl.startsWith("https://") ? { redirect_url: returnUrl } : {}),
-      source_url: returnUrl,
-      plan: {
-        company_id: story.author.writerProfile.whopCompanyId,
-        initial_price: amountCents / 100,
-        plan_type: "one_time",
-        currency: "usd",
-        application_fee_amount: feeCents / 100,
-      },
+      plan,
       metadata: {
         kind: "tip",
         storyId: story.id,
@@ -729,8 +823,12 @@ export async function POST(
       },
     });
     if (!checkout.plan?.id) {
-      return NextResponse.json({ error: "Whop did not return a plan for this checkout" }, { status: 502 });
+      return NextResponse.json(
+        { error: "Whop did not return a plan for this checkout" },
+        { status: 502 },
+      );
     }
+
     return NextResponse.json({
       sessionId: checkout.id,
       planId: checkout.plan.id,
@@ -744,9 +842,9 @@ export async function POST(
 }
 ```
 
-> **TIPPING INVARIANT.** Tips charge the **author's** connected Whop company via `application_fee_amount` for the platform's cut — `plan.company_id` MUST be the writer's `whopCompanyId`, never the platform's. Any seeded-author sandbox fallback that routes checkouts to the platform company (or to a different sandbox account) is DEMO-ONLY, must be behind explicit `DEMO_*` env vars, and must be removed before public GitHub / tutorial code. `initial_price` and `application_fee_amount` are **dollars** (divide stored cents by 100).
+> **TIPPING INVARIANT.** Tips charge the **author's** connected Whop company via `application_fee_amount` for the platform's cut — `plan.account_id` MUST be the writer's `whopCompanyId`, never the platform's. Any seeded-author sandbox fallback that routes checkouts to the platform company (or to a different sandbox account) is DEMO-ONLY, must be behind explicit `DEMO_*` env vars, and must be removed before public GitHub / tutorial code. `initial_price` and `application_fee_amount` are **dollars** (divide stored cents by 100). The SDK's types leave `application_fee_amount` out, so the route builds the inline plan as a variable first.
 
-The tip-side webhook handler (lives in the `/api/webhooks/whop` file above; called from `handlePaymentSucceeded` when `metadata.kind === "tip"`):
+The tip-side webhook handler (lives in the `/api/webhooks/whop` file above, called from `handlePaymentSucceeded` when `metadata.kind === "tip"`, and `subtotalDollars` there reads both payload shapes):
 
 ```ts
 async function handleTipSucceeded(data: PaymentPayload) {
@@ -754,7 +852,7 @@ async function handleTipSucceeded(data: PaymentPayload) {
   const storyId = meta.storyId as string | undefined;
   const tipperUserId = meta.tipperUserId as string | undefined;
   const writerUserId = meta.writerUserId as string | undefined;
-  const amountCents = Number(meta.amountCents ?? Math.round((data.subtotal ?? 0) * 100));
+  const amountCents = Number(meta.amountCents ?? Math.round(subtotalDollars(data) * 100));
   const applicationFeeCents = Number(meta.applicationFeeCents ?? 0);
   const whopPaymentId = data.id;
 
@@ -807,6 +905,20 @@ import { prisma } from "@/lib/prisma";
 import { getCompanyWhop } from "@/lib/whop";
 import { env } from "@/lib/env";
 
+/**
+ * Monthly Partner Program payout.
+ *
+ * Triggered by Vercel Cron on the 1st of every month at 00:00 UTC (see vercel.ts).
+ * Aggregates Plus-on-Plus reads for the previous month, computes a 70%-of-revenue pool
+ * split by reads, and transfers each writer's share to their Whop connected account.
+ *
+ * Idempotent: PartnerPayout has unique [writerUserId, monthBucket], and the Whop transfer
+ * uses an idempotence key keyed to the same pair — re-running the cron in the same month
+ * is a safe no-op.
+ *
+ * Guarded by CRON_SECRET header (Vercel Cron sends `Authorization: Bearer ${CRON_SECRET}`).
+ */
+
 function previousMonthBucket(now = new Date()): string {
   const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1));
   const yyyy = d.getUTCFullYear();
@@ -830,37 +942,47 @@ async function runPartnerPayout(req: NextRequest) {
   const overrideBucket = url.searchParams.get("monthBucket");
   const monthBucket = overrideBucket || previousMonthBucket();
 
-  // 1. Compute the pool from active Plus members × monthly price × (1 - platform fee)
+  // ─── Revenue: count active Plus members × monthly price ───────────────────
+  // (Promo-code discounts and refunds aren't tracked yet — v1 keeps it simple.)
   const activeMembers = await prisma.plusMembership.count({
-    where: { status: { in: ["ACTIVE", "CANCELED"] } },
+    where: {
+      status: { in: ["ACTIVE", "CANCELED"] }, // CANCELED-at-period-end still paid this month
+    },
   });
   const monthlyPriceCents = Math.round(Number(env.STORYLINE_PLUS_MONTHLY_PRICE) * 100);
   const grossRevenueCents = activeMembers * monthlyPriceCents;
   const platformPct = Number(env.PLATFORM_PLUS_FEE_PERCENT);
-  const poolCents = Math.floor((grossRevenueCents * (100 - platformPct)) / 100);
+  const poolCents = Math.floor(grossRevenueCents * (100 - platformPct) / 100);
 
-  // 2. Aggregate reads per story → per writer
-  const readsByStory = await prisma.storyRead.groupBy({
+  // ─── Reads aggregated by writer for monthBucket ─────────────────────────
+  const readsByWriter = await prisma.storyRead.groupBy({
     by: ["storyId"],
     where: { monthBucket },
     _count: { _all: true },
   });
 
-  if (readsByStory.length === 0 || poolCents === 0) {
+  if (readsByWriter.length === 0 || poolCents === 0) {
     return NextResponse.json({
-      ok: true, monthBucket, activeMembers, grossRevenueCents, poolCents,
-      writerCount: 0, transfers: [],
+      ok: true,
+      monthBucket,
+      activeMembers,
+      grossRevenueCents,
+      poolCents,
+      writerCount: 0,
+      transfers: [],
     });
   }
 
+  // Map storyId → writerId, then sum
+  const storyIds = readsByWriter.map((r) => r.storyId);
   const stories = await prisma.story.findMany({
-    where: { id: { in: readsByStory.map((r) => r.storyId) } },
+    where: { id: { in: storyIds } },
     select: { id: true, authorUserId: true },
   });
   const writerByStory = new Map(stories.map((s) => [s.id, s.authorUserId]));
 
   const writerReads = new Map<string, number>();
-  for (const r of readsByStory) {
+  for (const r of readsByWriter) {
     const writerId = writerByStory.get(r.storyId);
     if (!writerId) continue;
     writerReads.set(writerId, (writerReads.get(writerId) ?? 0) + r._count._all);
@@ -868,18 +990,24 @@ async function runPartnerPayout(req: NextRequest) {
   const totalReads = Array.from(writerReads.values()).reduce((a, b) => a + b, 0);
   if (totalReads === 0) {
     return NextResponse.json({
-      ok: true, monthBucket, activeMembers, grossRevenueCents, poolCents,
-      writerCount: 0, transfers: [],
+      ok: true,
+      monthBucket,
+      activeMembers,
+      grossRevenueCents,
+      poolCents,
+      writerCount: 0,
+      transfers: [],
     });
   }
 
-  // 3. Compute per-writer share (proportional to reads), skip below minimum and uncomplete-KYC
   const minPayoutCents = Math.round(Number(env.PARTNER_PAYOUT_MIN_USD) * 100);
 
+  // Build rows; skip writers without KYC or with sub-dollar shares.
   const writers = await prisma.user.findMany({
     where: { id: { in: Array.from(writerReads.keys()) } },
     select: {
-      id: true, username: true,
+      id: true,
+      username: true,
       writerProfile: { select: { whopCompanyId: true, kycComplete: true } },
     },
   });
@@ -898,7 +1026,7 @@ async function runPartnerPayout(req: NextRequest) {
     });
   }
 
-  // 4. Skip writers already paid for this bucket (idempotency layer 1)
+  // Skip writers who already have a PartnerPayout for this month — idempotent re-runs.
   const existing = await prisma.partnerPayout.findMany({
     where: {
       monthBucket,
@@ -909,13 +1037,13 @@ async function runPartnerPayout(req: NextRequest) {
   const alreadyPaid = new Set(existing.map((p) => p.writerUserId));
   const eligible = rows.filter((r) => !alreadyPaid.has(r.writerUserId));
 
-  // 5. Loop: transfer per writer, then write the audit row
   const whop = getCompanyWhop();
   const results: { writerUserId: string; status: "SENT" | "FAILED"; transferId?: string; error?: string }[] = [];
 
   for (const row of eligible) {
     try {
       const transfer = await whop.transfers.create({
+        type: "balance",
         amount: row.shareCents / 100,
         currency: "usd",
         origin_id: env.WHOP_COMPANY_ID,
@@ -941,7 +1069,11 @@ async function runPartnerPayout(req: NextRequest) {
         },
       });
       await prisma.notification.create({
-        data: { userId: row.writerUserId, type: "PAYOUT_SENT", entityId: transfer.id },
+        data: {
+          userId: row.writerUserId,
+          type: "PAYOUT_SENT",
+          entityId: transfer.id,
+        },
       });
       results.push({ writerUserId: row.writerUserId, status: "SENT", transferId: transfer.id });
     } catch (e) {
@@ -962,12 +1094,17 @@ async function runPartnerPayout(req: NextRequest) {
 
   return NextResponse.json({
     ok: true,
-    monthBucket, activeMembers, grossRevenueCents, poolCents, totalReads,
+    monthBucket,
+    activeMembers,
+    grossRevenueCents,
+    poolCents,
+    totalReads,
     writerCount: results.length,
     transfers: results,
   });
 }
 
+// Vercel Cron sends GET; we also accept POST for manual triggers via curl/dashboard.
 export const GET = runPartnerPayout;
 export const POST = runPartnerPayout;
 ```
@@ -1181,7 +1318,7 @@ Promo codes are created in Whop (so they work at checkout) AND mirrored locally 
 
 ```ts
 const whopPromo = await getCompanyWhop().promoCodes.create({
-  company_id: env.WHOP_COMPANY_ID,
+  account_id: env.WHOP_COMPANY_ID,
   code,
   promo_type: "percentage",
   amount_off: parsed.data.discountPercent,
@@ -1207,7 +1344,7 @@ const row = await prisma.promoCode.create({
 });
 ```
 
-`POST /api/promo-codes/[id]/archive` sets `archivedAt: new Date()` — doesn't touch Whop, just hides the row in admin.
+`POST /api/promo-codes/[id]/archive` archives the code on Whop with `promoCodes.delete({ id })`, then sets `archivedAt: new Date()` to hide the row in admin.
 
 Admin pages: `/admin/operators` (list + invite-by-email form + remove confirmation) and `/admin/promo-codes` (list + create form for code/percent/validUntil/maxUses + archive button), both gated by `requireOperator()`.
 
@@ -1232,7 +1369,7 @@ Admin pages: `/admin/operators` (list + invite-by-email form + remove confirmati
 | `SESSION_SECRET` | dev value | rotate (`openssl rand -hex 32`) |
 | `CRON_SECRET` | dev value | rotate (`openssl rand -hex 32`) |
 
-Also tighten CSP in `vercel.ts` (file 1): remove `https://sandbox-js.whop.com` from `script-src` (production only loads from `https://js.whop.com`).
+The CSP in `vercel.ts` (file 1) needs no change for production.
 
 ### Demo-only fallbacks
 
@@ -1278,11 +1415,11 @@ const deleted = await prisma.user.deleteMany({
 
 Run `npx tsx prisma/seed-clear.ts`. (The Neon DB is shared across Vercel envs — this wipes preview and dev too. Re-run `npx tsx prisma/seed.ts` to restore.)
 
-> **TIPPING INVARIANT, restated for production.** The tipping route always points `plan.company_id` at `story.author.writerProfile.whopCompanyId`. Confirm there is NO seeded-author fallback that routes a tip checkout to `env.WHOP_COMPANY_ID` or a hard-coded sandbox company — that would make every tip go to the platform instead of the writer. Any such fallback must be DEMO-only, behind a `DEMO_*` env var, and stripped before public GitHub code.
+> **TIPPING INVARIANT, restated for production.** The tipping route always points `plan.account_id` at `story.author.writerProfile.whopCompanyId`. Confirm there is NO seeded-author fallback that routes a tip checkout to `env.WHOP_COMPANY_ID` or a hard-coded sandbox company — that would make every tip go to the platform instead of the writer. Any such fallback must be DEMO-only, behind a `DEMO_*` env var, and stripped before public GitHub code.
 
 ### Preflight + deploy
 
-`scripts/preflight-prod.ts` validates required env vars are set and non-placeholder, asserts both `WHOP_SANDBOX` and `NEXT_PUBLIC_WHOP_SANDBOX` are not `"true"`, checks `WHOP_WEBHOOK_SECRET` for trailing whitespace, calls `whop.plans.retrieve(STORYLINE_PLUS_PLAN_ID)` to confirm the production plan exists, and warns on CSP / non-HTTPS `NEXT_PUBLIC_APP_URL`. Exits non-zero on any fail. Run with `npx tsx scripts/preflight-prod.ts`.
+`scripts/preflight-prod.ts` validates required env vars are set and non-placeholder, asserts both `WHOP_SANDBOX` and `NEXT_PUBLIC_WHOP_SANDBOX` are not `"true"`, checks `WHOP_WEBHOOK_SECRET` for trailing whitespace, calls `whop.plans.retrieve({ id: STORYLINE_PLUS_PLAN_ID })` to confirm the production plan exists, and warns on CSP / non-HTTPS `NEXT_PUBLIC_APP_URL`. Exits non-zero on any fail. Run with `npx tsx scripts/preflight-prod.ts`.
 
 Deploy steps:
 
@@ -1293,7 +1430,7 @@ Deploy steps:
 5. Swap all Whop env vars in Vercel Production env (table above), pull locally with `vercel env pull .env.local --environment=production`.
 6. Run `npx tsx prisma/seed-clear.ts` to remove fictional writers.
 7. Run preflight; fix any `[FAIL]`.
-8. Tighten CSP in `vercel.ts` (drop `sandbox-js.whop.com`).
+8. Check the production Company API key has every scope from file 1, including `company:balance:read`, `payout:account:read` and `payout:transfer_funds`.
 9. `vercel deploy --prod`.
 
 Production smoke test: sign in via real Whop OAuth, subscribe to Plus with a real card, enable payouts as a writer (real KYC, no bypass), tip $1 from a different account (real money), trigger cron with curl + `CRON_SECRET` — confirm `whop.transfers.create` actually moves funds to the writer's connected company.
@@ -1302,11 +1439,11 @@ Production smoke test: sign in via real Whop OAuth, subscribe to Plus with a rea
 
 ## Whop SDK + project gotchas
 
-1. **Two Whop clients, both factory functions.** `getWhop()` uses the App API key (OAuth + webhook verification). `getCompanyWhop()` uses the Company API key (resource creation — products, plans, promo codes, transfers). Reading `process.env` at module load means imports hoist above `dotenv.config()` and sandbox routes silently 404 into prod — keep them as functions.
-2. **`/api/v1` suffix is mandatory** on `baseURL`. Without it every SDK call 404s into production regardless of `WHOP_SANDBOX`.
+1. **Two Whop clients, both factory functions.** `getWhop()` uses the App API key (OAuth and generic calls, webhooks are verified with `unwrapWebhook` instead). `getCompanyWhop()` uses the Company API key (resource creation — products, plans, promo codes, transfers). Reading `process.env` at module load means imports hoist above `dotenv.config()` and sandbox routes silently 404 into prod — keep them as functions.
+2. **Pass `environment` explicitly.** `@whop/sdk` 2.x reads no env vars, so `new WhopClient({ token, environment: WhopEnvironment.Sandbox })` is what keeps sandbox calls in sandbox. Without it every SDK call goes to production regardless of `WHOP_SANDBOX`.
 3. **`nonce` is required** in the OAuth `/authorize` URL whenever `scope` includes `openid`. OAuth 2.1 treats it as optional; Whop does not.
 4. **Whop's `/oauth/token` wants JSON, not form-urlencoded**, and requires `client_secret` in the body even with PKCE. Either mistake returns `400 invalid_client`.
-5. **Raw body before parse.** `whop.webhooks.unwrap` HMACs the raw text body. Always `await request.text()` first — calling `request.json()` consumes the stream and breaks signature verification.
+5. **Raw body before parse.** `unwrapWebhook` HMACs the raw text body. Pass the `ws_` secret as it is, never base64 encoded. Always `await request.text()` first — calling `request.json()` consumes the stream and breaks signature verification.
 6. **Webhook idempotency via `WebhookEvent.id` unique constraint.** Insert the row before doing any work, so retries no-op. Whop redelivers on dropped connections and non-200 responses; without this, a single renewal can fire 2-3 notifications.
 7. **`payment.succeeded` is a multiplexer.** Branch on `metadata.kind` (`"plus"` vs `"tip"`). The same webhook handler covers both Plus subscriptions and writer tips; the same `<WhopCheckoutEmbed>` component creates both.
 8. **`{PAYMENT_ID}` is not used here.** Unlike some Whop guides, Storyline relies on the webhook to settle payments, not redirect-URL templating. `redirect_url` just sends the user back to the right page; the source of truth is the webhook.
@@ -1314,16 +1451,16 @@ Production smoke test: sign in via real Whop OAuth, subscribe to Plus with a rea
 10. **`initial_price` + `application_fee_amount` are dollars, not cents.** Both `checkoutConfigurations.create` and the Transfers API take dollar amounts. Divide your stored cents by 100.
 11. **`redirect_url` must be `https://`.** Whop rejects `http://localhost`. Strip the field when developing locally — the SDK shape lets you omit it.
 12. **Embed `environment` must match.** `<WhopCheckoutEmbed environment={env}>` must match the sandbox/prod env that minted the session, or the embed silently 404s. Mirror the server's `WHOP_SANDBOX` to client via `NEXT_PUBLIC_WHOP_SANDBOX`.
-13. **Sub-company creation uses `parent_company_id`.** `whop.companies.create({ parent_company_id: WHOP_COMPANY_ID, title, email })` creates the writer's company *under* the platform. Skip this and you can't take an `application_fee_amount`.
+13. **Connected accounts come from `accounts.create`.** `whop.accounts.create({ title, email })` with the platform's Company API key creates the writer's account *under* the platform (the key's account is the parent). Skip this and you can't take an `application_fee_amount`.
 14. **`accountLinks.create` is reusable.** Don't create a new company on every "Enable payouts" click. Re-use the writer's existing `whopCompanyId` and mint a fresh onboarding link whenever they need to update KYC.
 15. **`accessTokens.create` must be a function.** `<PayoutsSession token={fetchToken}>` — pass the async function so the SDK can refresh expired tokens. Pass a string and the session dies when the token expires.
 16. **`loadWhopElements({ environment })` reads the env hint.** Pass `"sandbox"` or `"production"` explicitly; the embedded components don't infer it from anything else.
-17. **`transfers.create` uses `origin_id` → `destination_id`** with `idempotence_key` for safe retries. Source of truth is the **company** key, since transfers are platform-initiated.
+17. **`transfers.create` uses `origin_id` → `destination_id`** with `type: "balance"` (required since SDK 2.4.0) and `idempotence_key` for safe retries. Source of truth is the **company** key, since transfers are platform-initiated.
 18. **Vercel Cron sends GET, not POST.** Export both `GET` and `POST` from cron routes — handling only POST means the scheduled run silently fails. Validate auth via `authorization.endsWith(CRON_SECRET)` so both raw and bearer forms work.
 19. **Two-layer payout idempotency.** Whop's `idempotence_key` on `transfers.create` plus the local `PartnerPayout @@unique([writerUserId, monthBucket])` constraint mean re-running the same `monthBucket` returns `writerCount: 0` and Whop never doubles a payout.
 20. **OAuth redirect URI must match exactly.** The value in the Whop dashboard, the value in `WHOP_REDIRECT_URI`, and the value in the auth URL all have to match character-for-character — including trailing slashes.
 21. **Whitelist external image hosts for `next/image`.** Add `utfs.io` (UploadThing), `assets.whop.com`, `cdn.whop.com`, and `ui-avatars.com` to `next.config.ts` → `images.remotePatterns`. Without it, every cover/avatar errors at runtime.
-22. **CSP allowlists Whop's JS hosts.** `vercel.ts` lists `https://js.whop.com` (prod) and `https://sandbox-js.whop.com` (sandbox) under `script-src`, plus `frame-src 'self' https://*.whop.com` for the embedded checkout iframe. Drop the sandbox host in production.
+22. **CSP allowlists Whop's JS hosts.** `vercel.ts` lists `https://js.whop.com` and `https://*.elements.whop.com` (the payout portal) under `script-src`, plus `frame-src 'self' https://whop.com https://*.whop.com` for the embedded checkout iframe, which loads from bare `whop.com` in production.
 23. **No `proxy.ts`.** Storyline does server-side enforcement in each Server Component / layout via `requireAuth()` / `requireOperator()` / `requireWriter()` — no global Next.js 16 proxy. Easier to reason about, no edge-runtime constraints.
 24. **`immediatelyRender: false` for TipTap inside Server Components.** Skip this and the editor crashes during hydration because the DOM isn't ready when TipTap tries to mount.
 25. **Paywall enforcement is server-side rendering, not a CSS hide.** The truncated `JSONContent` array is sliced *before* it leaves the server — the paid content never reaches a non-Plus browser.

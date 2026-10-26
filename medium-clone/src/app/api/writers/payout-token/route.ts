@@ -15,7 +15,7 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const token = await getCompanyWhop().accessTokens.create({ company_id: companyId });
+    const token = await getCompanyWhop().accessTokens.create({ account_id: companyId });
     return NextResponse.json({ token: token.token });
   } catch (e) {
     const message = e instanceof Error ? e.message : "Could not mint token";

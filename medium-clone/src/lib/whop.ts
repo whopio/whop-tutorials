@@ -1,33 +1,26 @@
-import Whop from "@whop/sdk";
+import { WhopClient, WhopEnvironment } from "@whop/sdk";
 
 // Lazy — evaluated per call, not at module load. Standalone scripts call
 // `dotenv.config()` AFTER ES module imports are hoisted; reading env at module
 // scope means WHOP_SANDBOX is unset and we silently fall back to production.
-// Same hazard applies to WHOP_WEBHOOK_SECRET.
-function resolveBaseURL(): string {
+function resolveEnvironment() {
   return process.env.WHOP_SANDBOX === "true"
-    ? "https://sandbox-api.whop.com/api/v1"
-    : "https://api.whop.com/api/v1";
+    ? WhopEnvironment.Sandbox
+    : WhopEnvironment.Production;
 }
 
-function webhookKey() {
-  return Buffer.from(process.env.WHOP_WEBHOOK_SECRET || "").toString("base64");
-}
-
-// App API key — OAuth, webhooks, notifications, generic SDK ops.
+// App API key — OAuth, notifications, generic SDK ops.
 export function getWhop() {
-  return new Whop({
-    apiKey: process.env.WHOP_APP_API_KEY!,
-    webhookKey: webhookKey(),
-    baseURL: resolveBaseURL(),
+  return new WhopClient({
+    token: process.env.WHOP_APP_API_KEY!,
+    environment: resolveEnvironment(),
   });
 }
 
 // Company API key — products, plans, checkout configurations, transfers, promo codes.
 export function getCompanyWhop() {
-  return new Whop({
-    apiKey: process.env.WHOP_COMPANY_API_KEY!,
-    webhookKey: webhookKey(),
-    baseURL: resolveBaseURL(),
+  return new WhopClient({
+    token: process.env.WHOP_COMPANY_API_KEY!,
+    environment: resolveEnvironment(),
   });
 }

@@ -8,7 +8,7 @@ import { env } from "@/lib/env";
  *
  * Triggered by Vercel Cron on the 1st of every month at 00:00 UTC (see vercel.ts).
  * Aggregates Plus-on-Plus reads for the previous month, computes a 70%-of-revenue pool
- * split by reads, and transfers each writer's share to their Whop sub-company.
+ * split by reads, and transfers each writer's share to their Whop connected account.
  *
  * Idempotent: PartnerPayout has unique [writerUserId, monthBucket], and the Whop transfer
  * uses an idempotence key keyed to the same pair — re-running the cron in the same month
@@ -141,6 +141,7 @@ async function runPartnerPayout(req: NextRequest) {
   for (const row of eligible) {
     try {
       const transfer = await whop.transfers.create({
+        type: "balance",
         amount: row.shareCents / 100,
         currency: "usd",
         origin_id: env.WHOP_COMPANY_ID,

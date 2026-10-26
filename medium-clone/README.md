@@ -22,6 +22,7 @@ Writers withdraw inside Storyline through the embedded Whop payout portal — no
 - **Zod** for runtime validation
 - **TipTap 3** with a custom paywall break node
 - **UploadThing** for cover and inline images
+- **`@whop/sdk` 2.4.0** (`WhopClient`, with `unwrapWebhook` from `@whop/sdk/helpers` for webhooks)
 - **`@whop/checkout`** rendered inside an in-app popup (blurred backdrop on desktop, bottom sheet on mobile)
 
 ## Local development
@@ -69,14 +70,14 @@ Follow this checklist when promoting from sandbox to production. Do it once, in 
 1. **Create a production Whop app** — Developer Dashboard → New App. Add redirect URI `https://your-domain.com/api/auth/callback` exactly (no trailing slash). Select OAuth scopes `openid profile email`. Enable the `oauth:token_exchange` permission.
 2. **Create production API keys**:
    - **App API key** (Developer → App → Environment) → `WHOP_APP_API_KEY`
-   - **Company API key** (Business Settings → API Keys, scopes: `access_pass:create`, `plan:create`, `checkout_configuration:create`, `payout:transfer_funds`, `promo_code:create`, `accounts:create`) → `WHOP_COMPANY_API_KEY`
+   - **Company API key** (Business Settings → API Keys, scopes: `access_pass:create`, `plan:create`, `checkout_configuration:create`, `accounts:create`, `membership:update`, `promo_code:create`, `payout:transfer_funds`, `company:balance:read`, `payout:account:read`) → `WHOP_COMPANY_API_KEY`
 3. **Create the production Plus plan**:
    - Set Vercel env temporarily so the script runs against production: pull, unset `WHOP_SANDBOX`, set the new keys.
    - `npx tsx scripts/create-plus-plan.ts` → paste the printed `STORYLINE_PLUS_PLAN_ID` back into Vercel.
 4. **Create the production webhook**:
    - Business Settings → Webhooks → Create webhook
    - URL: `https://your-domain.com/api/webhooks/whop`
-   - Events: `payment.succeeded`, `payment.failed`, `payment.refunded`, `membership.activated`, `membership.deactivated`
+   - Events: `payment.succeeded`, `payment.failed`, `refund.created`, `membership.activated`, `membership.deactivated`
    - Copy the signing secret → `WHOP_WEBHOOK_SECRET`. **No trailing newline** — paste carefully or use the Vercel CLI with `--value`.
 5. **Save an operator card** on the platform company (Business Settings → Payment Methods). Optional but needed if the Partner Program cron ever needs to top up the platform balance — store the payment method id as `OPERATOR_TOPUP_PAYMENT_METHOD_ID`.
 
@@ -93,7 +94,7 @@ In the production environment:
 
 ### Code
 
-- `vercel.ts` CSP — keep `https://js.whop.com`, **remove** `https://sandbox-js.whop.com` from `script-src`.
+- `vercel.ts` CSP: no change needed. It already allows the production checkout frame (`https://whop.com`) and the payout portal script (`https://*.elements.whop.com`).
 - The sandbox KYC bypass in `/api/writers/onboard` automatically deactivates because it keys off `WHOP_SANDBOX === "true"`.
 
 ### Cutover

@@ -25,7 +25,7 @@ export async function GET() {
 
   try {
     const link = await getCompanyWhop().accountLinks.create({
-      company_id: user.writerProfile.whopCompanyId,
+      account_id: user.writerProfile.whopCompanyId,
       use_case: "payouts_portal",
       return_url: `${env.NEXT_PUBLIC_APP_URL}/me/dashboard`,
       refresh_url: `${env.NEXT_PUBLIC_APP_URL}/me/dashboard?refresh=true`,

@@ -3,7 +3,7 @@
 // emits an alpha-channel WebP at q90 for crisp scaling in next/image.
 
 import sharp from "sharp";
-import { readFileSync, statSync } from "node:fs";
+import { readFileSync, statSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 

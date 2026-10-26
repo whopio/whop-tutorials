@@ -74,7 +74,7 @@ export function OperatorsManager({ initial }: { initial: OperatorRow[] }) {
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            placeholder="teammate@example.com"
+            placeholder="name@example.com"
             aria-label="Operator email"
             className="flex-1 min-w-[220px] px-4 py-2.5 rounded-md border border-border bg-background text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-text-primary"
           />

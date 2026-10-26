@@ -25,8 +25,6 @@ export async function POST(req: NextRequest) {
     const checkout = await getCompanyWhop().checkoutConfigurations.create({
       plan_id: env.STORYLINE_PLUS_PLAN_ID,
       ...(returnUrl.startsWith("https://") ? { redirect_url: returnUrl } : {}),
-      source_url: `${env.NEXT_PUBLIC_APP_URL}/membership`,
-      ...(parsed.data.promoCode ? { promo_code: parsed.data.promoCode } : {}),
       metadata: {
         kind: "plus",
         userId: user.id,

@@ -11,8 +11,9 @@ export async function POST() {
   if (!membership) {
     return NextResponse.json({ error: "No active membership" }, { status: 400 });
   }
-  await getCompanyWhop().memberships.cancel(membership.whopMembershipId, {
-    cancellation_mode: "at_period_end",
+  await getCompanyWhop().memberships.cancel({
+    id: membership.whopMembershipId,
+    cancel_at_period_end: true,
   });
   await prisma.plusMembership.update({
     where: { id: membership.id },

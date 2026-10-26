@@ -17,6 +17,7 @@ interface TokenResponse {
 interface UserInfo {
   sub: string;
   email?: string;
+  email_verified?: boolean;
   name?: string;
   picture?: string;
   preferred_username?: string;
@@ -67,6 +68,14 @@ export async function GET(req: NextRequest) {
   }
   const userinfo = (await userinfoRes.json()) as UserInfo;
 
+  // Operator access is granted by email, so only an address Whop has verified
+  // may sign in. Otherwise anyone could claim someone else's invite.
+  if (userinfo.email_verified !== true) {
+    return NextResponse.redirect(
+      `${env.NEXT_PUBLIC_APP_URL}/?auth_error=email_unverified`,
+    );
+  }
+
   const lowerEmail = (userinfo.email || "").toLowerCase();
 
   // Username generation: derive from preferred_username/name; suffix if taken.
@@ -115,5 +124,9 @@ export async function GET(req: NextRequest) {
   c.delete("storyline_oauth_state");
   c.delete("storyline_oauth_return_to");
 
-  return NextResponse.redirect(`${env.NEXT_PUBLIC_APP_URL}${returnTo}`);
+  // Check again before redirecting: resolve the path against our own URL and
+  // fall back to the home page if it points anywhere else.
+  const appUrl = new URL(env.NEXT_PUBLIC_APP_URL);
+  const target = new URL(returnTo, appUrl);
+  return NextResponse.redirect(target.origin === appUrl.origin ? target : appUrl);
 }

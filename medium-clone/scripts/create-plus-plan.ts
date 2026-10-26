@@ -18,17 +18,19 @@ async function main() {
   const whop = getCompanyWhop();
 
   const product = await whop.products.create({
-    company_id: companyId,
+    account_id: companyId,
     title: "Storyline Plus",
     description: "Unlimited access to every Plus story on Storyline.",
   });
   console.log(`Created product: ${product.id}`);
 
   const plan = await whop.plans.create({
-    company_id: companyId,
+    account_id: companyId,
     product_id: product.id,
     plan_type: "renewal",
-    initial_price: PRICE_USD,
+    // On a renewal plan, initial_price is charged on top of the first renewal_price.
+    // 0 keeps the first charge at the monthly price.
+    initial_price: 0,
     renewal_price: PRICE_USD,
     billing_period: 30,
     currency: "usd",
