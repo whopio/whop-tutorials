@@ -20,16 +20,18 @@ export async function GET() {
   }
 
   try {
-    const account = await whop().accounts.retrieve(state.accountId);
-    const all = (account.capabilities ?? {}) as Record<string, string | null>;
+    const account = await whop().accounts.retrieve({ id: state.accountId });
 
     return NextResponse.json({
-      capabilities: WATCHED.map((name) => ({ name, state: all[name] ?? "unknown" })),
+      capabilities: WATCHED.map((name) => ({
+        name,
+        state: account.capabilities?.[name] ?? "unknown",
+      })),
       // Empty on a brand new account and only populated once a verification
       // exists, so an untouched account tells us nothing either way.
       requiredActions: (account.required_actions ?? []).map((action) => ({
-        action: (action as { action?: string }).action ?? "unknown",
-        title: (action as { title?: string }).title ?? "",
+        action: action.action,
+        title: action.title,
       })),
     });
   } catch (error) {

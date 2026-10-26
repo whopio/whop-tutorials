@@ -2,7 +2,14 @@
 
 import { useState } from "react";
 import { Button, Select, Text, TextField } from "@whop/react/components";
-import type { RequestedItem } from "@/lib/verification-schema";
+import type { RequestedItem, RequestedItemType } from "@/lib/verification-schema";
+
+const NEEDS_UPLOAD = new Set<RequestedItemType>([
+  "files",
+  "id_document",
+  "text_with_files",
+  "liveness",
+]);
 
 type Answer = {
   id: string;
@@ -90,11 +97,6 @@ export function FollowUpForm({
           <Text size="1" weight="medium" color="gray">
             {item.label}
           </Text>
-          {item.description ? (
-            <Text size="1" color="gray">
-              {item.description}
-            </Text>
-          ) : null}
           {/* Why the last answer was turned down. It belongs above the field it
               is about, not in a banner at the top of the form. */}
           {item.errorMessage ? (
@@ -133,12 +135,13 @@ export function FollowUpForm({
                 </label>
               ))}
             </div>
-          ) : item.type === "files" ? (
-            // A document answer needs a file upload, which is a different
-            // path. We show what was asked for and stop there.
+          ) : NEEDS_UPLOAD.has(item.type) ? (
+            // A document, a photo of an ID or a selfie needs an upload or a
+            // camera, which is a different path. We show what was asked for and
+            // stop there.
             <div className="rounded-lg bg-[#F1F1F0] px-3 py-2">
               <Text size="1" color="gray">
-                This one wants a document, which needs an upload.
+                This one wants a document or a camera, which needs an upload.
               </Text>
             </div>
           ) : (

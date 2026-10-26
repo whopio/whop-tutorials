@@ -3,8 +3,6 @@
 import { useState } from "react";
 import { Button, Select, Text, TextField } from "@whop/react/components";
 
-// The countries this form offers. The United States sits alongside places where
-// the rule does not apply, which is what makes the tax number condition visible.
 const VERIFY_COUNTRIES = [
   { code: "us", label: "United States" },
   { code: "br", label: "Brazil" },
@@ -61,8 +59,6 @@ export function StartVerification({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Whop needs a tax number for someone in the United States, and nowhere else
-  // in this form does the country change what is required.
   const needsTaxNumber = country.toUpperCase() === "US";
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {

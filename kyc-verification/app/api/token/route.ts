@@ -18,7 +18,7 @@ export async function POST() {
     // whose action list is empty, which then fails inside the component with
     // nothing useful to read.
     const created = await whop().accessTokens.create({
-      company_id: state.accountId,
+      account_id: state.accountId,
       scoped_actions: [...VERIFY_SESSION_SCOPES],
     });
 

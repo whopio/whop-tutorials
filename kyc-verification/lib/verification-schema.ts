@@ -1,14 +1,22 @@
 import { z } from "zod";
 import type { VerificationStatus } from "@/lib/store";
 
-export type RequestedItemType = "text" | "date" | "phone" | "address" | "select" | "files";
+export type RequestedItemType =
+  | "text"
+  | "date"
+  | "phone"
+  | "address"
+  | "select"
+  | "files"
+  | "id_document"
+  | "text_with_files"
+  | "liveness";
 
 export interface RequestedItem {
   id: string;
   field: string;
   type: RequestedItemType;
   label: string;
-  description: string | null;
   options: string[];
   errorMessage: string | null;
 }
@@ -35,15 +43,9 @@ export interface VerifiedRecord {
   requestedInformation: RequestedItem[];
   createdAt: string;
   updatedAt: string | null;
-  // Dotted paths of every value we had to repair on the way in. A field that
-  // was simply absent is not a repair and never appears here.
   normalised: string[];
 }
 
-// Three letter codes turn up on the address while the top level stays on two.
-// Only the countries this demo offers are listed. Anything else passes through
-// untouched and is still flagged, because a value we did not recognise is
-// exactly the kind of thing worth showing on screen.
 const ALPHA3: Record<string, string> = {
   USA: "US",
   BRA: "BR",
@@ -80,24 +82,29 @@ const raw = z
         country: z.string().nullish(),
       })
       .nullish(),
-    // Gone from the response entirely once the person has nothing left to do,
-    // so its absence is a state and never an error.
     session_url: z.string().nullish(),
     requested_information: z
       .array(
         z.object({
           id: z.string(),
-          field: z.string(),
-          type: z.enum(["text", "date", "phone", "address", "select", "files"]),
+          requirement: z.string(),
+          type: z.enum([
+            "text",
+            "date",
+            "phone",
+            "address",
+            "select",
+            "files",
+            "id_document",
+            "text_with_files",
+            "liveness",
+          ]),
           label: z.string(),
-          description: z.string().nullish(),
           options: z.array(z.string()).nullish(),
-          error_message: z.string().nullish(),
+          errors: z.array(z.object({ reason: z.string().nullish() })).nullish(),
         }),
       )
       .nullish(),
-    // Real records carry an offset such as +02:00, not the Z in every docs
-    // example, so the offset has to be allowed.
     created_at: z.iso.datetime({ offset: true }),
     updated_at: z.iso.datetime({ offset: true }).nullish(),
   })
@@ -107,11 +114,8 @@ export function parseVerification(input: unknown): VerifiedRecord {
   const source = raw.parse(input);
   const normalised: string[] = [];
 
-  // Absent stays absent. Only a value we changed counts as a repair.
   const clean = (value: string | null | undefined, path: string): string | null => {
     if (value === undefined || value === null) return null;
-    // Empty strings and the literal four characters n-u-l-l both turn up in
-    // live address fields.
     if (value === "" || value === "null") {
       normalised.push(path);
       return null;
@@ -148,12 +152,11 @@ export function parseVerification(input: unknown): VerifiedRecord {
     sessionUrl: source.session_url ?? null,
     requestedInformation: (source.requested_information ?? []).map((item) => ({
       id: item.id,
-      field: item.field,
+      field: item.requirement,
       type: item.type,
       label: item.label,
-      description: item.description ?? null,
       options: item.options ?? [],
-      errorMessage: item.error_message ?? null,
+      errorMessage: item.errors?.[0]?.reason ?? null,
     })),
     createdAt: source.created_at,
     updatedAt: source.updated_at ?? null,

@@ -13,9 +13,9 @@
     "@whop/embedded-components-react-js": "^1.2.0",
     "@whop/embedded-components-vanilla-js": "^1.2.0",
     "@whop/react": "^0.3.2",
-    "@whop/sdk": "^0.0.42",
+    "@whop/sdk": "2.4.0",
     "iron-session": "^8.0.4",
-    "next": "16.3.0",
+    "next": "16.4.3",
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "zod": "^4.4.3"

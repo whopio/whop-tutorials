@@ -56,11 +56,12 @@ export async function POST(request: Request) {
   // unique or starting over would collide with the run before it.
   const title = `${person.first} ${person.last} ${randomUUID().slice(0, 6)}`;
 
+  // There is no parent field. An account made with a Company API key sits
+  // under the key's own business, which is WHOP_PLATFORM_ACCOUNT_ID.
   try {
-    const account = await whop().companies.create({
+    const account = await whop().accounts.create({
       title,
-      country: country as never,
-      parent_company_id: env.WHOP_PLATFORM_ACCOUNT_ID,
+      country: country.toUpperCase(),
       email: demoEmail(env.DEMO_SELLER_EMAIL, visitorRef),
       send_customer_emails: false,
       metadata: { visitor_ref: visitorRef },
@@ -80,7 +81,7 @@ export async function POST(request: Request) {
 
 function whopMessage(error: unknown): string | null {
   if (typeof error !== "object" || error === null) return null;
-  const shape = error as { error?: { error?: { message?: unknown } } };
-  const message = shape.error?.error?.message;
+  const shape = error as { body?: { error?: { message?: unknown } } };
+  const message = shape.body?.error?.message;
   return typeof message === "string" ? message : null;
 }

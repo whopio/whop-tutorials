@@ -47,12 +47,13 @@ export async function POST(request: Request) {
     // address and this one takes it under personal_address. Sending address
     // here is an unsupported field and comes back 400. The address inside a
     // requested_information entry is a different thing and keeps its own name.
-    await whop().verifications.update(state.verificationId, {
-      requested_information: parsed.data.answers,
+    await whop().verifications.update({
+      id: state.verificationId,
+      body: { requested_information: parsed.data.answers },
     });
 
     const record = parseVerification(
-      await whop().verifications.retrieve(state.verificationId),
+      await whop().verifications.retrieve({ id: state.verificationId }),
     );
     await writeState({ status: record.status });
 
@@ -71,7 +72,7 @@ export async function POST(request: Request) {
 
 function whopMessage(error: unknown): string | null {
   if (typeof error !== "object" || error === null) return null;
-  const shape = error as { error?: { error?: { message?: unknown } } };
-  const message = shape.error?.error?.message;
+  const shape = error as { body?: { error?: { message?: unknown } } };
+  const message = shape.body?.error?.message;
   return typeof message === "string" ? message : null;
 }

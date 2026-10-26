@@ -93,6 +93,8 @@ test("treats an absent session_url as a state and not an error", () => {
   assert.equal(record.sessionUrl, null);
 });
 
+// The item shape @whop/sdk 2.4.0 declares: requirement instead of field, and
+// errors as a list of { code, reason } instead of error_message.
 test("maps a follow-up item into camel case and defaults its options", () => {
   const record = parseVerification({
     ...DOCS_CLEAN,
@@ -100,17 +102,31 @@ test("maps a follow-up item into camel case and defaults its options", () => {
     requested_information: [
       {
         id: "inrqi_abc123",
-        field: "occupation",
+        requirement: "occupation",
         type: "text",
         label: "Occupation",
-        description: null,
-        options: [],
-        error_message: "That value was not accepted",
+        errors: [{ code: "invalid", reason: "That value was not accepted" }],
       },
     ],
   });
   assert.equal(record.requestedInformation.length, 1);
   assert.equal(record.requestedInformation[0].id, "inrqi_abc123");
+  assert.equal(record.requestedInformation[0].field, "occupation");
   assert.equal(record.requestedInformation[0].errorMessage, "That value was not accepted");
   assert.deepEqual(record.requestedInformation[0].options, []);
+});
+
+test("accepts the document and camera item types", () => {
+  const record = parseVerification({
+    ...DOCS_CLEAN,
+    status: "action_required",
+    requested_information: [
+      { id: "inrqi_doc", requirement: "identity_document", type: "id_document", label: "ID", options: ["PASSPORT"] },
+      { id: "inrqi_face", requirement: "liveness", type: "liveness", label: "Selfie" },
+    ],
+  });
+  assert.deepEqual(
+    record.requestedInformation.map((item) => item.type),
+    ["id_document", "liveness"],
+  );
 });

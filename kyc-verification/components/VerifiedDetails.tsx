@@ -31,8 +31,6 @@ function Row({
 }
 
 export function VerifiedDetails({ record }: { record: VerifiedRecord }) {
-  // Tax numbers, email and phone are never echoed back, so there is no field
-  // to render for them and no placeholder either.
   const rows: Array<[string, string | null, string]> = [
     ["First name", record.firstName, "firstName"],
     ["Last name", record.lastName, "lastName"],
