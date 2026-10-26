@@ -26,11 +26,11 @@ export async function POST() {
   const isSandbox = process.env.WHOP_SANDBOX === "true";
 
   try {
-    // Create the connected company on the platform's parent company
-    const company = await whopCompany.companies.create({
+    // Create the seller's connected account. accounts.create has no parent
+    // field: the company API key's own account becomes the parent.
+    const company = await whopCompany.accounts.create({
       email: user.email,
       title: `${user.name ?? user.email}'s Templates`,
-      parent_company_id: process.env.WHOP_COMPANY_ID!,
     });
 
     const username = await generateUsername(
@@ -61,7 +61,7 @@ export async function POST() {
     });
 
     const accountLink = await whopCompany.accountLinks.create({
-      company_id: company.id,
+      account_id: company.id,
       use_case: "account_onboarding",
       return_url: `${appUrl}/sell/onboard/complete?company_id=${company.id}`,
       refresh_url: `${appUrl}/sell?refresh=true`,
@@ -71,8 +71,8 @@ export async function POST() {
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
     const status =
-      typeof err === "object" && err !== null && "status" in err && typeof err.status === "number"
-        ? err.status
+      typeof err === "object" && err !== null && "statusCode" in err && typeof err.statusCode === "number"
+        ? err.statusCode
         : 500;
     console.error("Seller onboard failed", { status, message });
     return NextResponse.json(

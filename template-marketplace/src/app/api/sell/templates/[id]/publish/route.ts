@@ -62,28 +62,32 @@ export async function POST(
   try {
     // 1. Create the Whop product on the seller's connected company
     const whopProduct = await whopCompany.products.create({
-      company_id: template.sellerProfile.whopCompanyId,
+      account_id: template.sellerProfile.whopCompanyId,
       title: template.title,
       description: template.description,
     });
 
     // 2. Create a checkout configuration with an inline one-time plan.
+    // application_fee_amount is accepted by the Whop API but missing from the SDK types,
+    // so we build the plan as a variable first instead of writing it inline.
+    // Whop caps plan title at 30 chars. The product title (shown on the
+    // public product page) keeps the full text.
+    const plan = {
+      account_id: template.sellerProfile.whopCompanyId,
+      product_id: whopProduct.id,
+      currency: "usd",
+      initial_price: template.price / 100,
+      plan_type: "one_time" as const,
+      application_fee_amount: feeAmountCents / 100,
+      title: template.title.slice(0, 30),
+    };
+
     // redirect_url sends the buyer to our access page after a successful
     // checkout instead of Whop's default `whop.com/joined/...` page.
     const checkoutConfig = await whopCompany.checkoutConfigurations.create({
       mode: "payment",
       redirect_url: `${appUrl}/templates/${template.slug}/access`,
-      plan: {
-        company_id: template.sellerProfile.whopCompanyId,
-        product_id: whopProduct.id,
-        currency: "usd",
-        initial_price: template.price / 100,
-        plan_type: "one_time",
-        application_fee_amount: feeAmountCents / 100,
-        // Whop caps plan title at 30 chars; the product title (shown on
-        // the public product page) keeps the full text.
-        title: template.title.slice(0, 30),
-      },
+      plan,
     });
 
     const updated = await prisma.template.update({
@@ -97,7 +101,7 @@ export async function POST(
     });
 
     // A newly-published template needs to show up in the catalog and on the
-    // detail page right away — bust both list and per-template caches.
+    // detail page right away, so bust both list and per-template caches.
     updateTag("templates");
     updateTag(`template:${updated.slug}`);
 
@@ -105,8 +109,8 @@ export async function POST(
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
     const status =
-      typeof err === "object" && err !== null && "status" in err && typeof err.status === "number"
-        ? err.status
+      typeof err === "object" && err !== null && "statusCode" in err && typeof err.statusCode === "number"
+        ? err.statusCode
         : 500;
     console.error("Publish failed", { templateId: id, status, message });
     return NextResponse.json(

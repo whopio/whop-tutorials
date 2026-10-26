@@ -43,8 +43,8 @@ export async function GET(
 
   try {
     const codes = [];
-    for await (const code of whopCompany.promoCodes.list({
-      company_id: template.sellerProfile.whopCompanyId,
+    for await (const code of await whopCompany.promoCodes.list({
+      account_id: template.sellerProfile.whopCompanyId,
       product_ids: [template.whopProductId],
     })) {
       codes.push(code);
@@ -114,7 +114,7 @@ export async function POST(
 
   try {
     const created = await whopCompany.promoCodes.create({
-      company_id: template.sellerProfile.whopCompanyId,
+      account_id: template.sellerProfile.whopCompanyId,
       product_id: template.whopProductId,
       code: normalizedCode,
       promo_type: input.promoType,
@@ -131,8 +131,8 @@ export async function POST(
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
     const status =
-      typeof err === "object" && err !== null && "status" in err && typeof err.status === "number"
-        ? err.status
+      typeof err === "object" && err !== null && "statusCode" in err && typeof err.statusCode === "number"
+        ? err.statusCode
         : 500;
 
     // Detect "code already exists" from Whop's response. The SDK throws on

@@ -22,7 +22,7 @@ Condensed reference for building Stax, a multi-seller marketplace for digital te
 | Framework | Next.js 16 (App Router), React 19, Turbopack |
 | Styling | Tailwind CSS v4 (CSS-first via `@theme`), `lucide-react` |
 | Auth | Whop OAuth 2.1 (PKCE + nonce) + iron-session 8 (encrypted cookie, no DB sessions) |
-| Payments | Whop for Platforms: `companies.create`, `products.create`, `checkoutConfigurations.create` with `application_fee_amount` on an inline one-time plan; embedded checkout via `@whop/checkout/react` |
+| Payments | Whop for Platforms: `accounts.create`, `products.create`, `checkoutConfigurations.create` with `application_fee_amount` on an inline one-time plan; embedded checkout via `@whop/checkout/react` |
 | Promo codes | Whop Promo Codes API — `promoCodes.list / create / delete`, no local model |
 | Payouts | Whop hosted payout portal via `accountLinks.create({ use_case: "payouts_portal" })` |
 | Database | PostgreSQL via Neon (Vercel Marketplace integration, cloud-only) |
@@ -52,7 +52,7 @@ Condensed reference for building Stax, a multi-seller marketplace for digital te
 - `GET /api/auth/login` — Generates PKCE verifier + challenge, `state`, `nonce`, sets two short-lived httpOnly cookies (verifier + state), redirects to `/oauth/authorize`
 - `GET /api/auth/callback` — Verifies state cookie, exchanges code for tokens (JSON body, `client_secret` required even with PKCE), fetches `/oauth/userinfo`, upserts User by `whopUserId`, writes iron-session cookie, redirects home
 - `POST /api/auth/logout` — Destroys session, redirects home (POST-only so RSC link prefetch can't log users out)
-- `POST /api/sell/onboard` — Creates the seller's connected company via `whop.companies.create({ parent_company_id })`, creates the SellerProfile row, in sandbox marks KYC complete immediately; in production returns a Whop-hosted `accountLinks.create({ use_case: "account_onboarding" })` URL
+- `POST /api/sell/onboard` — Creates the seller's connected account via `whopCompany.accounts.create({ title, email })`, creates the SellerProfile row, in sandbox marks KYC complete immediately; in production returns a Whop-hosted `accountLinks.create({ account_id, use_case: "account_onboarding" })` URL
 - `POST /api/sell/payouts` — Mints a `accountLinks.create({ use_case: "payouts_portal" })` URL for the dashboard "Withdraw" button
 - `POST /api/sell/templates` — Create draft template (validated with Zod, generates unique slug)
 - `PATCH /api/sell/templates/[id]` — Update template fields
@@ -71,9 +71,9 @@ Condensed reference for building Stax, a multi-seller marketplace for digital te
 **End-to-end flow**
 
 1. Buyer or seller signs in via Whop OAuth (PKCE + nonce). The callback upserts a User row by `whopUserId` (the `sub` from `/oauth/userinfo`) and writes the iron-session cookie.
-2. A signed-in user clicks "Become a seller" on `/sell`. The server calls `whopCompany.companies.create({ parent_company_id: WHOP_COMPANY_ID })`. In sandbox the SellerProfile is saved with `kycComplete: true` immediately; in production the server creates the row in pending KYC state and redirects the seller to `whopCompany.accountLinks.create({ use_case: "account_onboarding" }).url`. The `/sell/onboard/complete` return URL flips `kycComplete` and lands the seller on `/sell/dashboard`.
+2. A signed-in user clicks "Become a seller" on `/sell`. The server calls `whopCompany.accounts.create({ title, email })`, which creates the connected account under the company that owns the Company API key. In sandbox the SellerProfile is saved with `kycComplete: true` immediately; in production the server creates the row in pending KYC state and redirects the seller to `whopCompany.accountLinks.create({ account_id, use_case: "account_onboarding" }).url`. The `/sell/onboard/complete` return URL flips `kycComplete` and lands the seller on `/sell/dashboard`.
 3. The seller creates a draft template (title, description, price, tool, category, delivery type). The DB row is saved as `status: DRAFT`. They upload preview images on the `preview` UploadThing route (8MB image, public) and either downloadable files on the `downloadable` route (16MB mixed types, page-gated) or a share URL.
-4. The seller clicks Publish. The publish route validates that the template has a title, description, at least one preview image, and either at least one downloadable file or a share URL. Free templates (price = 0) skip Whop and flip straight to PUBLISHED. Paid templates trigger `whopCompany.products.create({ company_id: seller.whopCompanyId })` then `whopCompany.checkoutConfigurations.create({ plan: { initial_price, application_fee_amount, plan_type: "one_time" }, redirect_url: /templates/[slug]/access })`. The resulting `purchase_url` is saved on the Template as `whopCheckoutUrl`.
+4. The seller clicks Publish. The publish route validates that the template has a title, description, at least one preview image, and either at least one downloadable file or a share URL. Free templates (price = 0) skip Whop and flip straight to PUBLISHED. Paid templates trigger `whopCompany.products.create({ account_id: seller.whopCompanyId })` then `whopCompany.checkoutConfigurations.create({ plan: { account_id, initial_price, application_fee_amount, plan_type: "one_time" }, redirect_url: /templates/[slug]/access })`. The resulting `purchase_url` is saved on the Template as `whopCheckoutUrl`.
 5. A buyer hits `/templates/[slug]` and clicks Buy. **No sign-in required** — the click opens a portal-based modal that renders `<WhopCheckoutEmbed planId={template.whopPlanId}>` from `@whop/checkout/react` directly. Whop handles buyer identity (creates a guest Whop account on the fly if needed and emails the receipt), processes the payment, deducts the application fee, credits the seller's connected company. The embed fires `onComplete(planId, receiptId)` in-frame on success; the modal swaps to a confirmation panel with a deep link to `/access/[receiptId]`.
 6. Whop fires `payment.succeeded` to the company-level webhook on the platform parent company. The handler verifies the signature, dedupes by event ID via a `WebhookEvent` insert, finds the Template by `whopPlanId`, upserts the buyer's User (matching `payment.user.id` to `whopUserId` — creating the row for guest buyers who never signed in), and upserts the Purchase row by `(userId, templateId)` with `whopPaymentId = payment.id`.
 7. The buyer lands on `/access/[receiptId]`. That page looks up the Purchase by `whopPaymentId`. If the webhook has already fired it renders the file downloads / share URL straight away; if there's a race it renders a small "finalizing your purchase" component that `router.refresh()`es every 2 seconds until the Purchase appears. Signed-in buyers keep the older `/templates/[slug]/access` route, which gates on the session-bound Purchase row instead.
@@ -96,10 +96,10 @@ cd stax
 Install everything upfront so `package.json` stays stable as the project grows.
 
 ```bash
-npm install @whop/sdk @whop/checkout @prisma/client @prisma/adapter-pg pg iron-session zod \
+npm install @whop/sdk@2.4.0 @whop/checkout@0.7.0 @prisma/client@7.10.1 @prisma/adapter-pg@7.10.1 pg iron-session zod \
   lucide-react clsx tailwind-merge dotenv \
   uploadthing @uploadthing/react
-npm install -D prisma @types/pg @vercel/config
+npm install -D prisma@7.10.1 @types/pg @vercel/config
 ```
 
 ### Environment variables
@@ -120,7 +120,7 @@ npm install -D prisma @types/pg @vercel/config
 | `WHOP_SANDBOX` | `true` during development (forces SDK to `sandbox-api.whop.com/api/v1`); unset in production |
 | `PLATFORM_FEE_PERCENT` | Platform's cut, default `5` |
 
-The tutorial uses **two Whop API keys**. The **App API Key** (`WHOP_API_KEY`) signs OAuth requests and verifies webhooks. The **Company API Key** (`WHOP_COMPANY_API_KEY`) has the `access_pass:create` scope the App key lacks and is the only one that can call `products.create`, `plans.create`, `checkoutConfigurations.create`, and `promoCodes.*`. Both look like `apik_*`; they come from different places in the dashboard.
+The tutorial uses **two Whop API keys**. The **App API Key** (`WHOP_API_KEY`) belongs to the OAuth app. The **Company API Key** (`WHOP_COMPANY_API_KEY`) has the `access_pass:create` scope the App key lacks and is the only one that can call `accounts.create`, `products.create`, `checkoutConfigurations.create`, and `promoCodes.*`. Both look like `apik_*`; they come from different places in the dashboard.
 
 ### Whop developer app setup
 
@@ -130,7 +130,7 @@ Use Whop **sandbox** (`sandbox.whop.com`) throughout development. Production swi
 2. Developer → Create app → name it "Stax (Sandbox)". From the app settings page copy Client ID + Client Secret (OAuth tab) and the App API Key (API Keys tab).
 3. OAuth tab → Redirect URIs → add `http://localhost:3000/api/auth/callback` and `https://<your-vercel>.vercel.app/api/auth/callback`. Enable the `oauth:token_exchange` permission.
 4. Business Settings → API Keys → create a Company API Key with all permissions enabled (in particular `access_pass:create`). Copy to `WHOP_COMPANY_API_KEY`.
-5. Developer → Webhooks → New webhook pointing to `https://<your-vercel>.vercel.app/api/webhooks/whop`. Subscribe to `payment.succeeded`. **Enable "Connected account events"** so payments to sellers' sub-companies fire on this single platform-level webhook. Copy the signing secret (starts with `whsec_`) to `WHOP_WEBHOOK_SECRET`.
+5. Developer → Webhooks → New webhook pointing to `https://<your-vercel>.vercel.app/api/webhooks/whop`. Subscribe to `payment.succeeded`. **Enable "Connected account events"** so payments to sellers' sub-companies fire on this single platform-level webhook. Copy the signing secret (starts with `ws_`) to `WHOP_WEBHOOK_SECRET`.
 
 ### UploadThing setup
 
@@ -161,7 +161,7 @@ import { defineConfig } from "prisma/config";
 const url =
   process.env.DATABASE_URL_UNPOOLED ??
   process.env.DATABASE_URL ??
-  "postgresql://placeholder:placeholder@localhost:5432/placeholder";
+  "postgresql://user:password@localhost:5432/placeholder";
 
 export default defineConfig({
   schema: "prisma/schema.prisma",
@@ -390,48 +390,49 @@ export const env = new Proxy({} as Env, {
 
 ### `src/lib/whop.ts` — two SDK clients, sandbox-aware
 
-This is the central Stax-specific pattern. `whopApp` is built from the App API Key and is used for OAuth flows + webhook signature verification. `whopCompany` is built from the Company API Key and is used for anything that needs `access_pass:create` (products, plans, checkout configurations, promo codes, payouts portal links). The `baseURL` override has to include the `/api/v1` suffix — the SDK silently falls back to production if it's missing.
+This is the central Stax-specific pattern. `whopApp` is built from the App API Key. OAuth itself runs on manual fetches against `whopOauthBaseUrl`, so nothing calls it today. `whopCompany` is built from the Company API Key and is used for anything that needs `access_pass:create` (seller accounts, products, checkout configurations, promo codes, payouts portal links). SDK 2.x reads no env vars by itself, so the sandbox switch is passed explicitly as `environment: WhopEnvironment.Sandbox`. Without it every call goes to production and a sandbox key gets a 401. The file also exports the trimmed raw webhook secret that the webhook route hands to `unwrapWebhook`.
 
 ```ts
-import Whop from "@whop/sdk";
+import { WhopClient, WhopEnvironment } from "@whop/sdk";
 
 const isSandbox = process.env.WHOP_SANDBOX?.trim() === "true";
 
-// SDK option is `baseURL` (capital URL) and must include the `/api/v1` path.
-// Without those two the SDK silently falls back to production.
-const baseURL = isSandbox ? "https://sandbox-api.whop.com/api/v1" : undefined;
+// SDK 2.x reads no env vars by itself, so the sandbox switch has to be
+// passed explicitly. Without it every call goes to production and a
+// sandbox key gets a 401.
+const environment = isSandbox
+  ? WhopEnvironment.Sandbox
+  : WhopEnvironment.Production;
 
-// Defensive trim on every Whop credential, Vercel's UI silently keeps
+// Defensive trim on every Whop credential. Vercel's UI silently keeps
 // leading/trailing whitespace on paste, which 401s every API call with no
 // helpful error.
 const appKey = (process.env.WHOP_API_KEY ?? "").trim();
 const companyKey = (process.env.WHOP_COMPANY_API_KEY ?? "").trim();
-const webhookSecret = (process.env.WHOP_WEBHOOK_SECRET ?? "").trim();
-// SDK expects the webhook secret base64-encoded for signature verification.
-const webhookKey = webhookSecret
-  ? Buffer.from(webhookSecret, "utf-8").toString("base64")
-  : undefined;
+// The raw ws_ secret. unwrapWebhook from @whop/sdk/helpers base64-encodes
+// it internally, so we never encode it ourselves.
+export const webhookSecret = (process.env.WHOP_WEBHOOK_SECRET ?? "").trim();
 
 /**
- * App-key client. Used for OAuth flows + webhook signature verification.
- * Uses WHOP_API_KEY (the App API Key from Developer → Apps).
+ * App-key client. Uses WHOP_API_KEY (the App API Key from Developer > Apps).
+ * Sign-in runs on raw OAuth fetches against whopOauthBaseUrl, and webhooks
+ * are verified with webhookSecret, so nothing calls this client today.
  */
-export const whopApp = new Whop({
-  apiKey: appKey,
-  ...(webhookKey && { webhookKey }),
-  ...(baseURL && { baseURL }),
+export const whopApp = new WhopClient({
+  token: appKey,
+  environment,
 });
 
 /**
- * Company-key client. Used for operations that need the parent platform
- * Company's permissions: companies.create, accountLinks.create, products.create,
- * checkoutConfigurations.create, promoCodes.*. Uses WHOP_COMPANY_API_KEY
- * (the Company API Key from Business Settings → API Keys), which has the
- * access_pass:create scope the App API Key lacks.
+ * Company-key client, used for operations that need the parent platform
+ * account's permissions: accounts.create, accountLinks.create,
+ * products.create, checkoutConfigurations.create and promoCodes.*. Uses
+ * WHOP_COMPANY_API_KEY (the Company API Key from Business Settings >
+ * API Keys), which has the access_pass:create scope the App API Key lacks.
  */
-export const whopCompany = new Whop({
-  apiKey: companyKey,
-  ...(baseURL && { baseURL }),
+export const whopCompany = new WhopClient({
+  token: companyKey,
+  environment,
 });
 
 export const whopOauthBaseUrl = isSandbox
@@ -818,11 +819,11 @@ export async function POST() {
   const isSandbox = process.env.WHOP_SANDBOX === "true";
 
   try {
-    // Create the connected company on the platform's parent company
-    const company = await whopCompany.companies.create({
+    // Create the seller's connected account. accounts.create has no parent
+    // field: the company API key's own account becomes the parent.
+    const company = await whopCompany.accounts.create({
       email: user.email,
       title: `${user.name ?? user.email}'s Templates`,
-      parent_company_id: process.env.WHOP_COMPANY_ID!,
     });
 
     const username = await generateUsername(
@@ -853,7 +854,7 @@ export async function POST() {
     });
 
     const accountLink = await whopCompany.accountLinks.create({
-      company_id: company.id,
+      account_id: company.id,
       use_case: "account_onboarding",
       return_url: `${appUrl}/sell/onboard/complete?company_id=${company.id}`,
       refresh_url: `${appUrl}/sell?refresh=true`,
@@ -863,8 +864,8 @@ export async function POST() {
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
     const status =
-      typeof err === "object" && err !== null && "status" in err && typeof err.status === "number"
-        ? err.status
+      typeof err === "object" && err !== null && "statusCode" in err && typeof err.statusCode === "number"
+        ? err.statusCode
         : 500;
     console.error("Seller onboard failed", { status, message });
     return NextResponse.json(
@@ -1188,28 +1189,32 @@ export async function POST(
   try {
     // 1. Create the Whop product on the seller's connected company
     const whopProduct = await whopCompany.products.create({
-      company_id: template.sellerProfile.whopCompanyId,
+      account_id: template.sellerProfile.whopCompanyId,
       title: template.title,
       description: template.description,
     });
 
     // 2. Create a checkout configuration with an inline one-time plan.
+    // application_fee_amount is accepted by the Whop API but missing from the SDK types,
+    // so we build the plan as a variable first instead of writing it inline.
+    // Whop caps plan title at 30 chars. The product title (shown on the
+    // public product page) keeps the full text.
+    const plan = {
+      account_id: template.sellerProfile.whopCompanyId,
+      product_id: whopProduct.id,
+      currency: "usd",
+      initial_price: template.price / 100,
+      plan_type: "one_time" as const,
+      application_fee_amount: feeAmountCents / 100,
+      title: template.title.slice(0, 30),
+    };
+
     // redirect_url sends the buyer to our access page after a successful
     // checkout instead of Whop's default `whop.com/joined/...` page.
     const checkoutConfig = await whopCompany.checkoutConfigurations.create({
       mode: "payment",
       redirect_url: `${appUrl}/templates/${template.slug}/access`,
-      plan: {
-        company_id: template.sellerProfile.whopCompanyId,
-        product_id: whopProduct.id,
-        currency: "usd",
-        initial_price: template.price / 100,
-        plan_type: "one_time",
-        application_fee_amount: feeAmountCents / 100,
-        // Whop caps plan title at 30 chars; the product title (shown on the
-        // public product page) keeps the full text.
-        title: template.title.slice(0, 30),
-      },
+      plan,
     });
 
     const updated = await prisma.template.update({
@@ -1226,8 +1231,8 @@ export async function POST(
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
     const status =
-      typeof err === "object" && err !== null && "status" in err && typeof err.status === "number"
-        ? err.status
+      typeof err === "object" && err !== null && "statusCode" in err && typeof err.statusCode === "number"
+        ? err.statusCode
         : 500;
     console.error("Publish failed", { templateId: id, status, message });
     return NextResponse.json(
@@ -1502,14 +1507,36 @@ Two things matter here. First, idempotency: dedupe on the Whop event ID via a `W
 
 ```ts
 import type { NextRequest } from "next/server";
+import { unwrapWebhook } from "@whop/sdk/helpers";
 import { Prisma } from "@/generated/prisma/client";
-import type Whop from "@whop/sdk";
 import { prisma } from "@/lib/prisma";
-import { whopApp } from "@/lib/whop";
+import { webhookSecret } from "@/lib/whop";
 
-type WebhookEvent = ReturnType<Whop["webhooks"]["unwrap"]>;
-type PaymentSucceededEvent = Extract<WebhookEvent, { type: "payment.succeeded" }>;
-type PaymentData = PaymentSucceededEvent["data"];
+type WebhookEvent = {
+  id: string;
+  type: string;
+  data: Record<string, unknown>;
+};
+type PaymentData = WebhookEvent["data"];
+
+// Depending on the webhook's API version, Whop sends the payment with nested
+// objects (plan.id) and plain numbers, or with flat IDs (plan_id) and money
+// objects ({ amount: "9.99" }). These helpers read both shapes.
+function str(value: unknown): string | undefined {
+  return typeof value === "string" && value !== "" ? value : undefined;
+}
+
+function field(value: unknown, key: string): unknown {
+  return value && typeof value === "object"
+    ? (value as Record<string, unknown>)[key]
+    : undefined;
+}
+
+function dollars(value: unknown): number | undefined {
+  if (typeof value === "number") return value;
+  const amount = Number(field(value, "amount"));
+  return Number.isFinite(amount) ? amount : undefined;
+}
 
 /**
  * Whop webhook handler.
@@ -1518,8 +1545,8 @@ type PaymentData = PaymentSucceededEvent["data"];
  * with "connected account events" enabled so events from sellers'
  * connected companies fire here too.
  *
- * Returns 200 even on internal failures so Whop doesn't retry forever;
- * we log errors for offline inspection. Signature failures still 401.
+ * Returns 200 even on internal failures so Whop doesn't retry forever.
+ * We log errors for offline inspection. Signature failures still 401.
  */
 export async function POST(request: NextRequest) {
   const bodyText = await request.text();
@@ -1527,13 +1554,13 @@ export async function POST(request: NextRequest) {
 
   let event: WebhookEvent;
   try {
-    event = whopApp.webhooks.unwrap(bodyText, { headers });
+    event = unwrapWebhook<WebhookEvent>(bodyText, { headers, key: webhookSecret });
   } catch (err) {
     console.error("Webhook signature verification failed", err);
     return new Response("Invalid signature", { status: 401 });
   }
 
-  // Idempotency: try to insert the event ID; if it already exists we've
+  // Idempotency: try to insert the event ID. If it already exists we've
   // processed this delivery before and can short-circuit.
   try {
     await prisma.webhookEvent.create({ data: { id: event.id } });
@@ -1552,6 +1579,8 @@ export async function POST(request: NextRequest) {
     if (event.type === "payment.succeeded") {
       await handlePaymentSucceeded(event.data);
     }
+    // All other event types are subscribed but unhandled for now.
+    // Returning 200 stops Whop's retries.
   } catch (err) {
     console.error("Webhook handler error", { type: event.type, err });
   }
@@ -1560,44 +1589,55 @@ export async function POST(request: NextRequest) {
 }
 
 async function handlePaymentSucceeded(payment: PaymentData) {
-  if (!payment.plan?.id || !payment.user?.id) {
+  const paymentId = str(payment.id);
+  const planId = str(payment.plan_id) ?? str(field(payment.plan, "id"));
+  const whopUserId = str(field(payment.user, "id"));
+
+  if (!paymentId || !planId || !whopUserId) {
     console.warn("payment.succeeded missing plan or user", {
-      paymentId: payment.id,
-      planId: payment.plan?.id,
-      userId: payment.user?.id,
+      paymentId,
+      planId,
+      userId: whopUserId,
     });
     return;
   }
 
   // Find the Template by the Whop plan ID we stored at publish time.
   const template = await prisma.template.findFirst({
-    where: { whopPlanId: payment.plan.id },
+    where: { whopPlanId: planId },
     select: { id: true },
   });
   if (!template) {
-    console.warn("payment.succeeded for unknown plan", { planId: payment.plan.id });
+    console.warn("payment.succeeded for unknown plan", { planId });
     return;
   }
 
-  // Match the buyer to a local User (or create one). The Whop sandbox
-  // checkout collects the buyer's Whop identity, so payment.user.id maps
-  // 1:1 to our User.whopUserId for buyers who've signed in to Stax. If
-  // they haven't, we still create a User row so the purchase isn't lost.
+  // Match the buyer to a local User (or create one). The Whop checkout
+  // collects the buyer's Whop identity, so the payment's user ID maps 1:1
+  // to our User.whopUserId for buyers who've signed in to Stax. If they
+  // haven't, we still create a User row so the purchase isn't lost. The
+  // legacy payload carries the email on user, the current one on
+  // customer_email.
+  const email = str(field(payment.user, "email")) ?? str(payment.customer_email);
+  const name = str(field(payment.user, "name"));
+
   const user = await prisma.user.upsert({
-    where: { whopUserId: payment.user.id },
+    where: { whopUserId },
     create: {
-      whopUserId: payment.user.id,
-      email: payment.user.email ?? `${payment.user.id}@unknown.whop`,
-      name: payment.user.name ?? payment.user.username ?? null,
+      whopUserId,
+      email: email ?? `${whopUserId}@unknown.whop`,
+      name: name ?? str(field(payment.user, "username")) ?? null,
     },
     update: {
-      ...(payment.user.email && { email: payment.user.email }),
-      ...(payment.user.name && { name: payment.user.name }),
+      ...(email && { email }),
+      ...(name && { name }),
     },
   });
 
-  // Whop sends subtotal in dollars; we store cents.
-  const pricePaidCents = Math.round((payment.subtotal ?? payment.total ?? 0) * 100);
+  // Whop sends amounts in dollars. We store cents.
+  const pricePaidCents = Math.round(
+    (dollars(payment.subtotal) ?? dollars(payment.total) ?? 0) * 100,
+  );
 
   await prisma.purchase.upsert({
     where: {
@@ -1606,11 +1646,11 @@ async function handlePaymentSucceeded(payment: PaymentData) {
     create: {
       userId: user.id,
       templateId: template.id,
-      whopPaymentId: payment.id,
+      whopPaymentId: paymentId,
       pricePaid: pricePaidCents,
     },
     update: {
-      whopPaymentId: payment.id,
+      whopPaymentId: paymentId,
       pricePaid: pricePaidCents,
     },
   });
@@ -1826,7 +1866,7 @@ export async function POST() {
 
   try {
     const accountLink = await whopCompany.accountLinks.create({
-      company_id: seller.whopCompanyId,
+      account_id: seller.whopCompanyId,
       use_case: "payouts_portal",
       return_url: `${appUrl}/sell/dashboard`,
       refresh_url: `${appUrl}/sell/dashboard?refresh=true`,
@@ -1894,8 +1934,8 @@ export async function GET(
 
   try {
     const codes = [];
-    for await (const code of whopCompany.promoCodes.list({
-      company_id: template.sellerProfile.whopCompanyId,
+    for await (const code of await whopCompany.promoCodes.list({
+      account_id: template.sellerProfile.whopCompanyId,
       product_ids: [template.whopProductId],
     })) {
       codes.push(code);
@@ -1965,7 +2005,7 @@ export async function POST(
 
   try {
     const created = await whopCompany.promoCodes.create({
-      company_id: template.sellerProfile.whopCompanyId,
+      account_id: template.sellerProfile.whopCompanyId,
       product_id: template.whopProductId,
       code: normalizedCode,
       promo_type: input.promoType,
@@ -1982,8 +2022,8 @@ export async function POST(
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
     const status =
-      typeof err === "object" && err !== null && "status" in err && typeof err.status === "number"
-        ? err.status
+      typeof err === "object" && err !== null && "statusCode" in err && typeof err.statusCode === "number"
+        ? err.statusCode
         : 500;
 
     // Detect "code already exists" from Whop's response. The SDK throws on
@@ -2060,8 +2100,8 @@ export async function DELETE(
   // belongs to this template's product before deleting.
   let belongsToTemplate = false;
   try {
-    for await (const code of whopCompany.promoCodes.list({
-      company_id: template.sellerProfile.whopCompanyId,
+    for await (const code of await whopCompany.promoCodes.list({
+      account_id: template.sellerProfile.whopCompanyId,
       product_ids: [template.whopProductId],
     })) {
       if (code.id === codeId) {
@@ -2083,7 +2123,7 @@ export async function DELETE(
   }
 
   try {
-    await whopCompany.promoCodes.delete(codeId);
+    await whopCompany.promoCodes.delete({ id: codeId });
     return NextResponse.json({ ok: true });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);
@@ -2110,7 +2150,7 @@ The Stax tutorial stays in sandbox throughout development. The production switch
 2. Business Settings → API Keys (production-mode dashboard) → create a new Company API Key with all permissions, copy to `WHOP_COMPANY_API_KEY`.
 3. From the production parent company dashboard, copy the company ID (`biz_…`) to `WHOP_COMPANY_ID`.
 4. Developer → Webhooks → recreate the webhook on the production parent company pointing to `https://your-app.vercel.app/api/webhooks/whop`. Subscribe to `payment.succeeded`. Enable "Connected account events". Copy the new signing secret to `WHOP_WEBHOOK_SECRET`.
-5. Drop or unset `WHOP_SANDBOX` so the SDK defaults to `api.whop.com/api/v1`.
+5. Drop or unset `WHOP_SANDBOX` so `lib/whop.ts` passes `WhopEnvironment.Production` (`api.whop.com/api/v1`).
 6. Update the OAuth redirect URIs on the production Whop app to match the production `NEXT_PUBLIC_APP_URL`.
 7. Real KYC: the first seller to sign up after the switch will be sent to Whop's hosted onboarding because `WHOP_SANDBOX` is no longer set — the seller completes real KYC, lands on the return URL, and `kycComplete` flips to `true`.
 8. Confirm with a real first payment (real card) and check the Vercel runtime logs for the `payment.succeeded` webhook delivery.
@@ -2119,17 +2159,17 @@ The Stax tutorial stays in sandbox throughout development. The production switch
 
 ## 14. Whop SDK and integration gotchas
 
-1. **Two API keys are required.** `WHOP_API_KEY` (App API Key, Developer → Apps) is used for OAuth and webhook verification. `WHOP_COMPANY_API_KEY` (Company API Key, Business Settings → API Keys) is used for everything that needs `access_pass:create`: `products.create`, `plans.create`, `checkoutConfigurations.create`, `promoCodes.*`. Both start with `apik_`; mixing them up returns a scope error on the product/plan calls.
+1. **Two API keys are required.** `WHOP_API_KEY` (App API Key, Developer → Apps) belongs to the OAuth app. `WHOP_COMPANY_API_KEY` (Company API Key, Business Settings → API Keys) is used for everything that needs `access_pass:create`: `accounts.create`, `products.create`, `checkoutConfigurations.create`, `promoCodes.*`. Both start with `apik_`; mixing them up returns a scope error on the product/plan calls.
 
-2. **`baseURL` is capital-URL and must include `/api/v1`.** TypeScript silently accepts `baseUrl` (lowercase) as an unknown property and the SDK falls back to `https://api.whop.com/api/v1`. Every SDK call then hits production with a sandbox key and 401s. Set `baseURL: "https://sandbox-api.whop.com/api/v1"` when `WHOP_SANDBOX=true`. OAuth flows keep working in this state because they bypass the SDK and use manual fetch against `whopOauthBaseUrl`.
+2. **Sandbox is `environment: WhopEnvironment.Sandbox`.** SDK 2.x reads no env vars by itself, and the old 0.0.x `baseURL` option is a compile error (plain JS silently ignores it). Without `environment`, every SDK call hits production with a sandbox key and 401s. `lib/whop.ts` passes `WhopEnvironment.Sandbox` when `WHOP_SANDBOX=true`. OAuth flows keep working in this state because they bypass the SDK and use manual fetch against `whopOauthBaseUrl`.
 
 3. **OAuth requires PKCE + state + nonce + `client_secret` in the token body.** The PKCE verifier lives in a separate httpOnly cookie (`maxAge: 60 * 10`), not in the iron-session cookie — `NextResponse.redirect` plus a freshly written session cookie can drop session cookies on the cross-domain hop. The `nonce` is required because the scope includes `openid`. The `client_secret` is required in the token exchange body despite Whop's own docs example omitting it.
 
 4. **Token exchange body must be `application/json`.** `application/x-www-form-urlencoded` returns 400.
 
-5. **Webhook secret base64-encoded.** `webhookKey: Buffer.from(secret, "utf-8").toString("base64")`. Stax wraps this in a fall-through (`...(webhookKey && { webhookKey })`) so the SDK doesn't blow up if the secret isn't set yet.
+5. **Pass the raw webhook secret.** `unwrapWebhook(bodyText, { headers, key: webhookSecret })` from `@whop/sdk/helpers` takes the `ws_` secret as is and base64-encodes it internally. The 0.0.x habit of `Buffer.from(secret).toString("base64")` now fails every signature check.
 
-6. **`webhooks.unwrap` takes raw text and a plain headers object.** Call `request.text()` first; `request.json()` consumes the stream and breaks HMAC. Convert headers with `Object.fromEntries(request.headers)`.
+6. **`unwrapWebhook` takes raw text and a plain headers object.** Call `request.text()` first; `request.json()` consumes the stream and breaks HMAC. Convert headers with `Object.fromEntries(request.headers)`.
 
 7. **Webhook event names are dotted, not underscored.** The Whop dashboard webhook UI lists `payment_succeeded`; the payload arrives as `payment.succeeded`. `event.type === "payment.succeeded"`.
 
@@ -2149,9 +2189,9 @@ The Stax tutorial stays in sandbox throughout development. The production switch
 
 15. **100%-off promo codes break paid plans.** The application fee can't exceed the total. Free distribution should use the free-template path (price = 0, direct purchase route), not a 100% percentage code on a paid plan. The promo-codes POST validates and rejects this explicitly.
 
-16. **Promo code DELETE requires explicit ownership verification.** `whopCompany.promoCodes.delete(codeId)` succeeds against any promo code on the platform because the Company API Key has org-wide permissions. Verifying "this seller owns the template at `[id]`" is not enough — the route also has to verify the `codeId` actually belongs to that template's product (list codes for the company filtered by `product_id`, search for `codeId`, 404 if missing). Skipping this check lets one seller archive another seller's codes.
+16. **Promo code DELETE requires explicit ownership verification.** `whopCompany.promoCodes.delete({ id: codeId })` succeeds against any promo code on the platform because the Company API Key has org-wide permissions. Verifying "this seller owns the template at `[id]`" is not enough — the route also has to verify the `codeId` actually belongs to that template's product (list codes for the company filtered by `product_id`, search for `codeId`, 404 if missing). Skipping this check lets one seller archive another seller's codes.
 
-17. **`whop.companies.create({ parent_company_id })` is how the connected-account sub-company is created.** The resulting `company.id` is what every subsequent call (`accountLinks.create`, `products.create`, `checkoutConfigurations.create`, `promoCodes.*`) keys off — store it as `SellerProfile.whopCompanyId`.
+17. **`whopCompany.accounts.create({ title, email })` is how the seller's connected account is created.** It has no parent field: the Company API key's own company becomes the parent. The resulting `company.id` is the `account_id` every subsequent call (`accountLinks.create`, `products.create`, `checkoutConfigurations.create`, `promoCodes.*`) keys off. Store it as `SellerProfile.whopCompanyId`.
 
 18. **`whop.accountLinks.create` requires HTTPS** for `return_url` and `refresh_url`. Vercel preview deploys work; localhost doesn't. The `use_case` is `"account_onboarding"` for KYC and `"payouts_portal"` for the withdraw flow.
 

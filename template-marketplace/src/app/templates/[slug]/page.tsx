@@ -2,11 +2,13 @@ import { Suspense } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ChevronRight, FileText, Link2, Star, ShieldCheck } from "lucide-react";
+import { ChevronRight, FileText, Link2, Star } from "lucide-react";
 import { isAuthenticated } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { getTemplateBySlug } from "@/lib/templates";
+import { appUrl } from "@/lib/whop";
 import { toolByValue, categoryByValue } from "@/constants/categories";
+import { CheckoutModal } from "@/components/CheckoutModal";
 
 function formatPrice(cents: number): string {
   if (cents === 0) return "Free";
@@ -67,6 +69,7 @@ async function TemplateDetailContent({
       })
     : null;
   const isOwner = me?.id === template.sellerProfile.userId;
+  const isSandbox = process.env.WHOP_SANDBOX?.trim() === "true";
 
   return (
     <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:py-12">
@@ -342,34 +345,33 @@ async function TemplateDetailContent({
                   >
                     Open template
                   </Link>
-                ) : !me ? (
-                  <a
-                    href={
-                      template.price === 0
-                        ? "/api/auth/login"
-                        : `/api/auth/login?redirect_to=${encodeURIComponent(`/templates/${template.slug}/checkout`)}`
-                    }
-                    className="block w-full rounded-full bg-[var(--color-accent)] px-4 py-3 text-center text-sm font-semibold text-white shadow-sm transition hover:bg-[var(--color-accent-hover)]"
-                  >
-                    Sign in to {template.price === 0 ? "claim" : "buy"}
-                  </a>
                 ) : template.price === 0 ? (
-                  <FreeBuyForm templateId={template.id} />
-                ) : (
-                  <Link
-                    href={`/templates/${template.slug}/checkout`}
-                    prefetch={false}
-                    className="block w-full rounded-full bg-[var(--color-accent)] px-4 py-3 text-center text-sm font-semibold text-white shadow-sm transition hover:bg-[var(--color-accent-hover)]"
-                  >
-                    Buy now
-                  </Link>
-                )}
+                  // Free templates still need a Stax account so we can attribute
+                  // the download — no Whop checkout means no buyer identity
+                  // unless they sign in first.
+                  !me ? (
+                    <a
+                      href="/api/auth/login"
+                      className="block w-full rounded-full bg-[var(--color-accent)] px-4 py-3 text-center text-sm font-semibold text-white shadow-sm transition hover:bg-[var(--color-accent-hover)]"
+                    >
+                      Sign in to claim
+                    </a>
+                  ) : (
+                    <FreeBuyForm templateId={template.id} />
+                  )
+                ) : template.whopPlanId ? (
+                  // Paid templates open the embedded checkout in a modal.
+                  // No auth gate — Whop handles guest checkout and the
+                  // payment.succeeded webhook upserts a User by whopUserId.
+                  <CheckoutModal
+                    planId={template.whopPlanId}
+                    slug={template.slug}
+                    isSandbox={isSandbox}
+                    appUrl={appUrl}
+                    buttonLabel={`Get for ${formatPrice(template.price)}`}
+                  />
+                ) : null}
               </div>
-
-              <p className="mt-3 flex items-center justify-center gap-1.5 text-xs text-[var(--color-text-secondary)]">
-                <ShieldCheck className="h-3.5 w-3.5 text-[var(--color-accent)]" />
-                Secure checkout via Whop
-              </p>
             </div>
 
             {/* Metadata table */}

@@ -31,8 +31,8 @@ export async function DELETE(
   // belongs to this template's product before deleting.
   let belongsToTemplate = false;
   try {
-    for await (const code of whopCompany.promoCodes.list({
-      company_id: template.sellerProfile.whopCompanyId,
+    for await (const code of await whopCompany.promoCodes.list({
+      account_id: template.sellerProfile.whopCompanyId,
       product_ids: [template.whopProductId],
     })) {
       if (code.id === codeId) {
@@ -54,7 +54,7 @@ export async function DELETE(
   }
 
   try {
-    await whopCompany.promoCodes.delete(codeId);
+    await whopCompany.promoCodes.delete({ id: codeId });
     return NextResponse.json({ ok: true });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : String(err);

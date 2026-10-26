@@ -18,7 +18,7 @@ export async function POST() {
 
   try {
     const accountLink = await whopCompany.accountLinks.create({
-      company_id: seller.whopCompanyId,
+      account_id: seller.whopCompanyId,
       use_case: "payouts_portal",
       return_url: `${appUrl}/sell/dashboard`,
       refresh_url: `${appUrl}/sell/dashboard?refresh=true`,

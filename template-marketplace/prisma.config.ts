@@ -10,7 +10,7 @@ import { defineConfig } from "prisma/config";
 const url =
   process.env.DATABASE_URL_UNPOOLED ??
   process.env.DATABASE_URL ??
-  "postgresql://placeholder:placeholder@localhost:5432/placeholder";
+  "postgresql://user:password@localhost:5432/placeholder";
 
 export default defineConfig({
   schema: "prisma/schema.prisma",

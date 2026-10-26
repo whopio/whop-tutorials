@@ -1,43 +1,47 @@
 # Stax (Template Marketplace)
 
-A multi-seller marketplace for digital templates where any signed-in user can become a seller through Whop's connected-account flow, upload templates with preview images plus either downloadable files or a share/duplicate URL, and publish for one-time purchase. Buyers browse the Tool x Category catalog, pay via Whop's embedded checkout (the iframe renders inside the marketplace — no redirect to whop.com), leave star reviews on what they bought, and redeem seller-issued promo codes at checkout. The platform takes a configurable percentage fee (default 5%) via `application_fee_amount` on every paid sale. Built with Next.js 16, Prisma 7, UploadThing, and the Whop SDK.
+A multi-seller marketplace for digital templates where any signed-in user can become a seller through Whop's connected-account flow, upload templates with preview images plus either downloadable files or a share/duplicate URL, and publish for one-time purchase. Buyers browse the Tool x Category catalog, pay in a checkout modal on the template page (Whop's embedded checkout, so there is no redirect to whop.com and no sign-in wall), land on a receipt-keyed access page, leave star reviews on what they bought, and redeem seller-issued promo codes at checkout. The platform takes a configurable percentage fee (default 5%) via `application_fee_amount` on every paid sale. Built with Next.js 16, Prisma 7, UploadThing, and the Whop SDK (`@whop/sdk` 2.4.0).
+
+Companion code for the article [How to build a template marketplace with Next.js and Whop](https://whop.com/blog/build-a-template-marketplace/).
 
 ## Features
 
 - **OAuth Authentication** - Whop OAuth 2.1 with PKCE + nonce, iron-session encrypted cookies
-- **Seller Onboarding** - Connected Whop sub-companies via `companies.create({ parent_company_id })`, hosted KYC via `accountLinks.create({ use_case: "account_onboarding" })`, sandbox shortcut that auto-approves KYC for fast dev iteration
+- **Seller Onboarding** - Connected seller accounts via `accounts.create({ title, email })` on the platform's Company API key (the key's own company becomes the parent), hosted KYC via `accountLinks.create({ account_id, use_case: "account_onboarding" })`, and a sandbox shortcut that auto-approves KYC for fast dev iteration
 - **Multi-Tool Catalog** - Tool axis (Notion, Figma, Webflow, Framer, WordPress, Code, Word, Excel, PowerPoint, AI Prompts) and Category axis (Productivity, Project Management, Landing Pages, Dashboards, Branding, Dev Boilerplates, Marketing, Finance)
 - **Hybrid Delivery** - Each template is either a downloadable file bundle or a share URL revealed post-purchase, chosen by the seller at upload time
 - **UploadThing Two-Route Pattern** - `preview` (public, 8MB images) and `downloadable` (page-gated, 16MB mixed types) with shared seller-ownership middleware
-- **Embedded Checkout with Application Fees** - `products.create` + `checkoutConfigurations.create` with an inline one-time plan, `application_fee_amount` deducts the platform's cut and credits the rest to the seller's connected company. Buyers pay inside the app via `@whop/checkout/react`'s `<WhopCheckoutEmbed>` iframe — no redirect to whop.com.
+- **Embedded Checkout with Application Fees** - `products.create({ account_id })` + `checkoutConfigurations.create` with an inline one-time plan. `application_fee_amount` deducts the platform's cut and credits the rest to the seller's connected account. The SDK types leave `application_fee_amount` out of the inline plan, so the publish route builds the plan as a variable first. Buyers pay inside the app through `@whop/checkout/react`'s `<WhopCheckoutEmbed>` in a modal.
+- **Receipt-Keyed Access Page** - `/access/[receiptId]` is public and keyed on the Whop receipt ID, which the checkout modal's success panel links to and Whop's receipt email carries. If the webhook hasn't landed yet, the page refreshes every 2 seconds until the Purchase row appears.
 - **Free Templates Bypass Whop** - `price === 0` skips all SDK calls and writes Purchase rows directly
-- **Webhook-Driven Reconciliation** - Company-level webhook on the parent company with "Connected account events" enabled, signature-verified `payment.succeeded` upserts the Purchase, dedupes by `event.id`
-- **Purchase-Gated Access Pages** - File downloads or revealed share URL, gated by a Purchase row keyed on `(userId, templateId)`
+- **Webhook-Driven Reconciliation** - Company-level webhook on the parent company with "Connected account events" enabled. `unwrapWebhook` from `@whop/sdk/helpers` verifies the signature with the raw `ws_` secret, the handler dedupes by `event.id`, and `payment.succeeded` upserts the Purchase. It reads both payload shapes Whop sends (nested `plan.id` with numeric totals, or flat `plan_id` with money objects), depending on the webhook's API version.
+- **Purchase-Gated Access Pages** - File downloads or revealed share URL on `/templates/[slug]/access`, gated by a Purchase row keyed on `(userId, templateId)`
 - **Verified-Buyer Star Reviews** - 1-5 stars with optional title + body, one review per buyer per template, sellers can't review their own work, aggregate ratings computed per request
-- **Seller-Issued Promo Codes** - `whop.promoCodes.list / create / delete` routed directly through the Whop SDK; no local mirror. 100%-off codes are explicitly rejected on paid plans because they break `application_fee_amount` math
-- **Embedded Payout Portal** - `accountLinks.create({ use_case: "payouts_portal" })` returns a hosted URL sellers visit to withdraw earnings
+- **Seller-Issued Promo Codes** - `promoCodes.list / create / delete` with `account_id`, routed directly through the Whop SDK with no local mirror. 100%-off codes are explicitly rejected on paid plans because they break `application_fee_amount` math
+- **Embedded Payout Portal** - `accountLinks.create({ account_id, use_case: "payouts_portal" })` returns a hosted URL sellers visit to withdraw earnings
 - **Custom Pagination + Search + Filters** - `/templates` supports Tool, Category, full-text search, and sort, all from `searchParams` with no extra state library
+- **Cache Components** - `cacheComponents: true`, `"use cache"` on the catalog and detail queries, `updateTag` after every write, and Suspense skeletons around per-request reads
 
 ## Tech Stack
 
 | Technology | Purpose |
 |------------|---------|
-| [Next.js 16](https://nextjs.org/) | App Router, React 19, Turbopack |
+| [Next.js 16](https://nextjs.org/) | App Router, React 19, Turbopack, Cache Components |
 | [TypeScript](https://www.typescriptlang.org/) | Type safety |
 | [Prisma 7](https://www.prisma.io/) | ORM with `@prisma/adapter-pg` driver adapter, `prisma-client` generator output to `src/generated/prisma` |
 | [PostgreSQL](https://www.postgresql.org/) (via [Neon](https://neon.tech/)) | Cloud database, provisioned through Vercel Marketplace |
-| [Whop SDK](https://dev.whop.com/) | OAuth, connected accounts, products, checkout configurations, webhooks, promo codes, payouts portal |
+| [Whop SDK](https://docs.whop.com/) | `@whop/sdk` 2.4.0: connected accounts, products, checkout configurations, webhook verification, promo codes, payouts portal |
 | [UploadThing](https://uploadthing.com/) | File storage for preview images + downloadable bundles (16MB max) |
 | [Iron Session](https://github.com/vvo/iron-session) | Encrypted cookie sessions, no DB session table |
-| [Zod 4](https://zod.dev/) | Runtime validation at API boundaries; lazy Proxy for env var schema |
-| [Tailwind CSS v4](https://tailwindcss.com/) | CSS-first theming via `@theme`; dark mode via `@media (prefers-color-scheme: dark)` (no JS-side provider) |
-| [Vercel](https://vercel.com/) | Hosting; build configured via TypeScript `vercel.ts` |
+| [Zod 4](https://zod.dev/) | Runtime validation at API boundaries, lazy Proxy for the env var schema |
+| [Tailwind CSS v4](https://tailwindcss.com/) | CSS-first theming via `@theme`, dark mode via `@media (prefers-color-scheme: dark)` (no JS-side provider) |
+| [Vercel](https://vercel.com/) | Hosting, build configured via TypeScript `vercel.ts` |
 
 ## Getting Started
 
 ### Prerequisites
 
-- Node.js 18+
+- Node.js 20.9+ (Next.js 16's minimum)
 - A [Vercel](https://vercel.com) account (Neon is provisioned through the Vercel Marketplace)
 - A [Whop sandbox](https://sandbox.whop.com) account for development
 - An [UploadThing](https://uploadthing.com) account
@@ -72,22 +76,24 @@ Open `.env.local` and fill in:
 - `WHOP_API_KEY` - sandbox.whop.com > Developer > your app > API Keys (App API Key)
 - `WHOP_COMPANY_API_KEY` - sandbox.whop.com > Business Settings > API Keys (Company API Key with `access_pass:create`)
 - `WHOP_COMPANY_ID` - the parent company ID, starts with `biz_`, copied from the dashboard URL
-- `WHOP_WEBHOOK_SECRET` - Developer > Webhooks > the company-level webhook secret, starts with `whsec_`
+- `WHOP_WEBHOOK_SECRET` - Developer > Webhooks > the company-level webhook secret, starts with `ws_`. Paste it as is. `unwrapWebhook` encodes it itself
 - `SESSION_SECRET` - generate with `openssl rand -base64 32`
 - `NEXT_PUBLIC_APP_URL` - `http://localhost:3000` in dev, your Vercel URL in production
 - `UPLOADTHING_TOKEN` - uploadthing.com > your project > settings
 - `WHOP_SANDBOX` - `true` in development, unset in production
 - `PLATFORM_FEE_PERCENT` - default `5`
 
+Note that `vercel env pull` writes sensitive variables as empty strings, so fill the Whop keys and secrets in by hand.
+
 ### 5. Configure the Whop sandbox app
 
 In `sandbox.whop.com`:
 
-1. **Create a whop** and copy the company ID (`biz_...`) from the dashboard URL to `WHOP_COMPANY_ID`. Every seller's sub-company is created under this parent.
+1. **Create a whop** and copy the company ID (`biz_...`) from the dashboard URL to `WHOP_COMPANY_ID`. This is the platform's parent company.
 2. **Developer > Create app**. Copy Client ID, Client Secret, and the App API Key.
 3. **OAuth tab > Redirect URIs** > add `http://localhost:3000/api/auth/callback` and `https://<your-vercel-url>.vercel.app/api/auth/callback`. Enable the `oauth:token_exchange` permission.
-4. **Business Settings > API Keys** > create a Company API Key with all permissions enabled (in particular `access_pass:create`). Copy to `WHOP_COMPANY_API_KEY`.
-5. **Developer > Webhooks** > create a webhook pointing to `https://<your-vercel-url>.vercel.app/api/webhooks/whop`. Subscribe to `payment.succeeded`. **Enable "Connected account events"** so payments to sellers' sub-companies fire on this single platform-level webhook. Copy the signing secret to `WHOP_WEBHOOK_SECRET`.
+4. **Business Settings > API Keys** > create a Company API Key on the parent company with all permissions enabled (in particular `access_pass:create`). Copy to `WHOP_COMPANY_API_KEY`. Every seller account `accounts.create` makes is created under the company that owns this key.
+5. **Developer > Webhooks** > create a webhook pointing to `https://<your-vercel-url>.vercel.app/api/webhooks/whop`. Subscribe to `payment.succeeded`. **Enable "Connected account events"** so payments to sellers' connected accounts fire on this single platform-level webhook. Copy the signing secret to `WHOP_WEBHOOK_SECRET`.
 
 ### 6. Push the database schema
 
@@ -95,6 +101,8 @@ In `sandbox.whop.com`:
 npx prisma generate
 npx prisma db push
 ```
+
+Prisma 7's `db push` no longer runs `generate`, so run both.
 
 ### 7. Run the development server
 
@@ -104,17 +112,21 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000).
 
+The signed-out homepage's "Sell your templates" strip shows three cover images from `public/seed-thumbnails/` (`aperture-portfolio-theme-for-photographers.webp`, `claude-system-prompt-for-code-review.webp` and `block-first-wordpress-starter-theme.webp`). Image files aren't part of this repo, so drop any 16:9 images in with those names, or the strip renders empty frames.
+
 ## Project Structure
 
 ```
 template-marketplace/
 |-- prisma/
 |   `-- schema.prisma                  # 7 models (User, SellerProfile, Template, TemplateFile, Purchase, Review, WebhookEvent)
+|-- public/tool-icons/                 # SVG icons for the Tool axis
 |-- src/
 |   |-- app/
 |   |   |-- page.tsx                   # Landing
 |   |   |-- sign-in/                   # OAuth start CTA
-|   |   |-- templates/                 # Catalog, detail, access page, review form
+|   |   |-- templates/                 # Catalog, detail (checkout modal), access page, review form
+|   |   |-- access/[receiptId]/        # Receipt-keyed access page + ProcessingAccess poller
 |   |   |-- sellers/[username]/        # Public seller profile
 |   |   |-- sell/                      # Become-a-seller landing, dashboard, template editor
 |   |   |-- dashboard/                 # Buyer purchase history
@@ -124,18 +136,18 @@ template-marketplace/
 |   |       |-- templates/[id]/{purchase,reviews}/
 |   |       |-- uploadthing/
 |   |       `-- webhooks/whop/         # payment.succeeded receiver
-|   |-- components/                    # Header, Footer, TemplateCard, PromoCodesPanel, ReviewForm, etc.
+|   |-- components/                    # Header, Footer, TemplateCard, CheckoutModal, PromoCodesPanel, ReviewForm, etc.
 |   |-- constants/                     # Tool/Category enum metadata + lookup helpers
 |   `-- lib/
 |       |-- env.ts                     # Zod env schema (lazy Proxy)
 |       |-- prisma.ts                  # Singleton with PrismaPg driver adapter
 |       |-- session.ts                 # iron-session config
 |       |-- auth.ts                    # requireAuth / requireSeller / isAuthenticated
-|       |-- whop.ts                    # whopApp + whopCompany (sandbox-aware)
+|       |-- whop.ts                    # whopApp + whopCompany (WhopClient, sandbox-aware) and the webhook secret
 |       |-- uploadthing.ts             # Typed React helpers
 |       |-- slug.ts                    # Unique template slug generation
 |       |-- username.ts                # Unique seller username generation
-|       `-- templates.ts               # Shared list query (filters + pagination + ratings)
+|       `-- templates.ts               # Shared list query (filters + pagination + ratings), cached
 |-- next.config.ts
 |-- prisma.config.ts                   # Prisma 7 CLI config (loads .env.local, falls back when DATABASE_URL_UNPOOLED missing)
 |-- vercel.ts                          # buildCommand: prisma generate + db push + next build
@@ -156,25 +168,26 @@ User --- SellerProfile --- Template --- TemplateFile
 WebhookEvent (standalone idempotency table)
 ```
 
-Seven models. `User` is keyed by `whopUserId` (the OAuth `sub`). `SellerProfile` holds the seller's `whopCompanyId` (the connected sub-company that owns their products and receives payouts). `Template` carries the Whop product/plan/checkout-URL once published. `TemplateFile.kind` distinguishes preview images from downloadable files. `Purchase` is the buyer's access record, keyed `@@unique([userId, templateId])`. `Review` is purchase-gated, also `@@unique([userId, templateId])`. `WebhookEvent.id` is Whop's event ID, used to dedupe webhook deliveries.
+Seven models. `User` is keyed by `whopUserId` (the OAuth `sub`). `SellerProfile` holds the seller's `whopCompanyId` (the connected account that owns their products and receives payouts). `Template` carries the Whop product/plan/checkout-URL once published. `TemplateFile.kind` distinguishes preview images from downloadable files. `Purchase` is the buyer's access record, keyed `@@unique([userId, templateId])`, and also stores the `whopPaymentId` the receipt page looks up. `Review` is purchase-gated, also `@@unique([userId, templateId])`. `WebhookEvent.id` is Whop's event ID, used to dedupe webhook deliveries.
 
 All prices are integer cents.
 
 ## Payment Flow
 
-1. **Seller onboards** - `whop.companies.create({ parent_company_id })` creates the sub-company; in sandbox `kycComplete` is set to `true` immediately; in production the seller completes Whop-hosted KYC.
-2. **Seller publishes a template** - `whop.products.create({ company_id: seller.whopCompanyId })` then `whop.checkoutConfigurations.create({ plan: { initial_price, application_fee_amount, plan_type: "one_time" }, redirect_url: /templates/[slug]/access })`. The `purchase_url` is stored on the Template.
-3. **Buyer pays** - clicks Buy on `/templates/[slug]`, gets redirected to `whopCheckoutUrl`. Whop processes the payment, deducts the application fee, credits the seller's connected company.
-4. **Webhook reconciliation** - `payment.succeeded` fires on the platform-level company webhook (with connected-account events enabled). The handler verifies the signature, dedupes by `event.id`, finds the Template by `whopPlanId`, upserts the buyer's User, and upserts the Purchase.
-5. **Buyer accesses** - `/templates/[slug]/access` is gated by a Purchase row keyed on `(session.userId, templateId)`. Renders file downloads or the revealed share URL.
-6. **Seller withdraws** - dashboard "Withdraw earnings" button hits `/api/sell/payouts`, which mints a fresh `accountLinks.create({ use_case: "payouts_portal" })` URL. Seller manages their Whop balance via Whop's hosted portal.
+1. **Seller onboards** - `whopCompany.accounts.create({ title, email })` creates the seller's connected account under the company that owns the Company API key. In sandbox `kycComplete` is set to `true` immediately. In production the seller completes Whop-hosted KYC through `accountLinks.create({ account_id, use_case: "account_onboarding" })`.
+2. **Seller publishes a template** - `whopCompany.products.create({ account_id: seller.whopCompanyId })` then `whopCompany.checkoutConfigurations.create({ plan, redirect_url: /templates/[slug]/access })`, where `plan` is `{ account_id, product_id, initial_price, application_fee_amount, plan_type: "one_time" }`. The plan ID and `purchase_url` are stored on the Template.
+3. **Buyer pays** - clicks Buy on `/templates/[slug]`, which opens a modal with `<WhopCheckoutEmbed planId>`. No sign-in is needed. Whop processes the payment, deducts the application fee, and credits the seller's connected account. On success the modal shows a link to `/access/[receiptId]`.
+4. **Webhook reconciliation** - `payment.succeeded` fires on the platform-level company webhook (with connected-account events enabled). The handler verifies the signature with `unwrapWebhook`, dedupes by `event.id`, finds the Template by its plan ID, upserts the buyer's User (with the email from the payload, or a placeholder), and upserts the Purchase with the payment ID.
+5. **Buyer accesses** - `/access/[receiptId]` finds the Purchase by `whopPaymentId` and renders file downloads or the revealed share URL. Signed-in buyers also get `/templates/[slug]/access`, gated by a Purchase row keyed on `(session.userId, templateId)`, and their library on `/dashboard`.
+6. **Seller withdraws** - the dashboard "Withdraw earnings" button hits `/api/sell/payouts`, which mints a fresh `accountLinks.create({ account_id, use_case: "payouts_portal" })` URL. The seller manages their Whop balance in Whop's hosted portal.
 7. **Free templates** skip steps 2-4. POST to `/api/templates/[id]/purchase` creates the Purchase directly.
-8. **Promo codes** flow through Whop. Seller creates a code via `whop.promoCodes.create({ company_id, product_id, code, promo_type, amount_off })`. Buyer enters the code on Whop's embedded checkout iframe. Whop applies the discount; the application fee stays fixed, so the discount comes out of the seller's revenue, not the platform's.
+8. **Promo codes** flow through Whop. The seller creates a code via `whopCompany.promoCodes.create({ account_id, product_id, code, promo_type, amount_off })`. The buyer enters the code in the embedded checkout. Whop applies the discount, and the application fee stays fixed, so the discount comes out of the seller's revenue, not the platform's.
 
 Edge cases:
 
 - 100%-off percentage codes on paid plans are explicitly rejected at creation time because `application_fee_amount` can't exceed the total. Free distribution should use the free-template path (price = 0) instead.
 - Webhook retries are deduped via the `WebhookEvent` primary key (Whop's event ID).
+- SDK 2.x errors carry the HTTP status on `statusCode` (there is no `status`), and the routes read it to pass Whop's 4xx responses through.
 - Hard-deleting a template with any Purchase is rejected with a 409 so buyers don't lose access they paid for. Sellers archive instead, which hides the template but preserves access.
 
 ## Sandbox vs Production
@@ -184,7 +197,7 @@ Edge cases:
 | **Sandbox** | sandbox.whop.com | sandbox-api.whop.com/api/v1 | Test cards only |
 | **Production** | whop.com | api.whop.com/api/v1 | Real payments |
 
-Set `WHOP_SANDBOX=true` in `.env.local` during development; the SDK overrides `baseURL` to the sandbox endpoint and the OAuth flow targets the sandbox authorize/token endpoints. Unset `WHOP_SANDBOX` in production to use the live API.
+Set `WHOP_SANDBOX=true` in `.env.local` during development. `lib/whop.ts` then passes `environment: WhopEnvironment.Sandbox` to both SDK clients (SDK 2.x reads no env vars by itself), the OAuth flow targets the sandbox authorize and token endpoints, and the checkout embed runs in sandbox mode. Unset `WHOP_SANDBOX` in production to use the live API.
 
 ### Test Cards (Sandbox)
 
@@ -206,8 +219,9 @@ For the full sandbox-to-production switch (rotating App + Company API keys, recr
 
 ## Documentation
 
-- [`docs/template-marketplace.md`](docs/template-marketplace.md) - Condensed reference walkthrough: full code for every Whop SDK interaction (dual-client setup, OAuth callback, onboarding, publish flow, webhook handler, promo codes, payouts portal), Prisma schema, UploadThing two-route pattern, and the 20-item Whop SDK + integration gotchas checklist
-- [Whop for Platforms](https://dev.whop.com/) - Official documentation for connected accounts, application fees, and payouts
+- [How to build a template marketplace with Next.js and Whop](https://whop.com/blog/build-a-template-marketplace/) - The full tutorial this folder accompanies
+- [`docs/template-marketplace.md`](docs/template-marketplace.md) - Condensed reference walkthrough, also what the article's "Build this with AI" button downloads: full code for every Whop SDK interaction (dual-client setup, OAuth callback, onboarding, publish flow, webhook handler, promo codes, payouts portal), Prisma schema, UploadThing two-route pattern, and the Whop SDK + integration gotchas checklist
+- [Whop docs](https://docs.whop.com/) - Connected accounts, application fees, payouts, webhooks
 - [UploadThing docs](https://docs.uploadthing.com/) - File router config, typed React helpers
 
 ## Disclaimer
