@@ -1,0 +1,15 @@
+node_modules
+.next
+out
+.env
+.env.local
+.env.*.local
+.vercel
+*.log
+.DS_Store
+/prisma/migrations
+/generated
+*.tsbuildinfo
+
+.vercel
+.env*.local
