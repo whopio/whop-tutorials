@@ -7,10 +7,10 @@ run on Whop connected accounts with embedded checkout and an on-site payout port
 
 ## Stack
 Next.js 16 (App Router) · React 19 · TypeScript · Tailwind v4 · Prisma 5 · Postgres · iron-session ·
-Zod · Whop SDK (`@whop/sdk`, `@whop/checkout`, `@whop/embedded-components-*`) · Vercel.
+Zod · Whop SDK (`@whop/sdk` 2.4.0, `@whop/checkout`, `@whop/embedded-components-*`) · Vercel.
 
 ## Prerequisites
-- Node.js 18+ and npm
+- Node.js 20.9+ and npm (Next.js 16 needs it)
 - A Postgres database (local or cloud, e.g. Neon)
 - A Whop account (use the sandbox at https://sandbox.whop.com while developing)
 
@@ -39,6 +39,8 @@ npm run dev                 # http://localhost:3005
 ```
 
 ## Notes
+- `docs/kofi-clone.md` is a condensed version of the tutorial. The article's "Build this with AI" prompt
+  downloads it, so it is kept in step with the code here.
 - Dev runs on **port 3005** to match the registered OAuth redirect URI.
 - The embedded payout portal works in sandbox and production alike, as long as the Company API key has the
   payout scopes (`company:balance:read`, `payout:account:read`, `payout:destination:read`,

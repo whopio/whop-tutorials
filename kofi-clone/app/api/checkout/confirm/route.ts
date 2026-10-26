@@ -25,7 +25,7 @@ export async function POST(req: NextRequest) {
   let matched: { id: string; metadata?: Record<string, unknown> | null } | null = null;
   try {
     let scanned = 0;
-    for await (const payment of whopsdk.payments.list({ company_id: creator.whopCompanyId, direction: "desc" })) {
+    for await (const payment of await whopsdk.payments.list({ account_id: creator.whopCompanyId, direction: "desc" })) {
       const p = payment as unknown as {
         id: string;
         status?: string;

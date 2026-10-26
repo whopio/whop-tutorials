@@ -1,14 +1,7 @@
-import { Whop } from "@whop/sdk";
-import { env, isSandbox, whopApiBaseUrl } from "./env";
+import { WhopClient, WhopEnvironment } from "@whop/sdk";
+import { env, isSandbox } from "./env";
 
-function webhookKey(): string | null {
-  const secret = env.WHOP_WEBHOOK_SECRET;
-  if (!secret) return null;
-  return Buffer.from(secret).toString("base64");
-}
-
-export const whopsdk = new Whop({
-  apiKey: env.WHOP_COMPANY_API_KEY,
-  webhookKey: webhookKey(),
-  ...(isSandbox() ? { baseURL: whopApiBaseUrl() } : {}),
+export const whopsdk = new WhopClient({
+  token: env.WHOP_COMPANY_API_KEY,
+  environment: isSandbox() ? WhopEnvironment.Sandbox : WhopEnvironment.Production,
 });

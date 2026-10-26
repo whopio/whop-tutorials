@@ -1,17 +1,15 @@
 import { whopsdk } from "@/lib/whop";
-import { env } from "@/lib/env";
 import { centsToDollars } from "@/lib/fees";
 import type { CheckoutKind } from "@/constants";
 
-/** Create a connected account (child company) under our platform for a creator. */
+/** Create a connected account under our platform for a creator. */
 export async function createConnectedCompany(params: {
   email: string;
   title: string;
   internalUserId: string;
 }): Promise<string> {
-  const company = await whopsdk.companies.create({
+  const company = await whopsdk.accounts.create({
     email: params.email,
-    parent_company_id: env.WHOP_PLATFORM_COMPANY_ID,
     title: params.title,
     metadata: { internal_user_id: params.internalUserId },
   });
@@ -26,7 +24,7 @@ export async function createAccountLink(params: {
   refreshUrl: string;
 }): Promise<string> {
   const link = await whopsdk.accountLinks.create({
-    company_id: params.companyId,
+    account_id: params.companyId,
     use_case: params.useCase,
     return_url: params.returnUrl,
     refresh_url: params.refreshUrl,
@@ -36,7 +34,7 @@ export async function createAccountLink(params: {
 
 /** Short-lived access token used by the embedded payout portal for a company. */
 export async function createCompanyAccessToken(companyId: string): Promise<string> {
-  const { token } = await whopsdk.accessTokens.create({ company_id: companyId });
+  const { token } = await whopsdk.accessTokens.create({ account_id: companyId });
   return token;
 }
 
@@ -58,7 +56,7 @@ export interface PayoutSnapshot {
  * the live balance, so the dashboard never renders a bare "no payout account" state.
  */
 export async function getPayoutSnapshot(companyId: string): Promise<PayoutSnapshot> {
-  const ledger = await whopsdk.ledgerAccounts.retrieve(companyId);
+  const ledger = await whopsdk.ledgerAccounts.retrieve({ id: companyId });
   const balance = ledger.balances?.find((b) => b.currency === "usd") ?? ledger.balances?.[0];
   const status = ledger.payout_account_details?.status ?? null;
   return {
@@ -72,7 +70,7 @@ export async function getPayoutSnapshot(companyId: string): Promise<PayoutSnapsh
 export interface CheckoutResult {
   sessionId: string;
   planId: string;
-  purchaseUrl: string;
+  purchaseUrl: string | null;
 }
 
 /**
@@ -92,17 +90,27 @@ export async function createCheckoutConfiguration(params: {
   const amount = centsToDollars(params.amountCents);
   const fee = centsToDollars(params.applicationFeeCents);
 
+  // application_fee_amount and product are accepted by the Whop API but missing from the
+  // SDK types, so we build the plan as a variable first instead of writing it inline.
+  // A renewal plan needs a product: Whop finds or creates one by its external_identifier.
+  const plan = {
+    account_id: params.connectedCompanyId,
+    currency: "usd",
+    plan_type: params.planType,
+    application_fee_amount: fee,
+    title: params.title,
+    ...(params.planType === "renewal"
+      ? {
+          renewal_price: amount,
+          billing_period: 30,
+          initial_price: 0,
+          product: { external_identifier: `tier-${params.metadata.tierId}`, title: params.title },
+        }
+      : { initial_price: amount }),
+  };
+
   const cfg = await whopsdk.checkoutConfigurations.create({
-    plan: {
-      company_id: params.connectedCompanyId,
-      currency: "usd",
-      plan_type: params.planType,
-      application_fee_amount: fee,
-      title: params.title,
-      ...(params.planType === "renewal"
-        ? { renewal_price: amount, billing_period: 30, initial_price: 0 }
-        : { initial_price: amount }),
-    },
+    plan,
     metadata: params.metadata,
     // Whop requires an https redirect URL; omit on http://localhost (the embed's
     // client-side returnUrl + onComplete handle the local success flow instead).
@@ -112,12 +120,12 @@ export async function createCheckoutConfiguration(params: {
   const planId = cfg.plan?.id;
   if (!planId) throw new Error("Checkout configuration did not return a plan id");
 
-  return { sessionId: cfg.id, planId, purchaseUrl: cfg.purchase_url };
+  return { sessionId: cfg.id, planId, purchaseUrl: cfg.purchase_url ?? null };
 }
 
 /** Look up a payment to confirm it succeeded (checkout-return fallback when no webhook). */
 export async function retrievePayment(paymentId: string) {
-  return whopsdk.payments.retrieve(paymentId);
+  return whopsdk.payments.retrieve({ id: paymentId });
 }
 
 /** Fire a push notification to a creator's connected company. Best-effort. */
@@ -131,7 +139,7 @@ export async function notifyCreator(params: {
 }): Promise<boolean> {
   try {
     await whopsdk.notifications.create({
-      company_id: params.companyId,
+      account_id: params.companyId,
       title: params.title,
       subtitle: params.subtitle,
       content: params.content,

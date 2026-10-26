@@ -9,11 +9,10 @@ const MAX_BYTES = 5 * 1024 * 1024; // 5 MB
 const ALLOWED = ["image/jpeg", "image/png", "image/webp", "image/gif"];
 
 // Store a creator image and return a URL to save on their profile. In production
-// we push it to Whop's Files API, whose `upload` helper creates the file, uploads
-// the bytes to a presigned S3 URL, and polls until it is ready, returning a
-// permanent public CDN url. Whop's sandbox accepts the upload but never finishes
-// processing the file (it stays "pending" with no url), so in sandbox we resize
-// the image and return it as a data URL instead.
+// we create a public file with Whop's Files API, PUT the bytes to its presigned
+// upload URL, and poll until it is ready, which gives a permanent public CDN url.
+// In sandbox we resize the image and return it as a data URL instead, so local
+// development never waits on Whop's file processing.
 export async function POST(req: NextRequest) {
   if (!rateLimit(`creator-upload:${clientIp(req)}`, 10, 60_000)) {
     return NextResponse.json({ error: "Too many requests" }, { status: 429 });
@@ -51,8 +50,21 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ url: `data:image/webp;base64,${out.toString("base64")}` });
     }
 
-    const uploaded = await whopsdk.files.upload(file, { filename: file.name || "upload" });
-    if (!uploaded.url) {
+    const created = await whopsdk.files.create({ filename: file.name || "upload", visibility: "public" });
+    if (!created.upload_url) throw new Error(`File ${created.id} has no upload URL`);
+    const put = await fetch(created.upload_url, {
+      method: "PUT",
+      headers: created.upload_headers as Record<string, string> | undefined,
+      body: file,
+    });
+    if (!put.ok) throw new Error(`Upload failed with status ${put.status}`);
+
+    let uploaded = await whopsdk.files.retrieve({ id: created.id });
+    for (let i = 0; i < 10 && uploaded.upload_status !== "ready" && uploaded.upload_status !== "failed"; i++) {
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+      uploaded = await whopsdk.files.retrieve({ id: created.id });
+    }
+    if (uploaded.upload_status !== "ready" || !uploaded.url) {
       return NextResponse.json({ error: "Upload did not finish" }, { status: 502 });
     }
     return NextResponse.json({ url: uploaded.url });

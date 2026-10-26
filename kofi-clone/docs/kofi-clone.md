@@ -41,7 +41,7 @@ This file keeps **full code only for the security-sensitive and Whop-specific pa
 - `/api/auth/login` — Starts OAuth: generates PKCE verifier/state/nonce, stores them in an httpOnly cookie, redirects to Whop's authorize URL.
 - `/oauth/callback` — Verifies state, exchanges the code (PKCE verifier plus `client_secret`), fetches userinfo, upserts the User, saves the iron-session, redirects.
 - `/api/auth/logout`, `/api/auth/me` — Destroy session; return the current user as JSON.
-- `/api/creator` — POST creates the creator page: validates the handle, calls `companies.create` (connected account), stores `whopCompanyId`, sets `whopOnboarded: true`.
+- `/api/creator` — POST creates the creator page: validates the handle, calls `accounts.create` (connected account), stores `whopCompanyId`, sets `whopOnboarded: true`.
 - `/api/creator/username` — Live handle-availability check used by onboarding.
 - `/api/creator/settings` — PATCH profile fields (accepts hosted URLs or data URLs for images).
 - `/api/creator/upload` — POST an avatar/cover image; sharp-resized data URL in sandbox, Whop Files API CDN URL in production.
@@ -55,7 +55,7 @@ This file keeps **full code only for the security-sensitive and Whop-specific pa
 **Payment flow**
 
 1. A supporter picks an amount (or tier, or product) on `/[username]`. The client POSTs to `/api/checkout`.
-2. The route writes a `PENDING` Support or Order row (memberships carry ids in metadata instead), then calls `checkoutConfigurations.create` with an **inline plan on the creator's connected company**: `company_id`, `plan_type` (`one_time` for tips/shop, `renewal` for memberships), the price, and `application_fee_amount` all nested INSIDE `plan`, plus `metadata` identifying what is being paid for.
+2. The route writes a `PENDING` Support or Order row (memberships carry ids in metadata instead), then calls `checkoutConfigurations.create` with an **inline plan on the creator's connected company**: `account_id`, `plan_type` (`one_time` for tips/shop, `renewal` for memberships), the price, and `application_fee_amount` all nested INSIDE `plan` (a renewal plan also carries a `product`), plus `metadata` identifying what is being paid for.
 3. The client renders `WhopCheckoutEmbed` with the returned `sessionId` and `planId` (inline on desktop, modal on mobile), themed to the page accent.
 4. The supporter pays with a test card. Funds land on the **creator's connected balance**, minus Whop's processing fee and the platform application fee. The platform never holds the money.
 5. `payment.succeeded` fires the webhook, which verifies the signature, dedupes on the event id, and fulfills from metadata: completes the Support/Order or upserts the Membership, bumps the goal, and push-notifies the creator. On localhost (where webhooks cannot reach), the embed's `onComplete` hits `/api/checkout/confirm`, which verifies against `payments.list` before fulfilling the same way.
@@ -69,8 +69,8 @@ This file keeps **full code only for the security-sensitive and Whop-specific pa
 ```bash
 npx create-next-app@latest kofi-clone --typescript --tailwind --app --turbopack --eslint
 cd kofi-clone
-npm install @prisma/client @whop/checkout @whop/embedded-components-react-js @whop/embedded-components-vanilla-js @whop/react @whop/sdk iron-session sharp zod
-npm install -D prisma @vercel/config
+npm install @prisma/client@^5.22.0 @whop/checkout@^0.0.54 @whop/embedded-components-react-js @whop/embedded-components-vanilla-js @whop/react @whop/sdk@2.4.0 iron-session@^8.0.4 sharp zod
+npm install -D prisma@^5.22.0 @vercel/config
 npx prisma init --datasource-provider postgresql
 ```
 
@@ -145,7 +145,7 @@ export default function RootLayout({
 
 ### `next.config.ts`
 
-The CSP must allow Whop's embedded checkout and payout iframes, plus data/blob/https images for uploads and CDNs.
+The CSP must allow Whop's embedded checkout and payout iframes (`https://whop.com` as well as `https://*.whop.com`), plus data/blob/https images for uploads and CDNs. Keep the `turbopack.rules` entry create-next-app writes, because it is what loads Tailwind.
 
 ```ts
 import type { NextConfig } from "next";
@@ -159,7 +159,7 @@ const csp = [
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob: https:",
   "font-src 'self' data: https:",
-  "frame-src https://*.whop.com",
+  "frame-src https://whop.com https://*.whop.com",
   "connect-src 'self' https://*.whop.com wss://*.whop.com",
   "frame-ancestors 'self'",
 ].join("; ");
@@ -167,6 +167,12 @@ const csp = [
 const nextConfig: NextConfig = {
   turbopack: {
     root: __dirname,
+    rules: {
+      "*.css": {
+        loaders: ["@tailwindcss/turbopack"],
+        as: "*.css",
+      },
+    },
   },
   async headers() {
     return [
@@ -899,22 +905,15 @@ Each creator becomes a Whop **child company** under the platform company. Tips a
 
 ### `lib/whop.ts`
 
-One SDK client built with the Company API key. The `webhookKey` must be the base64 of the webhook secret.
+One SDK client built with the Company API key. `environment` picks the sandbox or production API. The webhook secret is not set here: the webhook route passes it to `unwrapWebhook`.
 
 ```ts
-import { Whop } from "@whop/sdk";
-import { env, isSandbox, whopApiBaseUrl } from "./env";
+import { WhopClient, WhopEnvironment } from "@whop/sdk";
+import { env, isSandbox } from "./env";
 
-function webhookKey(): string | null {
-  const secret = env.WHOP_WEBHOOK_SECRET;
-  if (!secret) return null;
-  return Buffer.from(secret).toString("base64");
-}
-
-export const whopsdk = new Whop({
-  apiKey: env.WHOP_COMPANY_API_KEY,
-  webhookKey: webhookKey(),
-  ...(isSandbox() ? { baseURL: whopApiBaseUrl() } : {}),
+export const whopsdk = new WhopClient({
+  token: env.WHOP_COMPANY_API_KEY,
+  environment: isSandbox() ? WhopEnvironment.Sandbox : WhopEnvironment.Production,
 });
 ```
 
@@ -1077,23 +1076,21 @@ export function isAccentName(name: string): name is AccentName {
 
 ### `services/whop.ts`
 
-Every Whop API call in one service module. The critical shape: in `checkoutConfigurations.create`, `company_id`, `currency`, `plan_type`, the price fields, and `application_fee_amount` all nest INSIDE `plan` (top-level `company_id` only applies to setup mode), and `redirect_url` must be https so it is omitted on localhost.
+Every Whop API call in one service module. The critical shape: in `checkoutConfigurations.create`, `account_id`, `currency`, `plan_type`, the price fields, and `application_fee_amount` all nest INSIDE `plan`, and `redirect_url` must be https so it is omitted on localhost. A renewal plan also needs a `product`, which Whop finds or creates by its `external_identifier`. `application_fee_amount` and `product` are missing from the SDK types, so `plan` is built as a variable first.
 
 ```ts
 import { whopsdk } from "@/lib/whop";
-import { env } from "@/lib/env";
 import { centsToDollars } from "@/lib/fees";
 import type { CheckoutKind } from "@/constants";
 
-/** Create a connected account (child company) under our platform for a creator. */
+/** Create a connected account under our platform for a creator. */
 export async function createConnectedCompany(params: {
   email: string;
   title: string;
   internalUserId: string;
 }): Promise<string> {
-  const company = await whopsdk.companies.create({
+  const company = await whopsdk.accounts.create({
     email: params.email,
-    parent_company_id: env.WHOP_PLATFORM_COMPANY_ID,
     title: params.title,
     metadata: { internal_user_id: params.internalUserId },
   });
@@ -1108,7 +1105,7 @@ export async function createAccountLink(params: {
   refreshUrl: string;
 }): Promise<string> {
   const link = await whopsdk.accountLinks.create({
-    company_id: params.companyId,
+    account_id: params.companyId,
     use_case: params.useCase,
     return_url: params.returnUrl,
     refresh_url: params.refreshUrl,
@@ -1118,7 +1115,7 @@ export async function createAccountLink(params: {
 
 /** Short-lived access token used by the embedded payout portal for a company. */
 export async function createCompanyAccessToken(companyId: string): Promise<string> {
-  const { token } = await whopsdk.accessTokens.create({ company_id: companyId });
+  const { token } = await whopsdk.accessTokens.create({ account_id: companyId });
   return token;
 }
 
@@ -1140,7 +1137,7 @@ export interface PayoutSnapshot {
  * the live balance, so the dashboard never renders a bare "no payout account" state.
  */
 export async function getPayoutSnapshot(companyId: string): Promise<PayoutSnapshot> {
-  const ledger = await whopsdk.ledgerAccounts.retrieve(companyId);
+  const ledger = await whopsdk.ledgerAccounts.retrieve({ id: companyId });
   const balance = ledger.balances?.find((b) => b.currency === "usd") ?? ledger.balances?.[0];
   const status = ledger.payout_account_details?.status ?? null;
   return {
@@ -1154,7 +1151,7 @@ export async function getPayoutSnapshot(companyId: string): Promise<PayoutSnapsh
 export interface CheckoutResult {
   sessionId: string;
   planId: string;
-  purchaseUrl: string;
+  purchaseUrl: string | null;
 }
 
 /**
@@ -1174,17 +1171,27 @@ export async function createCheckoutConfiguration(params: {
   const amount = centsToDollars(params.amountCents);
   const fee = centsToDollars(params.applicationFeeCents);
 
+  // application_fee_amount and product are accepted by the Whop API but missing from the
+  // SDK types, so we build the plan as a variable first instead of writing it inline.
+  // A renewal plan needs a product: Whop finds or creates one by its external_identifier.
+  const plan = {
+    account_id: params.connectedCompanyId,
+    currency: "usd",
+    plan_type: params.planType,
+    application_fee_amount: fee,
+    title: params.title,
+    ...(params.planType === "renewal"
+      ? {
+          renewal_price: amount,
+          billing_period: 30,
+          initial_price: 0,
+          product: { external_identifier: `tier-${params.metadata.tierId}`, title: params.title },
+        }
+      : { initial_price: amount }),
+  };
+
   const cfg = await whopsdk.checkoutConfigurations.create({
-    plan: {
-      company_id: params.connectedCompanyId,
-      currency: "usd",
-      plan_type: params.planType,
-      application_fee_amount: fee,
-      title: params.title,
-      ...(params.planType === "renewal"
-        ? { renewal_price: amount, billing_period: 30, initial_price: 0 }
-        : { initial_price: amount }),
-    },
+    plan,
     metadata: params.metadata,
     // Whop requires an https redirect URL; omit on http://localhost (the embed's
     // client-side returnUrl + onComplete handle the local success flow instead).
@@ -1194,12 +1201,12 @@ export async function createCheckoutConfiguration(params: {
   const planId = cfg.plan?.id;
   if (!planId) throw new Error("Checkout configuration did not return a plan id");
 
-  return { sessionId: cfg.id, planId, purchaseUrl: cfg.purchase_url };
+  return { sessionId: cfg.id, planId, purchaseUrl: cfg.purchase_url ?? null };
 }
 
 /** Look up a payment to confirm it succeeded (checkout-return fallback when no webhook). */
 export async function retrievePayment(paymentId: string) {
-  return whopsdk.payments.retrieve(paymentId);
+  return whopsdk.payments.retrieve({ id: paymentId });
 }
 
 /** Fire a push notification to a creator's connected company. Best-effort. */
@@ -1213,7 +1220,7 @@ export async function notifyCreator(params: {
 }): Promise<boolean> {
   try {
     await whopsdk.notifications.create({
-      company_id: params.companyId,
+      account_id: params.companyId,
       title: params.title,
       subtitle: params.subtitle,
       content: params.content,
@@ -1246,7 +1253,7 @@ export async function createPaymentsWebhook(appUrl: string): Promise<{ id: strin
 
 ### `app/api/creator/route.ts`
 
-Creates the page: validates the handle against `lib/username.ts` (a Zod schema plus a reserved-names set: `dashboard`, `explore`, `feed`, `features`, `api`, and friends), calls `companies.create`, then stores the creator with `whopOnboarded: true` so discovery picks the page up. One trap: `companies.create` rejects undeliverable emails (anything `@example.com`), so real OAuth emails are used.
+Creates the page: validates the handle against `lib/username.ts` (a Zod schema plus a reserved-names set: `dashboard`, `explore`, `feed`, `features`, `api`, and friends), calls `accounts.create`, then stores the creator with `whopOnboarded: true` so discovery picks the page up. One trap: `accounts.create` rejects undeliverable emails (anything `@example.com`), so real OAuth emails are used.
 
 ```ts
 import { NextRequest, NextResponse } from "next/server";
@@ -1865,7 +1872,7 @@ export async function POST(req: NextRequest) {
   let matched: { id: string; metadata?: Record<string, unknown> | null } | null = null;
   try {
     let scanned = 0;
-    for await (const payment of whopsdk.payments.list({ company_id: creator.whopCompanyId, direction: "desc" })) {
+    for await (const payment of await whopsdk.payments.list({ account_id: creator.whopCompanyId, direction: "desc" })) {
       const p = payment as unknown as {
         id: string;
         status?: string;
@@ -1894,7 +1901,7 @@ export async function POST(req: NextRequest) {
 
 ## Step 8: Memberships
 
-Tiers are project-local rows; the recurring plan is created inline per checkout (`plan_type: "renewal"`, `renewal_price`, `billing_period: 30`, `initial_price: 0` in `services/whop.ts`). The CRUD is plain: `/api/tiers` POST validates name/price/description/benefits with Zod, rate-limits, requires the creator session, and `prisma.tier.create`s with the next `order`; `/api/tiers/[id]` PATCH/DELETE edits or soft-retires (`isActive: false`) an owned tier. The membership page (`/[username]/membership` rendering `MembershipTiers`) shows tier cards with member counts and benefits; Join requires login (the checkout route 401s with `login_required`, the client redirects to `/api/auth/login`), then opens the same `WhopCheckoutEmbed` in a modal with the returned session/plan ids. Supporter access is the `Membership` table: ACTIVE or CANCELING rows pass `canViewPost`, and the webhook flips statuses from there.
+Tiers are project-local rows; the recurring plan is created inline per checkout (`plan_type: "renewal"`, `renewal_price`, `billing_period: 30`, `initial_price: 0`, and a `product` that Whop finds or creates by its `external_identifier`, in `services/whop.ts`). The CRUD is plain: `/api/tiers` POST validates name/price/description/benefits with Zod, rate-limits, requires the creator session, and `prisma.tier.create`s with the next `order`; `/api/tiers/[id]` PATCH/DELETE edits or soft-retires (`isActive: false`) an owned tier. The membership page (`/[username]/membership` rendering `MembershipTiers`) shows tier cards with member counts and benefits; Join requires login (the checkout route 401s with `login_required`, the client redirects to `/api/auth/login`), then opens the same `WhopCheckoutEmbed` in a modal with the returned session/plan ids. Supporter access is the `Membership` table: ACTIVE or CANCELING rows pass `canViewPost`, and the webhook flips statuses from there.
 
 ## Step 9: Shop
 
@@ -1910,11 +1917,12 @@ In the Whop dashboard (Developer > Webhooks), add a webhook pointing at `https:/
 
 ### `app/api/webhooks/whop/route.ts`
 
-Signature verification via `webhooks.unwrap` (it reads the Standard Webhooks headers), then idempotency on the event id through the `ProcessedWebhook` table, then the event switch. Always 200 after dedupe so Whop stops retrying.
+Signature verification via `unwrapWebhook` from `@whop/sdk/helpers`, with the raw `ws_` secret (it reads the Standard Webhooks headers), then idempotency on the event id through the `ProcessedWebhook` table, then the event switch. Always 200 after dedupe so Whop stops retrying.
 
 ```ts
 import { NextRequest, NextResponse } from "next/server";
-import { whopsdk } from "@/lib/whop";
+import { unwrapWebhook } from "@whop/sdk/helpers";
+import { env } from "@/lib/env";
 import { prisma } from "@/lib/prisma";
 import {
   fulfillFromMetadata,
@@ -1931,7 +1939,7 @@ export async function POST(req: NextRequest) {
 
   let event: WebhookEvent;
   try {
-    event = whopsdk.webhooks.unwrap(bodyText, { headers }) as unknown as WebhookEvent;
+    event = unwrapWebhook<WebhookEvent>(bodyText, { headers, key: env.WHOP_WEBHOOK_SECRET });
   } catch (err: unknown) {
     console.error("Webhook signature verification failed:", err);
     return new NextResponse("invalid signature", { status: 401 });
@@ -2042,7 +2050,7 @@ export async function reconcilePendingSupports(creatorId: string, whopCompanyId:
 
   try {
     let scanned = 0;
-    for await (const payment of whopsdk.payments.list({ company_id: whopCompanyId, direction: "desc" })) {
+    for await (const payment of await whopsdk.payments.list({ account_id: whopCompanyId, direction: "desc" })) {
       const p = payment as unknown as {
         id: string;
         status?: string;
@@ -2518,7 +2526,7 @@ Theming, summarized: the inline script in `app/layout.tsx` (Step 1) applies `loc
 
 ### `app/api/creator/upload/route.ts`
 
-Avatar and cover uploads. Production pushes bytes through `whopsdk.files.upload` (create, presigned S3 PUT, poll until ready) and stores the permanent CDN URL. Whop's sandbox accepts uploads but never finishes processing them (`upload_status` stays `pending`, `url` stays null), so in sandbox the route resizes with sharp and returns a data URL instead.
+Avatar and cover uploads. Production creates a public file with `files.create`, PUTs the bytes to its presigned upload URL, polls `files.retrieve` until it is ready, and stores the permanent CDN URL. In sandbox the route resizes with sharp and returns a data URL instead, so local development never waits on Whop's file processing.
 
 ```ts
 import { NextRequest, NextResponse } from "next/server";
@@ -2532,11 +2540,10 @@ const MAX_BYTES = 5 * 1024 * 1024; // 5 MB
 const ALLOWED = ["image/jpeg", "image/png", "image/webp", "image/gif"];
 
 // Store a creator image and return a URL to save on their profile. In production
-// we push it to Whop's Files API, whose `upload` helper creates the file, uploads
-// the bytes to a presigned S3 URL, and polls until it is ready, returning a
-// permanent public CDN url. Whop's sandbox accepts the upload but never finishes
-// processing the file (it stays "pending" with no url), so in sandbox we resize
-// the image and return it as a data URL instead.
+// we create a public file with Whop's Files API, PUT the bytes to its presigned
+// upload URL, and poll until it is ready, which gives a permanent public CDN url.
+// In sandbox we resize the image and return it as a data URL instead, so local
+// development never waits on Whop's file processing.
 export async function POST(req: NextRequest) {
   if (!rateLimit(`creator-upload:${clientIp(req)}`, 10, 60_000)) {
     return NextResponse.json({ error: "Too many requests" }, { status: 429 });
@@ -2574,8 +2581,21 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ url: `data:image/webp;base64,${out.toString("base64")}` });
     }
 
-    const uploaded = await whopsdk.files.upload(file, { filename: file.name || "upload" });
-    if (!uploaded.url) {
+    const created = await whopsdk.files.create({ filename: file.name || "upload", visibility: "public" });
+    if (!created.upload_url) throw new Error(`File ${created.id} has no upload URL`);
+    const put = await fetch(created.upload_url, {
+      method: "PUT",
+      headers: created.upload_headers as Record<string, string> | undefined,
+      body: file,
+    });
+    if (!put.ok) throw new Error(`Upload failed with status ${put.status}`);
+
+    let uploaded = await whopsdk.files.retrieve({ id: created.id });
+    for (let i = 0; i < 10 && uploaded.upload_status !== "ready" && uploaded.upload_status !== "failed"; i++) {
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+      uploaded = await whopsdk.files.retrieve({ id: created.id });
+    }
+    if (uploaded.upload_status !== "ready" || !uploaded.url) {
       return NextResponse.json({ error: "Upload did not finish" }, { status: 502 });
     }
     return NextResponse.json({ url: uploaded.url });

@@ -9,7 +9,7 @@ const csp = [
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob: https:",
   "font-src 'self' data: https:",
-  "frame-src https://*.whop.com",
+  "frame-src https://whop.com https://*.whop.com",
   "connect-src 'self' https://*.whop.com wss://*.whop.com",
   "frame-ancestors 'self'",
 ].join("; ");
@@ -17,6 +17,12 @@ const csp = [
 const nextConfig: NextConfig = {
   turbopack: {
     root: __dirname,
+    rules: {
+      "*.css": {
+        loaders: ["@tailwindcss/turbopack"],
+        as: "*.css",
+      },
+    },
   },
   async headers() {
     return [

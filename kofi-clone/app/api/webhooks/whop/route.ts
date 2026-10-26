@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { whopsdk } from "@/lib/whop";
+import { unwrapWebhook } from "@whop/sdk/helpers";
+import { env } from "@/lib/env";
 import { prisma } from "@/lib/prisma";
 import {
   fulfillFromMetadata,
@@ -16,7 +17,7 @@ export async function POST(req: NextRequest) {
 
   let event: WebhookEvent;
   try {
-    event = whopsdk.webhooks.unwrap(bodyText, { headers }) as unknown as WebhookEvent;
+    event = unwrapWebhook<WebhookEvent>(bodyText, { headers, key: env.WHOP_WEBHOOK_SECRET });
   } catch (err: unknown) {
     console.error("Webhook signature verification failed:", err);
     return new NextResponse("invalid signature", { status: 401 });

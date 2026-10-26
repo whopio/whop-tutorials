@@ -44,7 +44,7 @@ export async function reconcilePendingSupports(creatorId: string, whopCompanyId:
 
   try {
     let scanned = 0;
-    for await (const payment of whopsdk.payments.list({ company_id: whopCompanyId, direction: "desc" })) {
+    for await (const payment of await whopsdk.payments.list({ account_id: whopCompanyId, direction: "desc" })) {
       const p = payment as unknown as {
         id: string;
         status?: string;
