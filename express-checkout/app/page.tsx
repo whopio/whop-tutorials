@@ -19,17 +19,17 @@ async function summarize(
 ): Promise<ReceiptSummary | null> {
   if (!paymentId) return null;
   try {
-    const payment = await getWhop().payments.retrieve(paymentId);
+    const payment = await getWhop().payments.retrieve({ id: paymentId });
     if (payment.status !== "paid") return null;
     return {
       id: payment.id,
       status: payment.status ?? "unknown",
       substatus: payment.substatus,
-      total: payment.total ?? 0,
+      total: payment.total,
       currency: payment.currency ?? "usd",
       paidAt: payment.paid_at,
-      cardBrand: payment.payment_method?.card?.brand ?? null,
-      cardLast4: payment.payment_method?.card?.last4 ?? null,
+      cardBrand: payment.payment_instrument?.card?.brand ?? null,
+      cardLast4: payment.payment_instrument?.card?.last4 ?? null,
     };
   } catch {
     return null;
@@ -46,34 +46,35 @@ export default async function Home({
   const session = await getSession();
   const params = await searchParams;
 
-  const plan = await whop.plans.retrieve(WHOP_IDS.planId);
-  const productTitle = plan.product?.title ?? "Demo pass";
-  const price = plan.initial_price ?? 5;
+  const [plan, product] = await Promise.all([
+    whop.variants.retrieve({ id: WHOP_IDS.planId }),
+    whop.products.retrieve({ id: WHOP_IDS.productId }),
+  ]);
+  const productTitle = product.title;
+  const price = plan.initial_price;
 
   const [initialCallback, initialRedirect] = await Promise.all([
     summarize(session.callbackPaymentId),
     summarize(session.redirectPaymentId),
   ]);
 
-  // The express button appends the outcome to returnUrl when it completes
-  // via redirect. Surface those params so step 4 can dissect them; the
-  // client verifies the payment_id server-side (a route handler writes the
-  // session; a server component render can't).
+  // Whop appends `payment` and `status` to returnUrl when it sends the buyer
+  // back. Surface them so step 4 can dissect them; the client verifies the
+  // payment id server-side (a route handler writes the session; a server
+  // component render can't).
   const first = (v: string | string[] | undefined): string | null =>
     typeof v === "string" ? v : Array.isArray(v) ? (v[0] ?? null) : null;
   const status = first(params.status);
   let returnParams: ReturnParams | null = null;
   if (status) {
     const search = new URLSearchParams();
-    for (const key of ["status", "payment_id", "setup_intent_id", "state_id"]) {
+    for (const key of ["payment", "status"]) {
       const value = first(params[key]);
       if (value) search.set(key, value);
     }
     returnParams = {
       status,
-      paymentId: first(params.payment_id),
-      setupIntentId: first(params.setup_intent_id),
-      stateId: first(params.state_id),
+      paymentId: first(params.payment),
       raw: search.toString(),
     };
   }

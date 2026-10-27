@@ -5,7 +5,7 @@
 // Run with: npm run setup   (alias for: node --env-file=.env.local scripts/setup.mjs)
 
 import { writeFileSync } from "node:fs";
-import Whop from "@whop/sdk";
+import { WhopClient, WhopEnvironment } from "@whop/sdk";
 
 const apiKey = process.env.WHOP_COMPANY_API_KEY;
 const companyId = process.env.WHOP_COMPANY_ID;
@@ -14,19 +14,19 @@ if (!apiKey || !companyId) {
   process.exit(1);
 }
 
-const whop = new Whop({
-  apiKey,
-  baseURL:
+const whop = new WhopClient({
+  token: apiKey,
+  environment:
     process.env.WHOP_SANDBOX === "true"
-      ? "https://sandbox-api.whop.com/api/v1"
-      : "https://api.whop.com/api/v1",
+      ? WhopEnvironment.Sandbox
+      : WhopEnvironment.Production,
 });
 
 const PRODUCT_TITLE = "Demo pass";
 
 async function main() {
   let product = null;
-  for await (const p of whop.products.list({ company_id: companyId })) {
+  for await (const p of await whop.products.list({ account_id: companyId })) {
     if (p.title === PRODUCT_TITLE) {
       product = p;
       break;
@@ -34,7 +34,7 @@ async function main() {
   }
   if (!product) {
     product = await whop.products.create({
-      company_id: companyId,
+      account_id: companyId,
       title: PRODUCT_TITLE,
       description:
         "The product under test in the express checkout demo. Bought through the one-click checkout button, twice.",
@@ -46,8 +46,8 @@ async function main() {
   }
 
   let plan = null;
-  for await (const p of whop.plans.list({
-    company_id: companyId,
+  for await (const p of await whop.variants.list({
+    account_id: companyId,
     product_ids: [product.id],
   })) {
     if (p.plan_type === "one_time" && p.initial_price === 5) {
@@ -56,8 +56,8 @@ async function main() {
     }
   }
   if (!plan) {
-    plan = await whop.plans.create({
-      company_id: companyId,
+    plan = await whop.variants.create({
+      account_id: companyId,
       product_id: product.id,
       plan_type: "one_time",
       initial_price: 5,

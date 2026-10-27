@@ -51,6 +51,9 @@ export function ResetDemoButton() {
             onClick={async () => {
               setBusy(true);
               await fetch("/api/reset", { method: "POST" });
+              try {
+                sessionStorage.removeItem("express-demo:pending-receipt");
+              } catch {}
               // Hard navigation also clears any return-url query params
               // left over from the redirect walkthrough.
               window.location.assign("/");

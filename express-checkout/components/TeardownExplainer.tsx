@@ -9,28 +9,30 @@ export function TeardownExplainer() {
         Express checkout breakdown
       </Heading>
       <Text size="2" color="gray" as="p">
-        Whop&apos;s one-click checkout button, taken apart live on the test
-        sandbox. Companion demo for the article on adding express checkout.
+        This demo shows how Whop&apos;s express checkout works, using test
+        cards so no real money moves. It goes with the article on adding
+        express checkout.
       </Text>
 
       <div className="flex flex-col gap-2.5">
         <div>
           <Text size="2" weight="bold" as="p">
-            One button, three looks
+            Wallets first, card form for everyone else
           </Text>
           <Text size="2" color="gray" as="p">
-            The button looks at your browser and shows Apple Pay, Google
-            Pay, or a Whop Pay button. Your page never touches card details.
+            The button shows Apple Pay, Google Pay, or PayPal when the visitor
+            can use one. On this demo none show up, so everyone pays through
+            Whop&apos;s card form.
           </Text>
         </div>
         <div>
           <Text size="2" weight="bold" as="p">
-            Two ways to finish
+            Whop runs the checkout
           </Text>
           <Text size="2" color="gray" as="p">
-            A payment can finish in a popup while you stay on the page, or
-            send the browser away and back with the result. This demo shows
-            both.
+            The checkout sits inside your page, and your code never touches
+            card details. Whop can send the buyer back with the result in the
+            address bar.
           </Text>
         </div>
         <div>
@@ -38,7 +40,7 @@ export function TeardownExplainer() {
             Trust the server, not the page
           </Text>
           <Text size="2" color="gray" as="p">
-            The page only sees a success message. The server double-checks
+            The page only hears that a payment went through. The server checks
             with Whop before treating any payment as real.
           </Text>
         </div>

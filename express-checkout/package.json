@@ -9,14 +9,15 @@
     "setup": "node --env-file=.env.local scripts/setup.mjs"
   },
   "dependencies": {
-    "@whop/checkout": "^0.3.1",
+    "@whop/elements": "1.9.0",
+    "@whop/elements-react": "1.9.0",
     "@whop/react": "^0.3.2",
-    "@whop/sdk": "^0.0.38",
+    "@whop/sdk": "2.6.0",
     "iron-session": "^8.0.4",
-    "next": "16.2.6",
+    "next": "16.4.3",
     "react": "19.2.4",
     "react-dom": "19.2.4",
-    "zod": "^4.4.3"
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",

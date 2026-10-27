@@ -5,7 +5,7 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "Express checkout breakdown",
   description:
-    "Whop's one-click checkout button, taken apart live on the test sandbox. Watch it pick a payment method, buy through the popup, break it on purpose, and compare it with the full checkout form.",
+    "Whop's express checkout, taken apart live on the test sandbox. Watch it pick a wallet, pay with a card, come back from Whop, break it on purpose, and compare it with the full checkout form.",
 };
 
 export const viewport: Viewport = {

@@ -14,7 +14,7 @@ export async function GET(request: Request) {
     return Response.json({ error: "no_receipt" }, { status: 400 });
   }
 
-  const payment = await getWhop().payments.retrieve(paymentId);
+  const payment = await getWhop().payments.retrieve({ id: paymentId });
 
   return Response.json({
     payment: {
@@ -24,25 +24,21 @@ export async function GET(request: Request) {
       total: payment.total,
       currency: payment.currency,
       paid_at: payment.paid_at,
-      payment_method: payment.payment_method
+      payment_method_id: payment.payment_method_id,
+      payment_instrument: payment.payment_instrument
         ? {
-            id: payment.payment_method.id,
-            payment_method_type: payment.payment_method.payment_method_type,
-            card: payment.payment_method.card
+            payment_method_type: payment.payment_instrument.payment_method_type,
+            card: payment.payment_instrument.card
               ? {
-                  brand: payment.payment_method.card.brand,
-                  last4: payment.payment_method.card.last4,
+                  brand: payment.payment_instrument.card.brand,
+                  last4: payment.payment_instrument.card.last4,
                 }
               : null,
           }
         : null,
-      membership: payment.membership
-        ? { id: payment.membership.id, status: payment.membership.status }
-        : null,
-      plan: payment.plan ? { id: payment.plan.id } : null,
-      product: payment.product
-        ? { id: payment.product.id, title: payment.product.title }
-        : null,
+      membership_id: payment.membership_id,
+      plan_id: payment.plan_id,
+      product_id: payment.product_id,
       user: "(omitted: buyer identity stays private in this demo)",
     },
   });

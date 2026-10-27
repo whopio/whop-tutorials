@@ -10,31 +10,31 @@ export const WALKTHROUGH_STEPS: WalkthroughStep[] = [
   {
     id: "mount",
     title: "Add the button, watch it decide",
-    body: "The button looks at your browser and picks the fastest way to pay. On this test sandbox it always picks Whop Pay because the wallet buttons only appear on live sites.",
+    body: "The button checks which wallets this browser can pay with. This demo's domain has no Apple Pay set up, so the wallet row stays empty here.",
   },
   {
     id: "dialog",
-    title: "Buy through the popup",
-    body: "Click the real button and pay with `4242 4242 4242 4242`. Checkout opens in a popup and this page never reloads.",
+    title: "Pay with card",
+    body: "Open the card form and pay with `4242 4242 4242 4242`. The server checks the payment with Whop before the receipt shows up.",
   },
   {
     id: "verifyStep",
     title: "Verify on the server",
-    body: "The page only saw a success message. The server double-checks with Whop before treating the payment as real.",
+    body: "The page only heard that a payment went through. The server asks Whop directly before treating it as real.",
   },
   {
     id: "redirect",
-    title: "Leave the page and come back",
-    body: "This copy of the button works the other way. After you pay, the browser leaves the page and comes back with the result in the address bar.",
+    title: "Come back from Whop",
+    body: "When a payment finishes, Whop can send the buyer back with the result in the address bar. The buttons here open this page at that same address.",
   },
   {
     id: "breakStep",
     title: "Break it on purpose",
-    body: "Two real failures. Leave out the required `returnUrl` and watch the button refuse, then pay with the decline card `4000 0000 0000 0002`.",
+    body: "Two real failures. Give the button a plan that doesn't exist, then pay with the decline card `4000 0000 0000 0002`.",
   },
   {
     id: "shapes",
     title: "Same product, two shapes",
-    body: "Flip between the one-click button and the full checkout form for the same product. The captions say when to use which.",
+    body: "Flip between the wallet buttons and the full checkout form for the same product. The captions say when to use which.",
   },
 ];
